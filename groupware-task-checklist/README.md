@@ -25,36 +25,50 @@
   `.env`의 `GW_ID` / `GW_PW`는 세션이 끊겼을 때만 쓰이는 보조 수단이니, 굳이 채우지 않아도 됩니다.
 - 채팅창 등에 비밀번호를 평문으로 입력하는 습관은 지양하시고, 필요하면 이후 비밀번호를 변경하시길 권장합니다.
 
-## 설치
+## 설치 및 실행 (더블클릭만으로)
 
-```bash
-cd groupware-task-checklist
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-pip install -r requirements.txt
-playwright install chromium
-```
+명령어를 직접 치는 대신, 프로젝트 폴더 안의 3개 배치파일을 순서대로 더블클릭하면 됩니다.
 
-## 설정
-
-1. `.env.example` 을 복사해 `.env` 로 저장하고 `GW_LOGIN_URL` 을 확인합니다.
-2. 로그인 세션 만들기:
-   ```bash
-   python login_setup.py
-   ```
-   브라우저 창이 열리면 평소처럼 직접 로그인하세요(캡차/보안문자 등이 나와도 사람이 처리하면 됩니다).
-   로그인 후, **메일함 / 전자결재 부서함 완료함 / 부서함 참조·회람함 / 개인함 완료함 / 개인함 참조·회람함**
-   화면으로 각각 이동해서 주소창 URL을 복사해 `.env`의 해당 항목에 붙여넣으세요.
+1. **`1_설치.bat`** — 최초 1회만. 가상환경 생성, 패키지 설치, 브라우저 설치, `.env` 파일 생성까지 자동으로 해줍니다.
+   중간에 메모장이 열리면 `GW_LOGIN_URL` 이 채워져 있는지 확인하고 저장 후 닫으세요.
+2. **`2_로그인설정.bat`** — 최초 1회 (또는 로그인 세션이 만료됐을 때). 브라우저가 열리면 직접 로그인하고,
+   메일함/전자결재 4개 화면(부서함 완료함·참조회람함, 개인함 완료함·참조회람함)으로 이동해 주소창 URL을 복사해두세요.
+   그 다음 `.env` 파일을 메모장으로 열어 아래 항목에 붙여넣고 저장하세요.
    - `GW_MAIL_LIST_URL`
    - `GW_APPROVAL_DEPT_COMPLETED_URL`
    - `GW_APPROVAL_DEPT_REFERENCE_URL`
    - `GW_APPROVAL_PERSONAL_COMPLETED_URL`
    - `GW_APPROVAL_PERSONAL_REFERENCE_URL`
-3. 첫 실행은 눈으로 확인하며 하는 걸 권장합니다. `.env`에서 `HEADED=true` 로 바꾸고:
-   ```bash
-   python main.py
-   ```
-   브라우저가 뜨고 메일함/전자결재함을 순서대로 열어보는 걸 확인하세요.
+3. **`3_실행.bat`** — 매번 실행할 때. 그룹웨어를 조회해서 팝업을 띄웁니다.
+
+(명령 프롬프트로 직접 하고 싶다면 아래처럼 해도 됩니다.)
+
+```bash
+cd groupware-task-checklist
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
+copy .env.example .env
+python login_setup.py
+python main.py
+```
+
+첫 실행은 눈으로 확인하며 하는 걸 권장합니다. `.env`에서 `HEADED=true` 로 바꾸고 `3_실행.bat`(또는 `python main.py`)을
+실행하면 브라우저가 뜨고 메일함/전자결재함을 순서대로 열어보는 걸 확인할 수 있습니다.
+
+## 폴더를 원하는 위치로 옮기고 싶다면
+
+`1_설치.bat`/`3_실행.bat` 등은 모두 "자기가 있는 위치 기준"으로 동작하므로, 프로젝트 폴더 전체를
+어디로 옮기거나 이름을 바꿔도 그대로 잘 동작합니다 (단, `.git` 폴더가 있는 최상위 폴더째로 옮겨야
+나중에 `git pull`로 업데이트를 받을 수 있습니다).
+
+예: `C:\Users\tyinc\Desktop\ai 개발관련\` 안으로 옮기고 싶다면, 탐색기에서 클론한 폴더 전체를
+잘라내기(Ctrl+X) 후 그 위치에 붙여넣기(Ctrl+V) 하면 됩니다. `.venv`, `.env`, `.state`(저장된 로그인 세션)도
+전부 폴더 안에 같이 있어서 그대로 옮겨집니다 — 다시 설치/로그인할 필요 없습니다.
+
+바탕화면에 예쁜 이름의 아이콘만 두고 싶다면: `3_실행.bat` 우클릭 → "바로 가기 만들기" → 그 바로가기를
+바탕화면으로 옮기고 이름을 "그룹웨어 업무체크리스트" 로 바꾸면, 그 아이콘만 더블클릭해서 실행할 수 있습니다.
 
 ## 목록 인식 방식과 한계 (중요)
 
@@ -98,12 +112,12 @@ playwright install chromium
 
 ## 매일 자동 실행 (Windows 작업 스케줄러)
 
-### 1) bat 파일 경로 수정
+`scripts/run_checklist.bat` 은 경로를 따로 수정할 필요 없이 그대로 쓰면 됩니다
+(자기 위치를 기준으로 동작하도록 만들어져 있습니다). 이 파일의 **전체 경로**를 작업 스케줄러에
+등록하기만 하면 됩니다. (팝업 창을 직접 보고 싶을 때는 이 파일 대신 `3_실행.bat`을 쓰세요 —
+`run_checklist.bat`은 콘솔창 없이 조용히 실행되도록 만들어져 있어 자동 실행용입니다.)
 
-`scripts/run_checklist.bat` 을 메모장으로 열어 `PROJECT_DIR` 값을 실제 설치 경로로 맞춰주세요
-(venv를 `.venv` 이름 그대로 만들었다면 나머지는 자동으로 맞습니다).
-
-### 2) 작업 스케줄러 등록 - GUI 방식
+### 1) 작업 스케줄러 등록 - GUI 방식
 
 1. 시작 메뉴에서 "작업 스케줄러" 실행
 2. 오른쪽 "작업 만들기" 클릭
@@ -113,7 +127,7 @@ playwright install chromium
    (예: `C:\Users\tyinc\-AI-\groupware-task-checklist\scripts\run_checklist.bat`)
 6. 확인 → 완료
 
-### 3) 작업 스케줄러 등록 - 명령어 방식 (더 빠름, 2번과 둘 중 하나만 하면 됨)
+### 2) 작업 스케줄러 등록 - 명령어 방식 (더 빠름, 1번과 둘 중 하나만 하면 됨)
 
 관리자 권한 없이 실행하는 cmd에서, 경로만 본인 것으로 바꿔서 실행하면 GUI 없이 바로 등록됩니다:
 
@@ -124,7 +138,7 @@ schtasks /create /tn "그룹웨어 업무 체크리스트" /tr "C:\Users\tyinc\-
 등록 확인: `schtasks /query /tn "그룹웨어 업무 체크리스트"`
 삭제하고 싶을 때: `schtasks /delete /tn "그룹웨어 업무 체크리스트" /f`
 
-### 4) 주의사항
+### 3) 주의사항
 
 - 그룹웨어 세션이 짧게 만료되는 경우, 자동 실행 시 로그인이 안 될 수 있습니다.
   이 경우 며칠에 한 번은 `python login_setup.py` 를 재실행해서 세션을 갱신해주거나,
@@ -144,6 +158,9 @@ pytest
 ## 프로젝트 구조
 
 ```
+1_설치.bat              더블클릭: 최초 설치 (venv/패키지/브라우저/.env 생성)
+2_로그인설정.bat          더블클릭: login_setup.py 실행
+3_실행.bat               더블클릭: main.py 실행 (매번 이걸로 실행)
 config.py              .env 설정 로딩
 login_setup.py          최초 1회 수동 로그인 → 세션 저장
 main.py                  전체 실행 오케스트레이션
