@@ -1,8 +1,10 @@
 // dashboard.js – UI rendering for the stock dashboard
 
-// 상대 경로 사용: server.py가 프론트엔드와 API를 같은 origin에서 서빙하므로
-// 다른 PC/포트에서 실행해도 코드 수정 없이 그대로 동작한다.
-const API_BASE = '/data';
+// 절대 주소 사용: server.py가 항상 5000번 포트로 뜨므로, html 파일을
+// 파일탐색기에서 직접 더블클릭(file://)해서 열든, 서버 경유(http://localhost:5000)로
+// 열든 상관없이 동일하게 동작한다. (상대 경로 '/data'를 쓰면 file://로 열었을 때
+// fetch가 file:///data를 시도해 항상 실패한다.)
+const API_BASE = 'http://localhost:5000/data';
 
 // 현재기준(current, 실시간) / 장마감기준(close, 15:30 마감 고정) 전환 상태.
 // 서버가 한 번에 두 값을 모두 내려주므로, 탭 전환은 재요청 없이 마지막으로
