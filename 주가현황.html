@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>주가현황 대시보드</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- ── 좌측 사이드바 ── -->
+    <aside class="sidebar">
+      <h2>기준 시점</h2>
+      <div class="tab-group" id="basisTabs">
+        <button class="tab-btn active" data-basis="current">현재기준</button>
+        <button class="tab-btn" data-basis="close">장마감기준</button>
+      </div>
+
+      <h2>실시간 환율 (USD/KRW)</h2>
+      <div id="exchangeRate" class="card">--</div>
+      <button id="refreshBtn" class="btn">Refresh</button>
+      <button id="pdfBtn" class="btn">Export PDF</button>
+      <div id="lastUpdated" class="info"></div>
+    </aside>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <main class="main">
+
+      <!-- 페이지 타이틀 -->
+      <h1 class="page-title">주가현황 <span class="market-note" id="basisNote">(현재기준)</span></h1>
+
+      <!-- 1. 지수 현황 -->
+      <section class="section" id="indices-section">
+        <h2>지수 현황</h2>
+        <div class="grid grid-2">
+          <div class="card" id="kospi-index">KOSPI: --</div>
+          <div class="card" id="kosdaq-index">KOSDAQ: --</div>
+        </div>
+      </section>
+
+      <!-- 2. 테마별 시세 -->
+      <section class="section" id="themes-section">
+        <h2>테마별 시세</h2>
+        <div class="theme-grid" id="themes-grid">
+          <!-- Theme cards injected by dashboard.js -->
+        </div>
+      </section>
+
+      <!-- 3. 상장 계열사 주가 현황 -->
+      <section class="section" id="companies-section">
+        <h2>상장 계열사 주가 현황</h2>
+        <div class="table-wrap">
+          <table id="companies-table">
+            <colgroup>
+              <col style="width:13%"><!-- 회사명 -->
+              <col style="width:12%"><!-- 주식수 -->
+              <col style="width:8%"> <!-- 자본금 -->
+              <col style="width:8%"> <!-- 전년말 주가 -->
+              <col style="width:8%"> <!-- 당일 주가 -->
+              <col style="width:11%"><!-- 전년말 시총 -->
+              <col style="width:11%"><!-- 당일 시총 -->
+              <col style="width:8%"> <!-- 등락율 -->
+              <col style="width:10%"><!-- 52주 최고 -->
+              <col style="width:10%"><!-- 52주 최저 -->
+            </colgroup>
+            <thead>
+              <tr>
+                <th>회사명</th><th>주식수(보통주)</th><th>자본금(억원)</th>
+                <th>전년말 주가</th><th>당일 주가</th>
+                <th>전년말 시가총액</th><th>당일 시가총액</th><th>등락율</th>
+                <th>52주 최고</th><th>52주 최저</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 4. 상장 시멘트사 주가 현황 -->
+      <section class="section" id="cement-section">
+        <h2>상장 시멘트사 주가 현황</h2>
+        <div class="table-wrap">
+          <table id="cement-table">
+            <colgroup>
+              <col style="width:13%"><!-- 회사명 -->
+              <col style="width:12%"><!-- 주식수 -->
+              <col style="width:8%"> <!-- 자본금 -->
+              <col style="width:8%"> <!-- 전년말 주가 -->
+              <col style="width:8%"> <!-- 당일 주가 -->
+              <col style="width:11%"><!-- 전년말 시총 -->
+              <col style="width:11%"><!-- 당일 시총 -->
+              <col style="width:8%"> <!-- 등락율 -->
+              <col style="width:10%"><!-- 52주 최고 -->
+              <col style="width:10%"><!-- 52주 최저 -->
+            </colgroup>
+            <thead>
+              <tr>
+                <th>회사명</th><th>주식수(보통주)</th><th>자본금(억원)</th>
+                <th>전년말 주가</th><th>당일 주가</th>
+                <th>전년말 시가총액</th><th>당일 시가총액</th><th>등락율</th>
+                <th>52주 최고</th><th>52주 최저</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 5. 주가 동향 코멘트 (수급 패턴 + 뉴스 스크랩 기반 자동 요약) -->
+      <section class="section" id="commentary-section">
+        <h2>주가 동향 코멘트</h2>
+        <ul id="commentary-list" class="commentary-list">
+          <li>코멘트 불러오는 중…</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── 수급 동향 모달 (기본 숨김) ── -->
+  <div class="modal-overlay" id="investorModalOverlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title" id="investorModalTitle">수급 동향</span>
+        <button class="modal-close" id="investorModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div class="table-wrap">
+        <table id="investorModalTable">
+          <colgroup>
+            <col style="width:14%"><!-- 날짜 -->
+            <col style="width:11%"><!-- 종가 -->
+            <col style="width:11%"><!-- 등락율 -->
+            <col style="width:17%"><!-- 총거래대금 -->
+            <col style="width:16%"><!-- 개인순매매 -->
+            <col style="width:16%"><!-- 기관순매매 -->
+            <col style="width:15%"><!-- 외국인순매매 -->
+          </colgroup>
+          <thead>
+            <tr>
+              <th>날짜</th><th>종가</th><th>등락율</th><th>총거래대금<br>(백만원)</th>
+              <th>개인순매매</th><th>기관순매매</th><th>외국인순매매</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

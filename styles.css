@@ -1,0 +1,365 @@
+/* styles.css – Dark-mode dashboard */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0a0a0f;
+  --surface:  #12121c;
+  --card:     #1a1a2e;
+  --border:   rgba(255,255,255,0.15);
+  --text:     #e2e2f0;
+  --muted:    #8888aa;
+  --accent:   #5b6af0;
+  --title:    #7dd3fc;           /* 제목 전용 하늘색 */
+  --up:       #ef4444;           /* 상승 = 빨강 (한국식) */
+  --down:     #3b82f6;           /* 하락 = 파랑 (한국식) */
+  --radius:   10px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── Layout ──────────────────────────────────────────────────── */
+.container {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px 28px;
+}
+
+/* ── Page Title ──────────────────────────────────────────────── */
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--title);
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  margin-bottom: 28px;
+  letter-spacing: .02em;
+}
+.market-note {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.sidebar h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+
+#exchangeRate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+}
+.exr-label { font-size: 12px; color: var(--muted); }
+.exr-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .02em;
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.3;
+}
+.exr-change {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.btn {
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s, border-color .15s;
+  width: 100%;
+}
+.btn:hover { background: rgba(255,255,255,0.12); border-color: var(--accent); }
+
+.info { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+/* ── Basis Tabs (현재기준 / 장마감기준) ──────────────────────── */
+.tab-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tab-btn {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .15s, color .15s;
+}
+.tab-btn + .tab-btn { border-left: 1px solid var(--border); }
+.tab-btn:hover { background: rgba(255,255,255,0.1); }
+.tab-btn.active { background: var(--accent); color: #fff; }
+
+/* ── Sections ────────────────────────────────────────────────── */
+.section {
+  margin-bottom: 32px;
+}
+.section h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--title);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Index Cards ─────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.idx-name  { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.idx-value { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.idx-detail{
+  font-size: 12px;
+  color: var(--muted);
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.4;
+}
+
+/* ── Theme Grid ──────────────────────────────────────────────── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.theme-card   { text-align: center; }
+.theme-name   { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.theme-change {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+/* ── Up / Down color ─────────────────────────────────────────── */
+.up   { color: var(--up); }
+.down { color: var(--down); }
+
+/* ── Table Wrapper ───────────────────────────────────────────── */
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;          /* 내부 테이블 테두리가 wrap 밖으로 안 나가게 */
+  overflow-x: auto;
+}
+
+/* ── Tables ──────────────────────────────────────────────────── */
+table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th, td {
+  padding: 8px 7px;
+  text-align: left;
+  border: 1px solid var(--border);  /* 전체 셀 테두리 (상하좌우) */
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+th {
+  background: rgba(255,255,255,0.05);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-align: center;          /* 헤더 가운데 정렬 */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+tr:hover td { background: rgba(255,255,255,0.025); }
+
+/* ── 주가 동향 코멘트 ────────────────────────────────────────── */
+.commentary-list {
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.commentary-list li {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  padding-left: 14px;
+  position: relative;
+  word-break: keep-all;
+}
+.commentary-list li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--title);
+}
+
+/* ── Print ───────────────────────────────────────────────────── */
+@media print {
+  /* A4 세로, 여백 14mm×10mm */
+  @page { size: A4 portrait; margin: 14mm 10mm; }
+
+  /* 색상 그대로 인쇄 */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* 변수 덮어쓰기: 흰 배경에서 테두리·글자 잘 보이게 */
+  :root {
+    --bg:      #ffffff;
+    --surface: #ffffff;
+    --card:    #f4f4f8;
+    --border:  #999999;          /* 인쇄 시 진한 테두리 */
+    --text:    #111111;
+    --muted:   #555555;
+    --title:   #0369a1;          /* 인쇄 시 하늘색 → 짙은 파란색 */
+    --up:      #b91c1c;
+    --down:    #1d4ed8;
+  }
+
+  /* 사이드바 숨김, 레이아웃 블록으로 전환 */
+  .sidebar  { display: none; }
+  .container { display: block; }
+  .main { padding: 0; overflow: visible; }
+
+  /* 섹션 페이지 분리 방지 */
+  .section { page-break-inside: avoid; margin-bottom: 18px; }
+
+  /* 테마 그리드: 인쇄 시 2×2 배치 */
+  .theme-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 지수 카드: 2칸 유지 */
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+  /* 표 폰트 축소 */
+  table { font-size: 9px; }
+  th, td { padding: 4px 5px; }
+
+  /* 버튼 숨김 */
+  .btn { display: none; }
+  .tab-group { display: none; }
+}
+
+/* ── Modal & Links ───────────────────────────────────────────── */
+.clickable-name {
+  color: var(--title);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.clickable-name:hover {
+  opacity: 0.8;
+}
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.show {
+  opacity: 1; pointer-events: auto;
+}
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 680px; max-width: 95%;
+  position: relative;
+}
+#investorModalTable { table-layout: fixed; font-size: 12px; }
+#investorModalTable th, #investorModalTable td { padding: 7px 5px; }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--title); }
+.modal-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 20px; cursor: pointer;
+}
+.modal-close:hover { color: var(--text); }
+
+@media print {
+  .modal-overlay { display: none !important; }
+}
+

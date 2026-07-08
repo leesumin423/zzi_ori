@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+# 개발 중 생성된 디버그/스크래치 파일 (기능에는 불필요)
+debug_*.py
+debug_*.html
+
+# Claude Code 로컬 설정 (개인 환경/권한 설정이라 공유 불필요)
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
