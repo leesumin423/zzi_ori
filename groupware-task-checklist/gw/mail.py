@@ -5,6 +5,7 @@ from typing import List
 
 from core.date_extract import extract_dates, guess_doc_date
 from core.models import Task
+from core.text_parse import parse_receiver, parse_sender, parse_subject
 
 from .browser import GWSession
 from .scrape_common import is_excluded, open_row, scan_rows
@@ -51,7 +52,14 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
 
         combined = f"{row_text}\n{body_text}"
         matches = extract_dates(combined, doc_date)
-        title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
+        if not matches:
+            continue
+
+        title = parse_subject(body_text) or parse_subject(row_text)
+        if not title:
+            title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
+        sender = parse_sender(body_text) or parse_sender(row_text) or ""
+        receiver = parse_receiver(body_text) or parse_receiver(row_text) or ""
 
         for m in matches:
             tasks.append(
@@ -59,6 +67,8 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                     source="mail",
                     folder="메일함",
                     title=title,
+                    sender=sender,
+                    receiver=receiver,
                     doc_date=doc_date,
                     due_date=m.due_date,
                     matched_text=m.matched_text,

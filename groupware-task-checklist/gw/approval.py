@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from core.date_extract import extract_dates, guess_doc_date
 from core.models import Task
+from core.text_parse import parse_sender, parse_subject
 
 from .browser import GWSession
 from .scrape_common import open_row, scan_rows
@@ -50,7 +51,13 @@ def collect_approval_tasks(session: GWSession, folder_urls: Dict[str, str], run_
 
             combined = f"{row_text}\n{body_text}"
             matches = extract_dates(combined, doc_date)
-            title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
+            if not matches:
+                continue
+
+            title = parse_subject(body_text) or parse_subject(row_text)
+            if not title:
+                title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
+            sender = parse_sender(body_text) or parse_sender(row_text) or ""
 
             for m in matches:
                 tasks.append(
@@ -58,6 +65,7 @@ def collect_approval_tasks(session: GWSession, folder_urls: Dict[str, str], run_
                         source="approval",
                         folder=folder_name,
                         title=title,
+                        sender=sender,
                         doc_date=doc_date,
                         due_date=m.due_date,
                         matched_text=m.matched_text,

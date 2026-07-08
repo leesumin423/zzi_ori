@@ -2,6 +2,9 @@
 
 tkinter 표준 라이브러리만 사용 (추가 설치 불필요, Windows 기본 python.org 설치본에는 기본 포함).
 체크한 항목은 "완료 표시 저장하고 닫기" 버튼을 눌러야 저장된다 (core.state 로 넘김).
+
+Windows 기본 Tk 글꼴은 컬러 이모지(🔴🟠🎉 등)를 지원하지 않아 깨진 네모/기호로 보이는 경우가 많아,
+이모지 없이 한글 텍스트 + 색상만으로 구분한다.
 """
 
 from __future__ import annotations
@@ -11,34 +14,40 @@ from datetime import date
 from tkinter import font as tkfont
 from typing import Callable, Dict, List
 
-from core.classify import BUCKET_LABELS, DEFAULT_VISIBLE_BUCKETS
+from core.classify import NEXT_WEEK, OVERDUE, THIS_WEEK, TODAY, bucket_label, days_label, ordered_buckets
 from core.models import Task
 
 BG_COLOR = "#FFF9C4"  # 포스트잇 느낌 파스텔 옐로우
+DEFAULT_SECTION_COLOR = "#455A64"
 SECTION_COLORS = {
-    "OVERDUE": "#D32F2F",
-    "TODAY": "#EF6C00",
-    "THIS_WEEK": "#F9A825",
-    "NEXT_WEEK": "#1565C0",
+    OVERDUE: "#C62828",
+    TODAY: "#EF6C00",
+    THIS_WEEK: "#F9A825",
+    NEXT_WEEK: "#1565C0",
 }
+
+
+def _section_color(bucket: str) -> str:
+    return SECTION_COLORS.get(bucket, DEFAULT_SECTION_COLOR)
 
 
 def show_checklist(groups: Dict[str, List[Task]], run_date: date,
                     on_save: Callable[[List[str]], None]) -> None:
-    visible_buckets = [b for b in DEFAULT_VISIBLE_BUCKETS if groups.get(b)]
+    buckets = ordered_buckets(groups)
 
     root = tk.Tk()
-    root.title(f"오늘의 업무 체크리스트 - {run_date.isoformat()}")
+    root.title(f"업무 체크리스트 - {run_date.isoformat()}")
     root.configure(bg=BG_COLOR)
     root.attributes("-topmost", True)
-    root.geometry("480x600+80+80")
+    root.geometry("560x640+80+80")
 
-    title_font = tkfont.Font(family="Malgun Gothic", size=13, weight="bold")
-    section_font = tkfont.Font(family="Malgun Gothic", size=11, weight="bold")
-    item_font = tkfont.Font(family="Malgun Gothic", size=10)
+    title_font = tkfont.Font(family="맑은 고딕", size=13, weight="bold")
+    section_font = tkfont.Font(family="맑은 고딕", size=11, weight="bold")
+    item_font = tkfont.Font(family="맑은 고딕", size=10)
+    meta_font = tkfont.Font(family="맑은 고딕", size=9)
 
     header = tk.Label(
-        root, text=f"📋 업무 체크리스트  ({run_date.strftime('%Y-%m-%d (%a)')})",
+        root, text=f"업무 체크리스트  ({run_date.strftime('%Y-%m-%d (%a)')})",
         font=title_font, bg=BG_COLOR, anchor="w", justify="left",
     )
     header.pack(fill="x", padx=12, pady=(12, 4))
@@ -61,17 +70,17 @@ def show_checklist(groups: Dict[str, List[Task]], run_date: date,
 
     check_vars: Dict[str, tk.BooleanVar] = {}
 
-    if not visible_buckets:
+    if not buckets:
         tk.Label(
-            scroll_frame, text="🎉 오늘 특별히 챙길 업무가 없습니다.",
+            scroll_frame, text="오늘 특별히 챙길 업무가 없습니다.",
             font=section_font, bg=BG_COLOR, fg="#2E7D32",
         ).pack(anchor="w", pady=20)
     else:
-        for bucket in visible_buckets:
+        for bucket in buckets:
             tasks = groups[bucket]
             sec_label = tk.Label(
-                scroll_frame, text=f"{BUCKET_LABELS[bucket]}  ({len(tasks)}건)",
-                font=section_font, bg=BG_COLOR, fg=SECTION_COLORS.get(bucket, "#333"),
+                scroll_frame, text=f"[ {bucket_label(bucket)} ]  {len(tasks)}건",
+                font=section_font, bg=BG_COLOR, fg=_section_color(bucket),
                 anchor="w",
             )
             sec_label.pack(fill="x", pady=(12, 2))
@@ -79,14 +88,33 @@ def show_checklist(groups: Dict[str, List[Task]], run_date: date,
             for t in tasks:
                 var = tk.BooleanVar(value=False)
                 check_vars[t.id] = var
+
                 due_str = t.due_date.isoformat() if t.due_date else "?"
-                label_text = f"[{t.source}/{t.folder}] {t.title}\n   → 마감 {due_str}  ·  \"{t.matched_text}\""
+                d_label = days_label(t.due_date, run_date) if t.due_date else ""
+                sender_str = t.sender or "발신자 미상"
+
+                item_frame = tk.Frame(scroll_frame, bg=BG_COLOR)
+                item_frame.pack(fill="x", padx=4, pady=(2, 6), anchor="w")
+
                 cb = tk.Checkbutton(
-                    scroll_frame, text=label_text, variable=var, font=item_font,
-                    bg=BG_COLOR, anchor="w", justify="left", wraplength=420,
+                    item_frame, text=f"[{t.source}/{t.folder}] {t.title}",
+                    variable=var, font=item_font,
+                    bg=BG_COLOR, anchor="w", justify="left", wraplength=460,
                     activebackground=BG_COLOR,
                 )
-                cb.pack(fill="x", padx=4, pady=1, anchor="w")
+                cb.pack(fill="x", anchor="w")
+
+                meta_text = f"     보낸사람: {sender_str}   |   마감 {due_str} ({d_label})"
+                tk.Label(
+                    item_frame, text=meta_text, font=meta_font, bg=BG_COLOR,
+                    fg="#333333", anchor="w", justify="left", wraplength=460,
+                ).pack(fill="x", anchor="w")
+
+                if t.matched_text:
+                    tk.Label(
+                        item_frame, text=f'     원문: "{t.matched_text}"', font=meta_font,
+                        bg=BG_COLOR, fg="#777777", anchor="w", justify="left", wraplength=460,
+                    ).pack(fill="x", anchor="w")
 
     button_frame = tk.Frame(root, bg=BG_COLOR)
     button_frame.pack(fill="x", padx=12, pady=10)
