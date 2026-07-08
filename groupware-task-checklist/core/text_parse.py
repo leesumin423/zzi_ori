@@ -13,6 +13,7 @@ from typing import List, Optional
 SENDER_LABELS = ["보낸\\s*사람", "발신자", "기안자", "상신자", "작성자", "신청자", "From"]
 RECEIVER_LABELS = ["받는\\s*사람", "수신자", "결재자", "To"]
 SUBJECT_LABELS = ["제\\s*목", "문서명", "건\\s*명", "Subject"]
+FORM_TYPE_LABELS = ["양식명", "문서종류", "기안종류", "서식명", "결재종류"]
 
 _MAX_LEN = 60
 
@@ -42,3 +43,7 @@ def parse_receiver(text: str) -> Optional[str]:
 
 def parse_subject(text: str) -> Optional[str]:
     return _search_first(text, SUBJECT_LABELS)
+
+
+def parse_form_type(text: str) -> Optional[str]:
+    return _search_first(text, FORM_TYPE_LABELS)

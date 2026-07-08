@@ -1,4 +1,4 @@
-from core.text_parse import parse_receiver, parse_sender, parse_subject
+from core.text_parse import parse_form_type, parse_receiver, parse_sender, parse_subject
 
 
 def test_parse_mail_header():
@@ -18,6 +18,11 @@ def test_parse_approval_header():
     text = "문서명: 출장 신청서\n기안자: 김철수\n결재자: 박부장"
     assert parse_subject(text) == "출장 신청서"
     assert parse_sender(text) == "김철수"
+
+
+def test_parse_form_type():
+    text = "양식명 : 법인인감신청서\n작성자: 김철수"
+    assert parse_form_type(text) == "법인인감신청서"
 
 
 def test_parse_returns_none_when_missing():

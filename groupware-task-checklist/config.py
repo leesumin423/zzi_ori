@@ -63,5 +63,20 @@ class Config:
 
     debug_dump: bool = _get_bool("DEBUG_DUMP", False)
 
+    # ── 전자결재 결재 전 오류 검증 (임시함) ─────────────────────
+    approval_temp_url: str = os.getenv("GW_APPROVAL_TEMP_URL", "")
+    draft_form_filter: List[str] = _get_list("DRAFT_FORM_FILTER")  # 비우면 전체
+    review_lookback_days: int = _get_int("REVIEW_LOOKBACK_DAYS", 14)
+    review_max_drafts: int = _get_int("REVIEW_MAX_DRAFTS", 30)
+    max_attachment_mb: int = _get_int("MAX_ATTACHMENT_MB", 15)
+    max_attachment_pages: int = _get_int("MAX_ATTACHMENT_PAGES", 8)
+
+    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")
+    review_effort: str = os.getenv("REVIEW_EFFORT", "high")
+
+    attachments_dir: Path = STATE_DIR / "attachments"
+    reports_dir: Path = BASE_DIR / "reports"
+
 
 config = Config()

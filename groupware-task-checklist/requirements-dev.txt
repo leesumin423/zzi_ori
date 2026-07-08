@@ -1,2 +1,2 @@
--r requirements.txt
+-r requirements-review.txt
 pytest>=7.0.0
