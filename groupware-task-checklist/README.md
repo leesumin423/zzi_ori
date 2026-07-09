@@ -89,6 +89,11 @@ python main.py
 - 페이지네이션(다음 페이지) 미지원 - 첫 화면에 보이는 항목만 조회 (기본 최대 60행)
 - 목록이 iframe 안에 여러 겹으로 중첩된 경우 탐지가 어긋날 수 있음
 
+행을 클릭했을 때 상세 내용이 뜨는 방식도 사이트마다 다릅니다 — 같은 화면 안에서 iframe이
+바뀌는 방식과, **새 팝업 창**(예: `MailView_WindowPop.aspx` 같은 이름)이 뜨는 방식 둘 다
+자동으로 감지해서 처리합니다(`gw/browser.py`의 `open_detail`). 그래도 본문을 못 읽는 것 같으면
+`DEBUG_DUMP=true`로 켜고 `debug_dumps/` 폴더에 저장된 파일에서 실제로 뭘 읽었는지 확인해보세요.
+
 **문제가 생기면:**
 1. `.env`에서 `HEADED=true`, `SLOWMO_MS=300` 정도로 설정하고 `python main.py` 로 눈으로 확인
 2. `logs/run.log` 에서 몇 건이 인식됐는지 확인

@@ -72,11 +72,15 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
 
         body_text = row_text
         if open_detail:
+            clicked = {"ok": False}
+
+            def _click(idx=idx):
+                clicked["ok"] = open_row(list_frame, idx)
+
             try:
-                if open_row(list_frame, idx):
-                    page.wait_for_timeout(600)
-                    detail_frame = session.largest_text_frame()
-                    body_text = detail_frame.locator("body").inner_text(timeout=5000)
+                text = session.read_after_action(_click)
+                if clicked["ok"] and text:
+                    body_text = text
                     n_opened += 1
                     if debug_dir is not None:
                         opened_bodies.append(body_text)

@@ -35,10 +35,11 @@ def _sanitize_filename(name: str) -> str:
     return name or "attachment"
 
 
-def _download_attachments(session: GWSession, detail_frame, draft_id: str,
+def _download_attachments(detail_frame, draft_id: str,
                            attachments_dir: Path, max_attachment_mb: int) -> List[Path]:
     saved: List[Path] = []
     try:
+        owner_page = detail_frame.page
         links = detail_frame.locator("a")
         count = links.count()
     except Exception:
@@ -63,7 +64,7 @@ def _download_attachments(session: GWSession, detail_frame, draft_id: str,
 
     for i in candidates:
         try:
-            with session.page.expect_download(timeout=5000) as download_info:
+            with owner_page.expect_download(timeout=5000) as download_info:
                 links.nth(i).click()
             download = download_info.value
             dest_dir.mkdir(parents=True, exist_ok=True)
@@ -114,36 +115,49 @@ def collect_temp_drafts(session: GWSession, temp_url: str, run_date: date,
 
         body_text = row_text
         detail_frame = list_frame
+        popup = None
+        clicked = {"ok": False}
+
+        def _click(idx=idx):
+            clicked["ok"] = open_row(list_frame, idx)
+
         try:
-            if open_row(list_frame, idx):
-                page.wait_for_timeout(600)
-                detail_frame = session.largest_text_frame()
+            popup, detail_frame = session.open_detail(_click)
+            if clicked["ok"]:
                 body_text = detail_frame.locator("body").inner_text(timeout=5000)
         except Exception:
             body_text = row_text
+            detail_frame = list_frame
 
-        title = parse_subject(body_text) or parse_subject(row_text)
-        if not title:
-            title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
-        form_type = parse_form_type(body_text) or parse_form_type(row_text) or ""
-        drafter = parse_sender(body_text) or parse_sender(row_text) or ""
+        try:
+            title = parse_subject(body_text) or parse_subject(row_text)
+            if not title:
+                title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
+            form_type = parse_form_type(body_text) or parse_form_type(row_text) or ""
+            drafter = parse_sender(body_text) or parse_sender(row_text) or ""
 
-        attachment_paths: List[Path] = []
-        if download_attachments:
-            draft_id_seed = f"{idx}_{title}"[:80]
-            attachment_paths = _download_attachments(
-                session, detail_frame, draft_id_seed, attachments_dir, max_attachment_mb,
+            attachment_paths: List[Path] = []
+            if download_attachments and clicked["ok"]:
+                draft_id_seed = f"{idx}_{title}"[:80]
+                attachment_paths = _download_attachments(
+                    detail_frame, draft_id_seed, attachments_dir, max_attachment_mb,
+                )
+
+            drafts.append(
+                DraftDocument(
+                    title=title,
+                    form_type=form_type,
+                    drafter=drafter,
+                    body_text=body_text,
+                    url=(popup.url if popup is not None else page.url),
+                    attachment_paths=attachment_paths,
+                )
             )
-
-        drafts.append(
-            DraftDocument(
-                title=title,
-                form_type=form_type,
-                drafter=drafter,
-                body_text=body_text,
-                url=page.url,
-                attachment_paths=attachment_paths,
-            )
-        )
+        finally:
+            if popup is not None:
+                try:
+                    popup.close()
+                except Exception:
+                    pass
 
     return drafts
