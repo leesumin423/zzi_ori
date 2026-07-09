@@ -18,7 +18,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from config import config
+from config import DEBUG_DIR, config
 from core.classify import classify_tasks, group_by_bucket
 from core.state import apply_state, load_state, mark_done, save_state
 from gw.approval import collect_approval_tasks
@@ -77,14 +77,18 @@ def main() -> None:
         )
         session.save_storage_state(config.storage_state_path)
 
+        debug_dir = DEBUG_DIR if config.debug_dump else None
+
         log.info("메일함 조회 중...")
         tasks += collect_mail_tasks(
             session, config.mail_list_url, run_date,
             config.mail_lookback_days, config.mail_subject_exclude,
+            debug_dir=debug_dir,
         )
         log.info("전자결재함 조회 중...")
         tasks += collect_approval_tasks(
             session, config.approval_urls, run_date, config.approval_lookback_days,
+            debug_dir=debug_dir,
         )
     except LoginRequiredError as e:
         _notify_error(str(e))
