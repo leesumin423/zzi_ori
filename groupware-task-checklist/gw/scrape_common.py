@@ -48,13 +48,11 @@ _SCAN_JS = """
 }
 """
 
-_CLICK_JS = """
+_GET_LINK_JS = """
 (idx) => {
   const el = window.__gwRows && window.__gwRows[idx];
-  if (!el) return false;
-  const link = el.querySelector('a') || el;
-  link.click();
-  return true;
+  if (!el) return null;
+  return el.querySelector('a') || el;
 }
 """
 
@@ -91,8 +89,21 @@ def scan_rows(frame: Frame, max_rows: int = 80) -> List[str]:
 
 
 def open_row(frame: Frame, index: int) -> bool:
+    """행을 클릭해서 상세 화면을 연다.
+
+    스크립트(frame.evaluate)에서 DOM의 .click()을 직접 호출하면 브라우저가 이를
+    '진짜 사용자 조작'으로 인정하지 않아서, 그 클릭으로 뜨는 새 창(window.open)이
+    팝업 차단으로 조용히 막히는 경우가 있다 (에러 없이 그냥 아무 일도 안 일어남).
+    대신 Playwright의 ElementHandle.click()으로 실제 마우스 클릭 이벤트를 보내면
+    '진짜 사용자 조작'으로 인정되어 팝업 차단을 피할 수 있다.
+    """
     try:
-        return bool(frame.evaluate(_CLICK_JS, index))
+        handle = frame.evaluate_handle(_GET_LINK_JS, index)
+        el = handle.as_element()
+        if el is None:
+            return False
+        el.click(timeout=3000)
+        return True
     except Exception:
         return False
 
