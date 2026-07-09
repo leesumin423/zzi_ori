@@ -739,14 +739,25 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
 
     return '. '.join(parts)
 
+# 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
+# "매매거래정지및정지해제"처럼 당일 안에 풀리는 일회성 조치가 섞여 있어서,
+# 여러 날 이어지는 실제 거래정지의 '진짜' 원인을 공시 제목만 보고 자동으로
+# 정확히 골라내기 어렵다 (예: 2026.07 동양 거래정지는 실제로는 액면(주식)병합이
+# 원인이었는데, 자동 매칭은 시점상 가장 최근인 "단기과열종목 지정 연장" 공시를
+# 잘못 골랐었음). 그래서 확인된 사유를 알고 있으면 여기에 직접 적어두면
+# 자동 추정보다 우선해서 코멘트에 반영된다. 종목코드를 키로 사용.
+MANUAL_HALT_REASONS = {
+    "001520": "액면(주식)병합에 따른 매매거래정지",
+}
+
 def generate_stock_commentary(code: str, display_name: str) -> str:
     """
     최근 10영업일 수급(개인/기관/외국인)·주가 데이터를 분석해 보고서 톤 코멘트를 생성.
     순서: ① 가장 최근 실제 거래일의 시가→(장중 급변동)→종가 흐름 + 그날 수급 우위(원인) +
     관련 뉴스 — 변동폭과 무관하게 항상 서술 ② 연속 순매수/순매도 스트릭(3일 이상)
-    ③ 최근 며칠간 거래가 없으면 실시간 API로 실제 거래정지 여부를 확인하고,
-    맞으면 관련 공시(단기과열종목 지정, 매매거래정지 등)를 사유로 인용. 거래정지가
-    아니면 단순 저유동성으로 표시.
+    ③ 최근 며칠간 거래가 없으면 실시간 API로 실제 거래정지 여부를 확인. MANUAL_HALT_REASONS에
+    확인된 사유가 있으면 그걸 그대로 쓰고, 없으면 공시 목록에서 추정 매칭하되 "확정"이
+    아니라 "추정"으로만 표현. 거래정지가 아니면 단순 저유동성으로 표시.
     데이터에서 직접 확인되지 않는 원인은 추정해 서술하지 않고,
     수치로 확인된 사실과 실제 뉴스 헤드라인만 근거로 사용한다.
     """
@@ -779,15 +790,23 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     if zero_n >= 2:
         status = fetch_trade_status(code)
         if status['halted']:
-            notices = fetch_stock_notices(code, count=5)
-            HALT_KEYWORDS = ['정지', '단기과열', '단일가매매']
-            reason = next((n for n in notices if any(k in n['title'] for k in HALT_KEYWORDS)), None)
-            if reason:
-                sentences.append(
-                    f"현재 거래정지 상태이며, 관련 공시로 「{reason['title']}」({reason['date']})가 확인됨"
-                )
+            manual_reason = MANUAL_HALT_REASONS.get(code)
+            if manual_reason:
+                # 조사(으로/로) 활용 문제를 피하려고 콜론 구조로 표현
+                sentences.append(f"현재 거래정지 상태. 확인된 사유: {manual_reason}")
             else:
-                sentences.append(f"현재 거래정지 상태 (최근 {zero_n}거래일간 거래 없음, 구체적 사유 공시는 확인되지 않음)")
+                notices = fetch_stock_notices(code, count=5)
+                HALT_KEYWORDS = ['정지', '단기과열', '단일가매매', '병합']
+                reason = next((n for n in notices if any(k in n['title'] for k in HALT_KEYWORDS)), None)
+                if reason:
+                    # 공시 목록에 정지 관련 항목이 있어도, 여러 날 이어지는 이번 정지의
+                    # '진짜' 원인인지는 자동으로 단정할 수 없어 추정으로만 표현한다.
+                    sentences.append(
+                        f"현재 거래정지 상태 — 관련 가능성이 있는 최근 공시로 「{reason['title']}」({reason['date']})가 "
+                        f"있으나, 이번 정지와의 정확한 인과관계는 확인되지 않음"
+                    )
+                else:
+                    sentences.append(f"현재 거래정지 상태 (최근 {zero_n}거래일간 거래 없음, 구체적 사유 공시는 확인되지 않음)")
         else:
             sentences.append(f"현재는 최근 {zero_n}거래일간 거래대금이 사실상 '0'으로 초저유동성 상태")
 
