@@ -55,6 +55,9 @@ class Config:
     approval_max_pages: int = _get_int("APPROVAL_MAX_PAGES", 3)
 
     mail_subject_exclude: List[str] = _get_list("MAIL_SUBJECT_EXCLUDE") or ["전표승인요청서"]
+    # 나와 상관없는 발신자(예: 정기 자동알림, 관련 없는 외부 담당자)를 제외하고 싶을 때
+    # 이름/이메일 일부를 쉼표로 구분해서 넣으면, 그 발신자의 항목은 체크리스트에서 빠진다.
+    sender_exclude: List[str] = _get_list("SENDER_EXCLUDE")
 
     headed: bool = _get_bool("HEADED", False)
     slowmo_ms: int = _get_int("SLOWMO_MS", 0)

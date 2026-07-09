@@ -1,4 +1,10 @@
-from core.text_parse import parse_form_type, parse_receiver, parse_sender, parse_subject
+from core.text_parse import (
+    parse_form_type,
+    parse_receiver,
+    parse_sender,
+    parse_subject,
+    strip_quoted_reply,
+)
 
 
 def test_parse_mail_header():
@@ -28,3 +34,29 @@ def test_parse_form_type():
 def test_parse_returns_none_when_missing():
     assert parse_sender("아무 정보도 없는 텍스트") is None
     assert parse_subject("") is None
+
+
+def test_parse_sender_table_layout_without_colon():
+    # 표 형태 상세화면에서는 콜론 없이 탭/여러 칸 공백으로 구분되는 경우가 많다.
+    text = "제목\t\tRE: 임시주총 소집통지 관련 질의\n보낸 사람\t\tTae Yong Kim (LeeKo)\t\n받는 사람 \t\t\n권윤"
+    assert parse_sender(text) == "Tae Yong Kim (LeeKo)"
+
+
+def test_strip_quoted_reply_removes_forwarded_history():
+    text = (
+        "안녕하세요, 내일까지 회신 부탁드립니다.\n\n"
+        "보낸 사람: Yong Seok Kwon (LeeKo) <yongseok.kwon@leeko.com>\n"
+        "Sent: Tuesday, June 23, 2026 10:50 AM\n"
+        "To: 이수민\n"
+        "Subject: RE: 예전 메일 - 내일까지 회신 부탁드립니다\n\n"
+        "예전 내용..."
+    )
+    stripped = strip_quoted_reply(text)
+    assert "안녕하세요, 내일까지 회신 부탁드립니다." in stripped
+    assert "Yong Seok Kwon" not in stripped
+    assert "예전 내용" not in stripped
+
+
+def test_strip_quoted_reply_keeps_original_when_no_marker():
+    text = "그냥 평범한 본문입니다."
+    assert strip_quoted_reply(text) == text

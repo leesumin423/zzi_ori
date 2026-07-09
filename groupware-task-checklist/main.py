@@ -84,11 +84,13 @@ def main() -> None:
             session, config.mail_list_url, run_date,
             config.mail_lookback_days, config.mail_subject_exclude,
             debug_dir=debug_dir, max_pages=config.mail_max_pages,
+            sender_exclude=config.sender_exclude,
         )
         log.info("전자결재함 조회 중...")
         tasks += collect_approval_tasks(
             session, config.approval_urls, run_date, config.approval_lookback_days,
             debug_dir=debug_dir, max_pages=config.approval_max_pages,
+            sender_exclude=config.sender_exclude,
         )
     except LoginRequiredError as e:
         _notify_error(str(e))

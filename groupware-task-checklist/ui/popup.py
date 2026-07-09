@@ -30,6 +30,44 @@ def _section_color(label: str) -> str:
     return SECTION_COLORS.get(label, DEFAULT_SECTION_COLOR)
 
 
+def _open_raw_view(parent: tk.Misc, t: Task) -> None:
+    """"원문 보기" 클릭 시, 마감일이 잡힌 문장뿐 아니라 그 주변 본문까지 넓게 보여준다.
+
+    (진짜 마감 요청인지, 서명/인용문에서 잘못 걸린 건지 직접 판단할 수 있도록.)
+    """
+    top = tk.Toplevel(parent)
+    top.title("원문 보기")
+    top.configure(bg=BG_COLOR)
+    top.geometry("520x420")
+    top.attributes("-topmost", True)
+
+    due_str = t.due_date.isoformat() if t.due_date else "?"
+    info = f"{t.sender or '발신자 미상'}  |  [{t.source}/{t.folder}]  |  마감 {due_str}"
+    tk.Label(
+        top, text=info, bg=BG_COLOR, anchor="w", justify="left", wraplength=480,
+        font=tkfont.Font(family="맑은 고딕", size=9, weight="bold"),
+    ).pack(fill="x", padx=10, pady=(10, 4))
+    tk.Label(
+        top, text=t.title, bg=BG_COLOR, anchor="w", justify="left", wraplength=480,
+        font=tkfont.Font(family="맑은 고딕", size=10),
+    ).pack(fill="x", padx=10, pady=(0, 6))
+
+    text_frame = tk.Frame(top, bg=BG_COLOR)
+    text_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    text_widget = tk.Text(text_frame, wrap="word", font=tkfont.Font(family="맑은 고딕", size=10))
+    scroll = tk.Scrollbar(text_frame, command=text_widget.yview)
+    text_widget.configure(yscrollcommand=scroll.set)
+    text_widget.pack(side="left", fill="both", expand=True)
+    scroll.pack(side="right", fill="y")
+
+    content = t.raw_snippet or t.matched_text or "(원문 내용이 없습니다)"
+    text_widget.insert("1.0", content)
+    text_widget.configure(state="disabled")
+
+    tk.Button(top, text="닫기", command=top.destroy).pack(pady=(0, 10))
+
+
 def show_checklist(groups: Dict[str, List[Task]], run_date: date,
                     on_save: Callable[[List[str]], None]) -> None:
     sections = simplified_sections(groups)
@@ -110,11 +148,17 @@ def show_checklist(groups: Dict[str, List[Task]], run_date: date,
                     fg="#333333", anchor="w", justify="left", wraplength=460,
                 ).pack(fill="x", anchor="w")
 
-                if t.matched_text:
-                    tk.Label(
-                        item_frame, text=f'     원문: "{t.matched_text}"', font=meta_font,
-                        bg=BG_COLOR, fg="#777777", anchor="w", justify="left", wraplength=460,
-                    ).pack(fill="x", anchor="w")
+                if t.matched_text or t.raw_snippet:
+                    preview = t.matched_text or t.raw_snippet
+                    if len(preview) > 80:
+                        preview = preview[:80] + "..."
+                    quote_label = tk.Label(
+                        item_frame, text=f'     원문 보기 (클릭): "{preview}"', font=meta_font,
+                        bg=BG_COLOR, fg="#1565C0", anchor="w", justify="left", wraplength=460,
+                        cursor="hand2",
+                    )
+                    quote_label.pack(fill="x", anchor="w")
+                    quote_label.bind("<Button-1>", lambda e, task=t: _open_raw_view(root, task))
 
     button_frame = tk.Frame(root, bg=BG_COLOR)
     button_frame.pack(fill="x", padx=12, pady=10)

@@ -17,12 +17,39 @@ FORM_TYPE_LABELS = ["양식명", "문서종류", "기안종류", "서식명", "�
 
 _MAX_LEN = 60
 
+# 이메일 본문 안에 '인용된 이전 메일(전달/회신 히스토리)' 이 시작되는 지점을 찾는 패턴.
+# 인용문 안의 "내일"/"오늘" 같은 상대 표현이 현재 메일 기준으로 잘못 해석되거나,
+# 인용문 안의 "보낸 사람:" 이 실제 발신자보다 먼저 잡혀버리는 오탐을 막기 위해,
+# 이 지점 이후는 통째로 잘라내고 그 앞부분(현재 메일 작성자가 실제로 쓴 부분)만 본다.
+_QUOTE_MARKER_RE = re.compile(
+    r"^[ \t]*(-{3,}\s*Original Message\s*-{3,}|_{10,}|보낸\s*사람\s*[:：]|발신\s*[:：]|"
+    r"From\s*[:：]|보낸\s*날짜\s*[:：]|Sent\s*[:：])",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def strip_quoted_reply(text: str) -> str:
+    """본문에서 인용된 이전 메일(전달/회신 히스토리) 부분을 잘라내고 앞부분만 반환한다.
+
+    맨 앞부터 바로 인용 마커로 시작하는 경우(잘못 감지했을 가능성)에는 원본을 그대로 둔다.
+    """
+    if not text:
+        return text
+    m = _QUOTE_MARKER_RE.search(text)
+    if m and m.start() > 0:
+        return text[: m.start()]
+    return text
+
 
 def _search_first(text: str, labels: List[str]) -> Optional[str]:
     if not text:
         return None
     for label in labels:
         m = re.search(rf"{label}\s*[:：]\s*(.+)", text)
+        if not m:
+            # 콜론 없이 '레이블   값'(표 형태 상세화면 - 탭/2칸 이상 공백/줄바꿈으로 구분)
+            # 형태도 시도한다. 예: "보낸 사람        Tae Yong Kim (LeeKo)"
+            m = re.search(rf"{label}(?:[ \t]{{2,}}|\t|\n)\s*(.+)", text)
         if not m:
             continue
         val = m.group(1).splitlines()[0].strip()

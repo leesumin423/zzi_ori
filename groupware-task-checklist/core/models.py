@@ -18,6 +18,7 @@ class Task:
     doc_date: Optional[date] = None  # 메일 수신일 / 결재 상신일
     due_date: Optional[date] = None  # 추출된 마감일
     matched_text: str = ""  # 마감일이 언급된 원문 문장
+    raw_snippet: str = ""  # 팝업에서 "원문 보기" 클릭 시 보여줄, 더 긴 본문 일부
     url: str = ""  # 상세 페이지로 돌아갈 수 있는 링크(있으면)
     bucket: str = field(default="", compare=False)  # classify 결과
 

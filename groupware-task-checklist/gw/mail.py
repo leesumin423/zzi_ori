@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from core.date_extract import extract_dates, guess_doc_date
 from core.models import Task
-from core.text_parse import parse_receiver, parse_sender, parse_subject
+from core.text_parse import parse_receiver, parse_sender, parse_subject, strip_quoted_reply
 
 from .browser import GWSession
 from .scrape_common import go_to_next_page, is_excluded, open_row, row_html, scan_rows
@@ -42,7 +42,8 @@ def _dump(debug_dir: Optional[Path], row_texts: List[str], opened_bodies: List[s
 def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                         lookback_days: int, subject_exclude: List[str],
                         max_rows: int = 60, open_detail: bool = True,
-                        debug_dir: Optional[Path] = None, max_pages: int = 5) -> List[Task]:
+                        debug_dir: Optional[Path] = None, max_pages: int = 5,
+                        sender_exclude: Optional[List[str]] = None) -> List[Task]:
     """메일함 목록을 조회기간(lookback_days)이 지난 항목이 나올 때까지 페이지를 넘겨가며 읽는다.
 
     목록이 "받은 날짜" 내림차순(최신순)으로 정렬돼 있다는 전제로, 한 페이지 안에서 조회기간보다
@@ -61,6 +62,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
     except Exception:
         pass
 
+    sender_exclude = sender_exclude or []
     lookback_start = run_date - timedelta(days=lookback_days)
     tasks: List[Task] = []
     all_row_texts: List[str] = []
@@ -71,6 +73,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
     n_lookback_skipped = 0
     n_opened = 0
     n_matched = 0
+    n_sender_excluded = 0
 
     for page_num in range(1, max_pages + 1):
         list_frame = session.largest_text_frame()
@@ -107,7 +110,10 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                 try:
                     text = session.read_after_action(_click)
                     if clicked["ok"] and text:
-                        body_text = text
+                        # 인용된 이전 메일(전달/회신 히스토리)을 잘라내서, 그 안의
+                        # "내일" 같은 상대 표현이나 "보낸 사람:" 이 실제 발신자보다
+                        # 먼저 잡히는 오탐을 막는다.
+                        body_text = strip_quoted_reply(text)
                         n_opened += 1
                         if debug_dir is not None:
                             opened_bodies.append(body_text)
@@ -115,6 +121,11 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                             continue
                 except Exception:
                     body_text = row_text
+
+            sender = parse_sender(body_text) or parse_sender(row_text) or ""
+            if sender and is_excluded(sender, sender_exclude):
+                n_sender_excluded += 1
+                continue
 
             combined = f"{row_text}\n{body_text}"
             matches = extract_dates(combined, doc_date)
@@ -125,8 +136,8 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
             title = parse_subject(body_text) or parse_subject(row_text)
             if not title:
                 title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
-            sender = parse_sender(body_text) or parse_sender(row_text) or ""
             receiver = parse_receiver(body_text) or parse_receiver(row_text) or ""
+            raw_snippet = body_text[:1500] if body_text else row_text[:1500]
 
             for m in matches:
                 tasks.append(
@@ -139,6 +150,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                         doc_date=doc_date,
                         due_date=m.due_date,
                         matched_text=m.sentence,
+                        raw_snippet=raw_snippet,
                         url=page.url,
                     )
                 )
@@ -162,8 +174,9 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
 
     log.info(
         "메일함: 총 %d개 행(전 페이지 합산), 제외(전표 등) %d건, 기간초과(%d일 이전) %d건, "
-        "상세열람 성공 %d건, 마감일 찾음 %d건 → 최종 %d건",
-        len(all_row_texts), n_excluded, lookback_days, n_lookback_skipped, n_opened, n_matched, len(tasks),
+        "상세열람 성공 %d건, 발신자 제외 %d건, 마감일 찾음 %d건 → 최종 %d건",
+        len(all_row_texts), n_excluded, lookback_days, n_lookback_skipped, n_opened,
+        n_sender_excluded, n_matched, len(tasks),
     )
     _dump(debug_dir, all_row_texts, opened_bodies, row_htmls)
 
