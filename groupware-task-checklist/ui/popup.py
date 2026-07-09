@@ -95,15 +95,17 @@ def show_checklist(groups: Dict[str, List[Task]], run_date: date,
                 item_frame = tk.Frame(scroll_frame, bg=BG_COLOR)
                 item_frame.pack(fill="x", padx=4, pady=(2, 6), anchor="w")
 
+                # "누가 : 어떤일을 : 언제까지" 형태로 한눈에 보이도록 체크박스 문구를 구성한다.
+                who_what_when = f"{sender_str}  :  {t.title}  :  {due_str}까지 ({d_label})"
                 cb = tk.Checkbutton(
-                    item_frame, text=f"[{t.source}/{t.folder}] {t.title}",
+                    item_frame, text=who_what_when,
                     variable=var, font=item_font,
                     bg=BG_COLOR, anchor="w", justify="left", wraplength=460,
                     activebackground=BG_COLOR,
                 )
                 cb.pack(fill="x", anchor="w")
 
-                meta_text = f"     보낸사람: {sender_str}   |   마감 {due_str} ({d_label})"
+                meta_text = f"     [{t.source}/{t.folder}]"
                 tk.Label(
                     item_frame, text=meta_text, font=meta_font, bg=BG_COLOR,
                     fg="#333333", anchor="w", justify="left", wraplength=460,

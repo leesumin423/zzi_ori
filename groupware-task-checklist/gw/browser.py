@@ -53,7 +53,7 @@ class GWSession:
                 best_frame = frame
         return best_frame
 
-    def open_detail(self, action: Callable[[], None], popup_wait_ms: int = 1500,
+    def open_detail(self, action: Callable[[], None], popup_wait_ms: int = 900,
                      content_timeout: int = 6000) -> Tuple[Optional[Page], Frame]:
         """action(예: 목록의 한 행 클릭)을 실행한 뒤, 상세 내용이 담긴 (팝업 또는 None, Frame)을 반환한다.
 
@@ -101,7 +101,7 @@ class GWSession:
             pass
         return None, self.largest_text_frame()
 
-    def read_after_action(self, action: Callable[[], None], popup_wait_ms: int = 1500,
+    def read_after_action(self, action: Callable[[], None], popup_wait_ms: int = 900,
                            content_timeout: int = 6000) -> str:
         """open_detail() 의 편의 버전 - 텍스트만 필요할 때 사용 (팝업이면 알아서 닫아준다)."""
         popup, frame = self.open_detail(action, popup_wait_ms, content_timeout)
