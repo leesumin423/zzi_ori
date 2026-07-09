@@ -10,12 +10,13 @@ from core.models import Task
 from core.text_parse import parse_receiver, parse_sender, parse_subject
 
 from .browser import GWSession
-from .scrape_common import go_to_next_page, is_excluded, open_row, scan_rows
+from .scrape_common import go_to_next_page, is_excluded, open_row, row_html, scan_rows
 
 log = logging.getLogger(__name__)
 
 
-def _dump(debug_dir: Optional[Path], row_texts: List[str], opened_bodies: List[str]) -> None:
+def _dump(debug_dir: Optional[Path], row_texts: List[str], opened_bodies: List[str],
+          row_htmls: Optional[List[str]] = None) -> None:
     if debug_dir is None:
         return
     debug_dir.mkdir(parents=True, exist_ok=True)
@@ -28,6 +29,12 @@ def _dump(debug_dir: Optional[Path], row_texts: List[str], opened_bodies: List[s
         lines.append(f"\n\n=== 상세 열람된 본문 ({len(opened_bodies)}개) ===")
         for i, b in enumerate(opened_bodies):
             lines.append(f"\n--- 상세 {i} ---\n{b[:2000]}")
+    if row_htmls:
+        lines.append(
+            f"\n\n=== 진단용: 행 원본 HTML ({len(row_htmls)}개, 클릭이 왜 안 먹히는지 확인용) ==="
+        )
+        for i, h in enumerate(row_htmls):
+            lines.append(f"\n--- 행 HTML {i} ---\n{h[:3000]}")
     path.write_text("\n".join(lines), encoding="utf-8")
     log.info("메일함 디버그 덤프 저장: %s", path)
 
@@ -58,6 +65,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
     tasks: List[Task] = []
     all_row_texts: List[str] = []
     opened_bodies: List[str] = []
+    row_htmls: List[str] = []
 
     n_excluded = 0
     n_lookback_skipped = 0
@@ -71,6 +79,10 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
         if not row_texts:
             break
         all_row_texts.extend(row_texts)
+
+        if page_num == 1 and debug_dir is not None:
+            for i in range(min(3, len(row_texts))):
+                row_htmls.append(row_html(list_frame, i))
 
         reached_lookback_end = False
 
@@ -153,6 +165,6 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
         "상세열람 성공 %d건, 마감일 찾음 %d건 → 최종 %d건",
         len(all_row_texts), n_excluded, lookback_days, n_lookback_skipped, n_opened, n_matched, len(tasks),
     )
-    _dump(debug_dir, all_row_texts, opened_bodies)
+    _dump(debug_dir, all_row_texts, opened_bodies, row_htmls)
 
     return tasks

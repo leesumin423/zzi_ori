@@ -80,12 +80,33 @@ _GOTO_PAGE_JS = """
 """
 
 
+_ROW_HTML_JS = """
+(idx) => {
+  const el = window.__gwRows && window.__gwRows[idx];
+  return el ? el.outerHTML : null;
+}
+"""
+
+
 def scan_rows(frame: Frame, max_rows: int = 80) -> List[str]:
     try:
         rows = frame.evaluate(_SCAN_JS)
     except Exception:
         return []
     return rows[:max_rows]
+
+
+def row_html(frame: Frame, index: int) -> str:
+    """진단용: index번째 행의 실제 HTML(outerHTML)을 반환한다.
+
+    클릭/더블클릭 모두 아무 반응이 없을 때, 실제로 어떤 태그/onclick 구조인지
+    직접 눈으로 확인하기 위한 함수 (디버그 덤프에 포함시켜서 원인 파악에 쓴다).
+    """
+    try:
+        html = frame.evaluate(_ROW_HTML_JS, index)
+        return html or ""
+    except Exception:
+        return ""
 
 
 def open_row(frame: Frame, index: int) -> bool:
