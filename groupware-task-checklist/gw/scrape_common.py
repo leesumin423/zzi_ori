@@ -58,6 +58,18 @@ _CLICK_JS = """
 }
 """
 
+_NEXT_PAGE_JS = """
+() => {
+  const nextTexts = ['>', '»', '다음', '다음페이지', '다음 페이지', 'next'];
+  const isNextLike = (t) => nextTexts.includes((t || '').trim().toLowerCase());
+  const candidates = Array.from(document.querySelectorAll('a, button, span[onclick], li[onclick]'));
+  const next = candidates.find(el => isNextLike(el.innerText) && el.offsetParent !== null);
+  if (!next) return false;
+  next.click();
+  return true;
+}
+"""
+
 
 def scan_rows(frame: Frame, max_rows: int = 80) -> List[str]:
     try:
@@ -70,6 +82,14 @@ def scan_rows(frame: Frame, max_rows: int = 80) -> List[str]:
 def open_row(frame: Frame, index: int) -> bool:
     try:
         return bool(frame.evaluate(_CLICK_JS, index))
+    except Exception:
+        return False
+
+
+def go_to_next_page(frame: Frame) -> bool:
+    """목록 화면에서 '다음 페이지' 버튼(> , 다음, Next 등)을 찾아 클릭한다. 못 찾으면 False."""
+    try:
+        return bool(frame.evaluate(_NEXT_PAGE_JS))
     except Exception:
         return False
 
