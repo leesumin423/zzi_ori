@@ -525,18 +525,6 @@ def _find_zero_volume_streak(history: list) -> int:
             break
     return length
 
-def _find_big_moves(history: list, threshold: float = 10.0):
-    """등락율 절대값이 threshold(%) 이상인 날짜를 최신순으로 반환"""
-    moves = []
-    for h in history:
-        try:
-            pct = float(h['change_rate'].replace('%', '').replace('+', ''))
-        except Exception:
-            continue
-        if abs(pct) >= threshold:
-            moves.append((h['date'], pct))
-    return moves
-
 def _match_news(news_list: list, date_str: str, display_name: str):
     """
     date_str('YYYY.MM.DD') 당일 뉴스 중 종목명이 제목에 들어간 것을 우선 매칭.
@@ -550,6 +538,24 @@ def _match_news(news_list: list, date_str: str, display_name: str):
         named.sort(key=lambda n: n['title'].find(display_name))
         return named[0]
     return same_day[0] if same_day else None
+
+def _find_related_news(news_list: list, date_str: str, display_name: str, window_days: int = 3):
+    """같은 날 뉴스가 없으면, date_str 이전 window_days일 내의 가장 최근 뉴스로 대체"""
+    matched = _match_news(news_list, date_str, display_name)
+    if matched:
+        return matched
+    try:
+        target = datetime.strptime(date_str, '%Y.%m.%d')
+    except Exception:
+        return None
+    for n in news_list:  # news_list는 최신순
+        try:
+            n_date = datetime.strptime(n['date'][:10], '%Y.%m.%d')
+        except Exception:
+            continue
+        if 0 <= (target - n_date).days <= window_days:
+            return n
+    return None
 
 def fetch_daily_ohlc(code: str, count: int = 12) -> list:
     """일별 시가/고가/저가/종가/거래량을 시간순(오래된→최신)으로 반환 (fchart XML)"""
@@ -576,29 +582,8 @@ def fetch_daily_ohlc(code: str, count: int = 12) -> list:
         print(f"[DEBUG] {code} 일별 OHLC 조회 중 예외: {e}")
     return rows  # fchart는 이미 시간순으로 내려줌
 
-def _find_notable_intraday_day(ohlc_asc: list, min_threshold: float = 8.0):
-    """
-    시간순 OHLC 리스트에서, 전일 종가 대비 당일 고가/저가 도달폭(장중 변동폭) 중
-    절대값이 가장 큰 거래일을 찾는다. 거래량 0(무거래)인 날은 제외.
-    반환: (index, 'up'|'down', peak_pct, prev_close) 또는 None
-    """
-    best = None
-    for i in range(1, len(ohlc_asc)):
-        day = ohlc_asc[i]
-        prev_close = ohlc_asc[i - 1]['close']
-        if day['volume'] <= 0 or not prev_close:
-            continue
-        high_pct = (day['high'] - prev_close) / prev_close * 100
-        low_pct = (day['low'] - prev_close) / prev_close * 100
-        peak_pct, direction = (high_pct, 'up') if abs(high_pct) >= abs(low_pct) else (low_pct, 'down')
-        if best is None or abs(peak_pct) > abs(best[2]):
-            best = (i, direction, peak_pct, prev_close)
-    if best and abs(best[2]) >= min_threshold:
-        return best
-    return None
-
-def _flow_summary_sentence(h: dict) -> str:
-    """해당일의 개인(추정)/기관/외국인 순매매를 매수측·매도측으로 나눠 한 문장으로 요약"""
+def _flow_summary_sentence(h: dict, price_up: bool = None) -> str:
+    """해당일의 개인(추정)/기관/외국인 순매매를 매수측·매도측으로 나눠 원인 설명 문장으로 요약"""
     inst_v = _parse_signed_int(h['institution'])
     for_v = _parse_signed_int(h['foreign'])
     ind_v = _parse_signed_int(h['individual'])
@@ -609,21 +594,80 @@ def _flow_summary_sentence(h: dict) -> str:
     if buyers and sellers:
         top_nm, top_v = buyers[0]
         sell_txt = '·'.join(f"{nm}({v:+,}주)" for nm, v in sellers)
-        return f"수급 측면에서는 {top_nm}이 {top_v:+,}주 순매수한 반면 {sell_txt}이 순매도하며 엇갈린 모습"
+        return f"수급 측면에서는 {top_nm}이 {top_v:+,}주 순매수한 반면 {sell_txt}이 순매도하며 엇갈린 모습을 보였다"
     if buyers:
-        top_nm, top_v = buyers[0]
-        return f"수급 측면에서는 {top_nm}이 {top_v:+,}주 순매수하며 매수 우위를 보임"
+        buy_txt = '·'.join(f"{nm}({v:+,}주)" for nm, v in buyers)
+        verb = '상승을 뒷받침한' if price_up else '수급을 지지한'
+        return f"수급 측면에서는 {buy_txt}이 순매수 우위를 보이며 {verb} 것으로 풀이된다"
     if sellers:
         sell_txt = '·'.join(f"{nm}({v:+,}주)" for nm, v in sellers)
-        return f"수급 측면에서는 {sell_txt}이 매도 우위를 보임"
+        verb = '하락 압력으로 작용한' if price_up is False else '수급 부담으로 작용한'
+        return f"수급 측면에서는 {sell_txt}이 순매도 우위를 보이며 {verb} 것으로 풀이된다"
     return ''
+
+def _last_trading_day_index(ohlc_asc: list):
+    """시간순(오래된→최신) 리스트에서 거래량이 있는 가장 최근 날짜의 인덱스 (비교할 전일이 있어야 하므로 index>=1)"""
+    for i in range(len(ohlc_asc) - 1, 0, -1):
+        if ohlc_asc[i]['volume'] > 0:
+            return i
+    return None
+
+def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, hist_by_date: dict, news: list) -> str:
+    """
+    가장 최근 실제 거래일 하루를 '시가 → (장중 급변동 있었다면) 고점/저점 → 종가' 흐름과
+    그날의 수급 우위, 관련 뉴스까지 묶어 한 문단으로 서술. 변동폭 크기와 무관하게 항상 생성.
+    """
+    idx = _last_trading_day_index(ohlc_asc)
+    if idx is None:
+        return ''
+    day = ohlc_asc[idx]
+    prev_close = ohlc_asc[idx - 1]['close']
+    if not prev_close:
+        return ''
+
+    open_pct = (day['open'] - prev_close) / prev_close * 100
+    high_pct = (day['high'] - prev_close) / prev_close * 100
+    low_pct = (day['low'] - prev_close) / prev_close * 100
+    close_pct = (day['close'] - prev_close) / prev_close * 100
+
+    if open_pct >= 3:
+        open_desc = f"장 초반부터 상승세로 출발(시가 {day['open']:,}원, {open_pct:+.1f}%)"
+    elif open_pct <= -3:
+        open_desc = f"장 초반부터 하락세로 출발(시가 {day['open']:,}원, {open_pct:+.1f}%)"
+    else:
+        open_desc = f"시가 {day['open']:,}원으로 출발"
+
+    # 장중 고점/저점이 종가보다 훨씬 튀면(되돌림이 있었으면) 그 흐름을 덧붙임
+    peak_pct, direction = (high_pct, 'up') if abs(high_pct) >= abs(low_pct) else (low_pct, 'down')
+    mid_desc = ''
+    if abs(peak_pct - close_pct) >= 6.0:
+        if direction == 'up':
+            mid_desc = f", 장중 한때 {day['high']:,}원까지 상승({peak_pct:+.1f}%)했으나 상승분을 상당 부분 반납"
+        else:
+            mid_desc = f", 장중 한때 {day['low']:,}원까지 하락({peak_pct:+.1f}%)했으나 낙폭을 일부 만회"
+
+    close_desc = f"종가 {day['close']:,}원({close_pct:+.2f}%)에 마감"
+    parts = [f"{day['date']} {open_desc}{mid_desc}, {close_desc}"]
+
+    h = hist_by_date.get(day['date'])
+    if h:
+        flow_sentence = _flow_summary_sentence(h, price_up=(close_pct > 0) if close_pct != 0 else None)
+        if flow_sentence:
+            parts.append(flow_sentence)
+
+    matched = _find_related_news(news, day['date'], display_name)
+    if matched:
+        parts.append(f"관련 기사 「{matched['title']}」({matched['date']})")
+    else:
+        parts.append("최근 관련 뉴스는 확인되지 않음")
+
+    return '. '.join(parts)
 
 def generate_stock_commentary(code: str, display_name: str) -> str:
     """
     최근 10영업일 수급(개인/기관/외국인)·주가 데이터를 분석해 보고서 톤 코멘트를 생성.
-    순서: ① 연속 순매수/순매도 스트릭(3일 이상) ② 당일 주가 변동 서술
-    (장중 고가/저가가 종가보다 훨씬 크게 움직인 날이 있으면 시가→장중 고점/저점→종가
-    흐름과 수급 근거·뉴스까지 상세 서술, 없으면 종가 기준 급등락+뉴스로 대체)
+    순서: ① 가장 최근 실제 거래일의 시가→(장중 급변동)→종가 흐름 + 그날 수급 우위(원인) +
+    관련 뉴스 — 변동폭과 무관하게 항상 서술 ② 연속 순매수/순매도 스트릭(3일 이상)
     ③ 거래 정지 수준의 초저유동성(거래대금 0) 구간.
     데이터에서 직접 확인되지 않는 원인은 추정해 서술하지 않고,
     수치로 확인된 사실과 실제 뉴스 헤드라인만 근거로 사용한다.
@@ -635,7 +679,15 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
 
     sentences = []
 
-    # ① 연속 순매수/순매도 스트릭
+    # ① 당일(최근 거래일) 동향 — 항상 서술
+    ohlc_asc = fetch_daily_ohlc(code, count=12)
+    news = fetch_stock_news(code, count=10)
+    if ohlc_asc:
+        day_sentence = _describe_latest_trading_day(code, display_name, ohlc_asc, hist_by_date, news)
+        if day_sentence:
+            sentences.append(day_sentence)
+
+    # ② 연속 순매수/순매도 스트릭
     inst_sign, inst_n = _find_streak(history, 'institution')
     if inst_n >= 3:
         sentences.append(f"기관이 {inst_n}일 연속 {'순매수' if inst_sign > 0 else '순매도'} 중")
@@ -643,60 +695,6 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     for_sign, for_n = _find_streak(history, 'foreign')
     if for_n >= 3:
         sentences.append(f"외국인이 {for_n}일 연속 {'순매수' if for_sign > 0 else '순매도'} 중")
-
-    # ② 당일 주가 변동 서술
-    move_described = False
-    ohlc_asc = fetch_daily_ohlc(code, count=12)
-    notable = _find_notable_intraday_day(ohlc_asc, min_threshold=8.0) if ohlc_asc else None
-    if notable:
-        idx, direction, peak_pct, prev_close = notable
-        day = ohlc_asc[idx]
-        close_pct = (day['close'] - prev_close) / prev_close * 100
-        # 장중 고점/저점이 종가보다 훨씬 튀는(=되돌림이 있었던) 경우에만 상세 서술.
-        # 종가 자체가 고점/저점에 가까우면(예: 상한가 마감) 아래 ②-대체 경로가 더 적합.
-        if abs(peak_pct - close_pct) >= 6.0:
-            if direction == 'up':
-                sentences.append(
-                    f"{day['date']} 시가 {day['open']:,}원으로 출발해 장중 한때 {day['high']:,}원까지 상승"
-                    f"(전일 종가 대비 {peak_pct:+.1f}%)했으나, 상승분을 상당 부분 반납하며 "
-                    f"{day['close']:,}원({close_pct:+.2f}%)에 마감"
-                )
-            else:
-                sentences.append(
-                    f"{day['date']} 시가 {day['open']:,}원으로 출발해 장중 한때 {day['low']:,}원까지 하락"
-                    f"(전일 종가 대비 {peak_pct:+.1f}%)했으나, 이후 낙폭을 일부 만회하며 "
-                    f"{day['close']:,}원({close_pct:+.2f}%)에 마감"
-                )
-            h = hist_by_date.get(day['date'])
-            if h:
-                flow_sentence = _flow_summary_sentence(h)
-                if flow_sentence:
-                    sentences.append(flow_sentence)
-            news = fetch_stock_news(code, count=10)
-            matched = _match_news(news, day['date'], display_name)
-            if matched:
-                sentences.append(f"관련 기사 「{matched['title']}」({matched['date']})")
-            move_described = True
-
-    if not move_described:
-        big_moves = _find_big_moves(history, threshold=10.0)
-        if big_moves:
-            # 가장 최근 급변동일이 아니라, 변동폭이 가장 큰 날을 대표 이벤트로 선정
-            date_str, pct = max(big_moves, key=lambda x: abs(x[1]))
-            direction2 = '급등' if pct > 0 else '급락'
-            news = fetch_stock_news(code, count=10)
-            matched = _match_news(news, date_str, display_name)
-            if matched:
-                sentences.append(f"{date_str} {direction2}({pct:+.2f}%) — 관련 기사 「{matched['title']}」({matched['date']})")
-            else:
-                sentences.append(f"{date_str} {direction2}({pct:+.2f}%) 발생, 관련 뉴스는 확인되지 않음")
-
-            # 반대 방향 반전(되돌림)이 뒤따랐다면 함께 언급
-            for other_date, other_pct in big_moves:
-                if other_date != date_str and (other_pct > 0) != (pct > 0):
-                    other_dir = '급등' if other_pct > 0 else '급락'
-                    sentences.append(f"이후 {other_date} {other_dir}({other_pct:+.2f}%)하며 상당 부분 되돌림")
-                    break
 
     # ③ 초저유동성 상태 (현재 상태이므로 맨 뒤에 배치)
     zero_n = _find_zero_volume_streak(history)

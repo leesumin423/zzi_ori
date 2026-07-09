@@ -294,8 +294,19 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   .container { display: block; }
   .main { padding: 0; overflow: visible; }
 
-  /* 섹션 페이지 분리 방지 */
-  .section { page-break-inside: avoid; margin-bottom: 18px; }
+  /* 한 페이지에 다 들어오도록 여백 축소 */
+  .page-title { margin-bottom: 10px; }
+  .section { page-break-inside: avoid; margin-bottom: 10px; }
+  .section h2 { margin-bottom: 6px; padding-bottom: 4px; }
+
+  /* 지수 카드 / 테마 카드: 화면 대비 높이 절반 수준으로 축소 */
+  .grid, .theme-grid { gap: 6px; }
+  .card { padding: 5px 8px; }
+  .idx-name   { font-size: 8px;  margin-bottom: 1px; }
+  .idx-value  { font-size: 13px; margin-bottom: 1px; }
+  .idx-detail { font-size: 7px;  line-height: 1.2; }
+  .theme-name   { font-size: 8px;  margin-bottom: 2px; }
+  .theme-change { font-size: 11px; }
 
   /* 테마 그리드: 인쇄 시 2×2 배치 */
   .theme-grid {
@@ -308,6 +319,19 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   /* 표 폰트 축소 */
   table { font-size: 9px; }
   th, td { padding: 4px 5px; }
+
+  /* 회사명 클릭 링크 밑줄 제거 (인쇄본에서는 클릭 불가능하므로) */
+  .clickable-name { text-decoration: none; }
+
+  /* "당일 주가" 컬럼(5번째) 강조 테두리 */
+  #companies-table th:nth-child(5), #companies-table td:nth-child(5),
+  #cement-table th:nth-child(5),    #cement-table td:nth-child(5) {
+    border: 2px solid #000000;
+  }
+
+  /* 주가 동향 코멘트 축소 */
+  .commentary-list { padding: 8px 10px; gap: 6px; }
+  .commentary-list li { font-size: 9px; line-height: 1.4; }
 
   /* 버튼 숨김 */
   .btn { display: none; }
