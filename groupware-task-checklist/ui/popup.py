@@ -14,26 +14,26 @@ from datetime import date
 from tkinter import font as tkfont
 from typing import Callable, Dict, List
 
-from core.classify import NEXT_WEEK, OVERDUE, THIS_WEEK, TODAY, bucket_label, days_label, ordered_buckets
+from core.classify import days_label, simplified_sections
 from core.models import Task
 
 BG_COLOR = "#FFF9C4"  # 포스트잇 느낌 파스텔 옐로우
 DEFAULT_SECTION_COLOR = "#455A64"
 SECTION_COLORS = {
-    OVERDUE: "#C62828",
-    TODAY: "#EF6C00",
-    THIS_WEEK: "#F9A825",
-    NEXT_WEEK: "#1565C0",
+    "기한 지남": "#C62828",
+    "오늘 (일간)": "#EF6C00",
+    "주간 (이번주~차주)": "#F9A825",
+    "월간": "#1565C0",
 }
 
 
-def _section_color(bucket: str) -> str:
-    return SECTION_COLORS.get(bucket, DEFAULT_SECTION_COLOR)
+def _section_color(label: str) -> str:
+    return SECTION_COLORS.get(label, DEFAULT_SECTION_COLOR)
 
 
 def show_checklist(groups: Dict[str, List[Task]], run_date: date,
                     on_save: Callable[[List[str]], None]) -> None:
-    buckets = ordered_buckets(groups)
+    sections = simplified_sections(groups)
 
     root = tk.Tk()
     root.title(f"업무 체크리스트 - {run_date.isoformat()}")
@@ -70,17 +70,16 @@ def show_checklist(groups: Dict[str, List[Task]], run_date: date,
 
     check_vars: Dict[str, tk.BooleanVar] = {}
 
-    if not buckets:
+    if not sections:
         tk.Label(
             scroll_frame, text="오늘 특별히 챙길 업무가 없습니다.",
             font=section_font, bg=BG_COLOR, fg="#2E7D32",
         ).pack(anchor="w", pady=20)
     else:
-        for bucket in buckets:
-            tasks = groups[bucket]
+        for label, tasks in sections:
             sec_label = tk.Label(
-                scroll_frame, text=f"[ {bucket_label(bucket)} ]  {len(tasks)}건",
-                font=section_font, bg=BG_COLOR, fg=_section_color(bucket),
+                scroll_frame, text=f"[ {label} ]  {len(tasks)}건",
+                font=section_font, bg=BG_COLOR, fg=_section_color(label),
                 anchor="w",
             )
             sec_label.pack(fill="x", pady=(12, 2))

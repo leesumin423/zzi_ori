@@ -21,7 +21,7 @@ from typing import List, Optional
 DEADLINE_KEYWORDS = [
     "까지", "마감", "제출", "회신", "바랍니다", "부탁드립니다", "부탁드려요",
     "완료해", "완료 부탁", "기한", "데드라인", "회신 요청", "제출 요청",
-    "보고 바랍니다", "송부 바랍니다", "확인 바랍니다", "결재 요청",
+    "보고 바랍니다", "송부 바랍니다", "확인 바랍니다", "결재 요청", "영업일",
 ]
 
 _WEEKDAY_MAP = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 6}
@@ -72,6 +72,17 @@ def _nearest_upcoming_weekday(anchor: date, weekday_idx: int) -> date:
     return _week_day_date(anchor, weekday_idx, "next")
 
 
+def _add_business_days(anchor: date, n: int) -> date:
+    """토/일을 건너뛰고 영업일 기준 n일 뒤 날짜를 구한다. (공휴일은 반영하지 않음)"""
+    d = anchor
+    added = 0
+    while added < n:
+        d += timedelta(days=1)
+        if d.weekday() < 5:  # 월(0)~금(4)
+            added += 1
+    return d
+
+
 def _resolve_matches(anchor: date, sentence: str) -> List[DateMatch]:
     results: List[DateMatch] = []
 
@@ -111,10 +122,17 @@ def _resolve_matches(anchor: date, sentence: str) -> List[DateMatch]:
     # 4) 오늘/내일/모레
     if re.search(r"(오늘|금일|당일)", sentence):
         add(anchor, re.search(r"(오늘|금일|당일)", sentence).group(0))
-    if re.search(r"(내일|명일)", sentence):
-        add(anchor + timedelta(days=1), re.search(r"(내일|명일)", sentence).group(0))
+    if re.search(r"(내일|명일|익일)", sentence):
+        add(anchor + timedelta(days=1), re.search(r"(내일|명일|익일)", sentence).group(0))
     if re.search(r"모레", sentence):
         add(anchor + timedelta(days=2), "모레")
+    if results:
+        return results
+
+    # 4.5) N영업일 (이내) - 토/일 제외하고 계산, 공휴일은 반영 못함
+    m = re.search(r"(\d{1,2})\s?영업일", sentence)
+    if m:
+        add(_add_business_days(anchor, int(m.group(1))), m.group(0))
     if results:
         return results
 

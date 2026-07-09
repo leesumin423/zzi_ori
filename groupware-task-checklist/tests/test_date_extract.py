@@ -32,6 +32,29 @@ def test_today_tomorrow():
     assert extract_dates("모레까지 제출 바랍니다.", anchor)[0].due_date == date(2026, 7, 10)
 
 
+def test_ikil_alias_for_tomorrow():
+    anchor = date(2026, 7, 8)  # 수요일
+    m = extract_dates("익일까지 회신 부탁드립니다.", anchor)
+    assert m[0].due_date == date(2026, 7, 9)
+
+
+def test_business_days_skips_weekend():
+    # 목요일(7/9)에 온 메일, "1영업일 오전내" -> 다음 영업일인 금요일(7/10)
+    anchor = date(2026, 7, 9)
+    m = extract_dates("1영업일 오전내 회신 부탁드립니다.", anchor)
+    assert m[0].due_date == date(2026, 7, 10)
+
+    # 금요일(7/10)에 온 메일, "1영업일" -> 주말(토/일) 건너뛰고 월요일(7/13)
+    anchor2 = date(2026, 7, 10)
+    m2 = extract_dates("1영업일 이내 회신 바랍니다.", anchor2)
+    assert m2[0].due_date == date(2026, 7, 13)
+
+    # 3영업일 - 수(7/8) 기준 목,금,월 -> 7/13
+    anchor3 = date(2026, 7, 8)
+    m3 = extract_dates("3영업일 이내 제출 부탁드립니다.", anchor3)
+    assert m3[0].due_date == date(2026, 7, 13)
+
+
 def test_this_week_next_week_weekday():
     anchor = date(2026, 7, 8)  # 수요일
     m = extract_dates("이번주 금요일까지 회신 바랍니다.", anchor)

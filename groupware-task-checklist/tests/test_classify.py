@@ -11,6 +11,7 @@ from core.classify import (
     days_label,
     group_by_bucket,
     ordered_buckets,
+    simplified_sections,
 )
 from core.models import Task
 
@@ -62,3 +63,32 @@ def test_ordered_buckets_includes_months_sorted():
     groups = group_by_bucket(tasks)
     order = ordered_buckets(groups)
     assert order == [TODAY, "MONTH:2026-08", "MONTH:2026-09"]
+
+
+def test_simplified_sections_merges_weekly_and_monthly():
+    run = date(2026, 7, 8)  # 수요일
+    tasks = [
+        Task(source="mail", folder="f", title="지남건", due_date=date(2026, 7, 3)),
+        Task(source="mail", folder="f", title="오늘건", due_date=date(2026, 7, 8)),
+        Task(source="mail", folder="f", title="이번주건", due_date=date(2026, 7, 10)),
+        Task(source="mail", folder="f", title="차주건", due_date=date(2026, 7, 14)),
+        Task(source="mail", folder="f", title="8월건", due_date=date(2026, 8, 1)),
+        Task(source="mail", folder="f", title="9월건", due_date=date(2026, 9, 1)),
+    ]
+    classify_tasks(tasks, run)
+    groups = group_by_bucket(tasks)
+    sections = simplified_sections(groups)
+
+    labels = [label for label, _ in sections]
+    assert labels == ["기한 지남", "오늘 (일간)", "주간 (이번주~차주)", "월간"]
+
+    weekly_titles = [t.title for label, tasks in sections if label == "주간 (이번주~차주)" for t in tasks]
+    assert weekly_titles == ["이번주건", "차주건"]
+
+    monthly_titles = [t.title for label, tasks in sections if label == "월간" for t in tasks]
+    assert monthly_titles == ["8월건", "9월건"]
+
+
+def test_simplified_sections_empty_when_no_tasks():
+    groups = group_by_bucket([])
+    assert simplified_sections(groups) == []

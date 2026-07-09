@@ -90,3 +90,38 @@ def ordered_buckets(groups: dict) -> List[str]:
     if groups.get(UNKNOWN):
         order.append(UNKNOWN)
     return order
+
+
+def _sort_tasks(tasks: List[Task]) -> List[Task]:
+    return sorted(tasks, key=lambda t: (t.due_date or date.max, t.title))
+
+
+def simplified_sections(groups: dict) -> List[Tuple[str, List[Task]]]:
+    """지남 / 오늘(일간) / 주간(이번주+차주 합침) / 월간(그 이후 전부 합침) 4단으로 간략하게 묶는다.
+
+    이번주/차주를 따로 안 보고 "이번주에 챙겨야 할지, 다음주까지 여유가 있는지" 정도만
+    한눈에 보고 싶을 때를 위한 요약 뷰. 세밀한 버킷(THIS_WEEK/NEXT_WEEK/MONTH:*)이 필요하면
+    ordered_buckets() + bucket_label() 조합을 그대로 쓰면 된다.
+    """
+    sections: List[Tuple[str, List[Task]]] = []
+
+    overdue = groups.get(OVERDUE, [])
+    if overdue:
+        sections.append(("기한 지남", _sort_tasks(overdue)))
+
+    today = groups.get(TODAY, [])
+    if today:
+        sections.append(("오늘 (일간)", _sort_tasks(today)))
+
+    weekly = groups.get(THIS_WEEK, []) + groups.get(NEXT_WEEK, [])
+    if weekly:
+        sections.append(("주간 (이번주~차주)", _sort_tasks(weekly)))
+
+    monthly: List[Task] = []
+    for key, tasks in groups.items():
+        if key.startswith(MONTH_PREFIX):
+            monthly.extend(tasks)
+    if monthly:
+        sections.append(("월간", _sort_tasks(monthly)))
+
+    return sections
