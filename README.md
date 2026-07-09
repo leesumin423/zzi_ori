@@ -30,6 +30,16 @@ python server.py
 ```
 브라우저에서 `http://localhost:5000` 접속. (Windows에서는 `주가현황_실행하기.bat`를 더블클릭하면 서버 실행 + 브라우저 열기까지 자동으로 됩니다.)
 
+### (선택) DART 연동 — 거래정지 사유 자동 확인
+"주가 동향 코멘트"에서 거래정지가 감지되면, DART(전자공시) API로 주식병합/소각 결정
+공시 원문을 읽어 정확한 매매거래정지기간까지 알려줍니다. 이 기능은 선택사항이라 키가
+없어도 나머지 기능엔 영향 없습니다.
+
+1. [opendart.fss.or.kr](https://opendart.fss.or.kr) 에서 가입 즉시 무료로 키 발급 (승인 대기 없음)
+2. 프로젝트 폴더에 `.dart_api_key` 파일을 만들고 키 값만 한 줄로 저장
+   (또는 환경변수 `DART_API_KEY` 로 설정해도 됩니다)
+3. 이 파일은 `.gitignore`에 이미 등록되어 있어 실수로 커밋되지 않습니다
+
 ## 커스터마이징
 
 전부 [server.py](server.py)의 `/data` 라우트(`data_endpoint` 함수) 안에서 관리합니다.
@@ -41,6 +51,8 @@ python server.py
 | 시멘트사 종목/자본금 | `CEMENT`, `CEMENT_CAPITAL` 딕셔너리 |
 | 테마 그룹(및 순서) | `THEMES` 리스트 — 네이버 테마 그룹 번호(`no=`)는 `finance.naver.com/sise/sise_group_detail.naver?type=theme&no=N` URL에서 확인 |
 | 주가 동향 코멘트 대상 종목 | `TARGETS` 리스트 (`section == 'commentary'`) |
+| 거래정지 사유(DART 미확인 시 대체 문구) | `MANUAL_HALT_REASONS` 딕셔너리 |
+| DART 조회 대상 종목의 고유번호 | `DART_CORP_CODES` 딕셔너리 (종목코드와 다른 DART 전용 번호) |
 
 화면 쪽(색상, 레이아웃, 표 구조)은 [styles.css](styles.css) / [주가현황.html](주가현황.html) / [dashboard.js](dashboard.js)에서 직접 수정하면 됩니다.
 

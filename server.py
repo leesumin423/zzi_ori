@@ -1,7 +1,9 @@
 import os
 import re
 import json
-from datetime import date, datetime, time as dtime
+import io
+import zipfile
+from datetime import date, datetime, time as dtime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
@@ -11,6 +13,23 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 CORS(app)
+
+# ─────────────────────────────────────────────────────────────
+# DART(전자공시) Open API 키 — 절대 코드에 직접 적지 않고 환경변수나
+# .gitignore된 로컬 파일(.dart_api_key)에서만 읽는다. 둘 다 없으면 DART
+# 조회 기능은 자동으로 꺼지고(값이 ''), 나머지 기능은 그대로 동작한다.
+# 키 발급: https://opendart.fss.or.kr (가입 즉시 무료 발급, 승인 대기 없음)
+def _load_dart_api_key() -> str:
+    key = os.getenv('DART_API_KEY', '').strip()
+    if key:
+        return key
+    key_file = os.path.join(BASE_DIR, '.dart_api_key')
+    if os.path.exists(key_file):
+        with open(key_file, encoding='utf-8') as f:
+            return f.read().strip()
+    return ''
+
+DART_API_KEY = _load_dart_api_key()
 
 # ─────────────────────────────────────────────────────────────
 # 정적 파일 서빙 (HTML/CSS/JS) — 이 라우트 덕분에 python server.py
@@ -739,15 +758,122 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
 
     return '. '.join(parts)
 
+# ─────────────────────────────────────────────────────────────
+# 3-3. DART(전자공시) 연동 — 거래정지 등의 '진짜' 사유를 구조화된 공시
+# 원문에서 직접 읽어온다 (네이버 공시 게시판은 제목만 있고 본문 링크가
+# KIND/DART로 넘어가는 JS 리다이렉트라 본문을 못 읽어옴 — DART Open API로
+# 원문 문서를 직접 받아야 함)
+# ─────────────────────────────────────────────────────────────
+DART_CORP_CODES = {
+    "001520": "00117337",  # 동양 — DART 고유번호(종목코드와 다름)
+    "023410": "00184667",  # 유진기업
+}
+
+def fetch_dart_disclosures(corp_code: str, bgn_de: str, end_de: str) -> list:
+    """DART 공시 목록 (list.json) — bgn_de/end_de는 'YYYYMMDD', 최신순 반환"""
+    if not DART_API_KEY:
+        return []
+    try:
+        r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+            "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+            "bgn_de": bgn_de, "end_de": end_de, "page_no": 1, "page_count": 100,
+        }, timeout=15)
+        data = r.json()
+        if data.get('status') != '000':  # '013'=조회된 데이터 없음 등은 정상 케이스
+            return []
+        return data.get('list', [])
+    except Exception as e:
+        print(f"[DEBUG] DART 공시목록({corp_code}) 조회 중 예외: {e}")
+        return []
+
+def fetch_dart_document_text(rcept_no: str) -> str:
+    """DART 공시 원문(document.xml, zip으로 내려옴)을 텍스트로 반환"""
+    if not DART_API_KEY:
+        return ''
+    try:
+        r = requests.get("https://opendart.fss.or.kr/api/document.xml", params={
+            "crtfc_key": DART_API_KEY, "rcept_no": rcept_no,
+        }, timeout=15)
+        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+            raw = z.read(z.namelist()[0])
+        for enc in ('utf-8', 'euc-kr', 'cp949'):
+            try:
+                return raw.decode(enc)
+            except UnicodeDecodeError:
+                continue
+        return raw.decode('utf-8', errors='replace')
+    except Exception as e:
+        print(f"[DEBUG] DART 문서({rcept_no}) 조회 중 예외: {e}")
+        return ''
+
+def _extract_date_range_section(html_text: str, section_label: str):
+    """
+    DART 표준 서식 문서에서 rowspan으로 묶인 '~기간' 섹션(예: 매매거래정지기간)의
+    시작일/종료일을 순서대로 찾아 반환한다. 표 구조: 첫 행엔 [섹션라벨, '시작일', 값],
+    다음 행엔 [(라벨 생략), '종료일', 값] — 그래서 섹션라벨이 나온 바로 다음 '종료일'
+    행까지만 본다.
+    """
+    soup = BeautifulSoup(html_text, 'html.parser')
+    start_date = end_date = None
+    capture_next = False
+    for row in soup.find_all('tr'):
+        texts = [c.get_text(strip=True) for c in row.find_all('td')]
+        if not texts:
+            continue
+        value_span = row.find('span', class_='xforms_input')
+        val = value_span.get_text(strip=True) if value_span else ''
+        if texts[0] == section_label:
+            start_date = val if val and val != '-' else None
+            capture_next = True
+            continue
+        if capture_next:
+            if texts[0] == '종료일':
+                end_date = val if val and val != '-' else None
+            capture_next = False
+    return start_date, end_date
+
+def fetch_dart_halt_info(code: str):
+    """
+    최근 60일 내 '주식병합결정'/'주식소각결정' 공시가 있으면 원문을 읽어
+    매매거래정지기간(시작/종료)까지 뽑아온다. DART_API_KEY가 없거나 해당
+    공시가 없으면 None (호출부에서 다른 방식으로 폴백).
+    """
+    corp_code = DART_CORP_CODES.get(code)
+    if not corp_code or not DART_API_KEY:
+        return None
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=60)).strftime('%Y%m%d')
+    disclosures = fetch_dart_disclosures(corp_code, bgn_de, end_de)
+
+    target = None
+    for keyword in ('주식병합결정', '주식소각결정'):
+        target = next((d for d in disclosures if keyword in d.get('report_nm', '')), None)
+        if target:
+            break
+    if not target:
+        return None
+
+    reason_name = re.sub(r'\s+', ' ', target['report_nm']).strip()
+    rcept_dt = target.get('rcept_dt', '')
+    date_fmt = f"{rcept_dt[:4]}.{rcept_dt[4:6]}.{rcept_dt[6:8]}" if len(rcept_dt) == 8 else rcept_dt
+
+    doc_text = fetch_dart_document_text(target['rcept_no'])
+    if not doc_text:
+        return {"reason": reason_name, "start": None, "end": None, "date": date_fmt}
+
+    start, end = _extract_date_range_section(doc_text, '매매거래정지기간')
+    return {"reason": reason_name, "start": start, "end": end, "date": date_fmt}
+
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
 # "매매거래정지및정지해제"처럼 당일 안에 풀리는 일회성 조치가 섞여 있어서,
 # 여러 날 이어지는 실제 거래정지의 '진짜' 원인을 공시 제목만 보고 자동으로
 # 정확히 골라내기 어렵다 (예: 2026.07 동양 거래정지는 실제로는 액면(주식)병합이
 # 원인이었는데, 자동 매칭은 시점상 가장 최근인 "단기과열종목 지정 연장" 공시를
-# 잘못 골랐었음). 그래서 확인된 사유를 알고 있으면 여기에 직접 적어두면
-# 자동 추정보다 우선해서 코멘트에 반영된다. 종목코드를 키로 사용.
+# 잘못 골랐었음). DART_API_KEY가 설정돼 있으면 fetch_dart_halt_info가 이 사유를
+# 훨씬 정확하게(정지기간까지) 알려주므로 우선 사용되고, 이 딕셔너리는 DART 조회가
+# 안 될 때(키 미설정 등)의 최후 폴백으로만 쓰인다. 종목코드를 키로 사용.
 MANUAL_HALT_REASONS = {
-    "001520": "액면(주식)병합에 따른 매매거래정지",
+    # "종목코드": "확인된 사유",
 }
 
 def generate_stock_commentary(code: str, display_name: str) -> str:
@@ -790,23 +916,32 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     if zero_n >= 2:
         status = fetch_trade_status(code)
         if status['halted']:
-            manual_reason = MANUAL_HALT_REASONS.get(code)
-            if manual_reason:
-                # 조사(으로/로) 활용 문제를 피하려고 콜론 구조로 표현
-                sentences.append(f"현재 거래정지 상태. 확인된 사유: {manual_reason}")
+            dart_info = fetch_dart_halt_info(code)
+            if dart_info and dart_info.get('start') and dart_info.get('end'):
+                sentences.append(
+                    f"현재 거래정지 상태. DART 공시(「{dart_info['reason']}」, {dart_info['date']}) 확인 결과 "
+                    f"매매거래정지기간은 {dart_info['start']}~{dart_info['end']}"
+                )
+            elif dart_info:
+                sentences.append(f"현재 거래정지 상태. 관련 DART 공시: 「{dart_info['reason']}」({dart_info['date']})")
             else:
-                notices = fetch_stock_notices(code, count=5)
-                HALT_KEYWORDS = ['정지', '단기과열', '단일가매매', '병합']
-                reason = next((n for n in notices if any(k in n['title'] for k in HALT_KEYWORDS)), None)
-                if reason:
-                    # 공시 목록에 정지 관련 항목이 있어도, 여러 날 이어지는 이번 정지의
-                    # '진짜' 원인인지는 자동으로 단정할 수 없어 추정으로만 표현한다.
-                    sentences.append(
-                        f"현재 거래정지 상태 — 관련 가능성이 있는 최근 공시로 「{reason['title']}」({reason['date']})가 "
-                        f"있으나, 이번 정지와의 정확한 인과관계는 확인되지 않음"
-                    )
+                manual_reason = MANUAL_HALT_REASONS.get(code)
+                if manual_reason:
+                    # 조사(으로/로) 활용 문제를 피하려고 콜론 구조로 표현
+                    sentences.append(f"현재 거래정지 상태. 확인된 사유: {manual_reason}")
                 else:
-                    sentences.append(f"현재 거래정지 상태 (최근 {zero_n}거래일간 거래 없음, 구체적 사유 공시는 확인되지 않음)")
+                    notices = fetch_stock_notices(code, count=5)
+                    HALT_KEYWORDS = ['정지', '단기과열', '단일가매매', '병합']
+                    reason = next((n for n in notices if any(k in n['title'] for k in HALT_KEYWORDS)), None)
+                    if reason:
+                        # 공시 목록에 정지 관련 항목이 있어도, 여러 날 이어지는 이번 정지의
+                        # '진짜' 원인인지는 자동으로 단정할 수 없어 추정으로만 표현한다.
+                        sentences.append(
+                            f"현재 거래정지 상태 — 관련 가능성이 있는 최근 공시로 「{reason['title']}」({reason['date']})가 "
+                            f"있으나, 이번 정지와의 정확한 인과관계는 확인되지 않음"
+                        )
+                    else:
+                        sentences.append(f"현재 거래정지 상태 (최근 {zero_n}거래일간 거래 없음, 구체적 사유 공시는 확인되지 않음)")
         else:
             sentences.append(f"현재는 최근 {zero_n}거래일간 거래대금이 사실상 '0'으로 초저유동성 상태")
 

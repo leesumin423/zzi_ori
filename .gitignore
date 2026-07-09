@@ -8,6 +8,9 @@ debug_*.html
 # Claude Code 로컬 설정 (개인 환경/권한 설정이라 공유 불필요)
 .claude/
 
+# DART Open API 키 (개인 발급 키라 절대 공유 저장소에 올리면 안 됨)
+.dart_api_key
+
 # OS
 .DS_Store
 Thumbs.db
