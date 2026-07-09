@@ -506,6 +506,52 @@ def fetch_stock_news(code: str, count: int = 10) -> list:
         print(f"[DEBUG] {code} 뉴스 조회 중 예외: {e}")
     return result
 
+def fetch_trade_status(code: str) -> dict:
+    """
+    실시간 거래정지 여부 확인 (polling.finance.naver.com 개별 종목 API의 tradeStopType).
+    marketStatus는 장 시작 전(PREOPEN)엔 모든 종목이 동일하게 나오므로 정지 여부
+    판단에 쓰면 안 되고, tradeStopType.name이 'HALTED'인지로만 판단해야 정확하다
+    (정상 거래 종목은 장 시작 전에도 'TRADING'으로 나옴 — 실제로 유진기업/삼성전자로 대조 확인).
+    """
+    url = f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code}"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=8)
+        d = r.json()['datas'][0]
+        stop = d.get('tradeStopType') or {}
+        return {"halted": stop.get('name') == 'HALTED', "text": stop.get('text', '')}
+    except Exception as e:
+        print(f"[DEBUG] {code} 거래상태 조회 중 예외: {e}")
+        return {"halted": False, "text": ""}
+
+def fetch_stock_notices(code: str, count: int = 5) -> list:
+    """
+    종목 공시 헤드라인 스크랩 (finance.naver.com/item/news_notice.naver).
+    KRX/KOSCOM이 낸 공시(매매거래정지, 단기과열종목 지정 등)가 그대로 올라오므로
+    거래정지 사유를 추정하는 근거로 쓴다. KRX Open API나 DART 없이도 확인 가능.
+    """
+    url = f"https://finance.naver.com/item/news_notice.naver?code={code}&page=1"
+    result = []
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        r.encoding = 'euc-kr'
+        soup = BeautifulSoup(r.text, 'html.parser')
+        table = soup.find('table', class_='type6')
+        if not table:
+            return result
+        for row in table.find_all('tr'):
+            cells = row.find_all(['th', 'td'])
+            if len(cells) < 3:
+                continue
+            title = cells[0].get_text(strip=True)
+            date_txt = cells[2].get_text(strip=True)
+            if title and title != '제목':
+                result.append({"title": title, "date": date_txt})
+            if len(result) >= count:
+                break
+    except Exception as e:
+        print(f"[DEBUG] {code} 공시 조회 중 예외: {e}")
+    return result
+
 def _find_streak(history: list, key: str):
     """history는 최신일이 [0]인 리스트. 가장 최근일부터 같은 부호(순매수/순매도)가
     끊기지 않고 이어지는 길이를 센다. 0(거래 없음)을 만나면 스트릭이 끊긴 것으로 본다."""
@@ -698,7 +744,9 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     최근 10영업일 수급(개인/기관/외국인)·주가 데이터를 분석해 보고서 톤 코멘트를 생성.
     순서: ① 가장 최근 실제 거래일의 시가→(장중 급변동)→종가 흐름 + 그날 수급 우위(원인) +
     관련 뉴스 — 변동폭과 무관하게 항상 서술 ② 연속 순매수/순매도 스트릭(3일 이상)
-    ③ 거래 정지 수준의 초저유동성(거래대금 0) 구간.
+    ③ 최근 며칠간 거래가 없으면 실시간 API로 실제 거래정지 여부를 확인하고,
+    맞으면 관련 공시(단기과열종목 지정, 매매거래정지 등)를 사유로 인용. 거래정지가
+    아니면 단순 저유동성으로 표시.
     데이터에서 직접 확인되지 않는 원인은 추정해 서술하지 않고,
     수치로 확인된 사실과 실제 뉴스 헤드라인만 근거로 사용한다.
     """
@@ -726,10 +774,22 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     if for_n >= 3:
         sentences.append(f"외국인이 {for_n}일 연속 {'순매수' if for_sign > 0 else '순매도'} 중")
 
-    # ③ 초저유동성 상태 (현재 상태이므로 맨 뒤에 배치)
+    # ③ 거래정지 여부 (현재 상태이므로 맨 뒤에 배치)
     zero_n = _find_zero_volume_streak(history)
     if zero_n >= 2:
-        sentences.append(f"현재는 최근 {zero_n}거래일간 거래대금이 사실상 '0'으로 초저유동성 상태")
+        status = fetch_trade_status(code)
+        if status['halted']:
+            notices = fetch_stock_notices(code, count=5)
+            HALT_KEYWORDS = ['정지', '단기과열', '단일가매매']
+            reason = next((n for n in notices if any(k in n['title'] for k in HALT_KEYWORDS)), None)
+            if reason:
+                sentences.append(
+                    f"현재 거래정지 상태이며, 관련 공시로 「{reason['title']}」({reason['date']})가 확인됨"
+                )
+            else:
+                sentences.append(f"현재 거래정지 상태 (최근 {zero_n}거래일간 거래 없음, 구체적 사유 공시는 확인되지 않음)")
+        else:
+            sentences.append(f"현재는 최근 {zero_n}거래일간 거래대금이 사실상 '0'으로 초저유동성 상태")
 
     if not sentences:
         sentences.append("최근 10영업일간 수급·주가 흐름에 뚜렷한 특이사항 없음")

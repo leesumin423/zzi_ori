@@ -373,10 +373,21 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   /* 회사명 클릭 링크 밑줄 제거 (인쇄본에서는 클릭 불가능하므로) */
   .clickable-name { text-decoration: none !important; }
 
-  /* "당일 주가" 컬럼(5번째) 빨간색 강조 테두리 */
+  /* "당일 주가" 컬럼(5번째) 빨간색 강조 테두리 — 칸마다 다 두르면 안쪽 가로줄까지
+     굵어지므로, 컬럼 전체를 감싸는 바깥쪽 테두리만 굵게 (좌/우는 전 행 공통,
+     위쪽은 헤더만, 아래쪽은 마지막 행만) */
   #companies-table th:nth-child(5), #companies-table td:nth-child(5),
   #cement-table th:nth-child(5),    #cement-table td:nth-child(5) {
-    border: 2px solid var(--up) !important;
+    border-left: 2px solid var(--up) !important;
+    border-right: 2px solid var(--up) !important;
+  }
+  #companies-table th:nth-child(5),
+  #cement-table th:nth-child(5) {
+    border-top: 2px solid var(--up) !important;
+  }
+  #companies-table tbody tr:last-child td:nth-child(5),
+  #cement-table tbody tr:last-child td:nth-child(5) {
+    border-bottom: 2px solid var(--up) !important;
   }
 
   /* 주가 동향 코멘트 축소 */
