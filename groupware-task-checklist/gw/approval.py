@@ -121,7 +121,7 @@ def collect_approval_tasks(session: GWSession, folder_urls: Dict[str, str], run_
                 break
             if page_num >= max_pages:
                 break
-            if not go_to_next_page(list_frame):
+            if not go_to_next_page(list_frame, page_num + 1):
                 break
             try:
                 page.wait_for_load_state("networkidle", timeout=8000)

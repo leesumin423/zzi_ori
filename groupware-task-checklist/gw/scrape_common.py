@@ -58,15 +58,26 @@ _CLICK_JS = """
 }
 """
 
-_NEXT_PAGE_JS = """
-() => {
+_GOTO_PAGE_JS = """
+(pageNum) => {
+  const target = String(pageNum);
+  const candidates = Array.from(document.querySelectorAll('a, button, span[onclick], li[onclick], td[onclick]'));
+  // 1순위: 페이지 번호 숫자가 그대로 텍스트로 보이는 링크 (예: "2") - 아이콘 폰트라 텍스트를
+  // 못 읽는 '>' 버튼보다 훨씬 안정적으로 잡힌다.
+  const exact = candidates.find(el => (el.innerText || '').trim() === target && el.offsetParent !== null);
+  if (exact) {
+    exact.click();
+    return true;
+  }
+  // 2순위: '다음/>' 류 텍스트 버튼 (숫자 링크를 못 찾았을 때 대비)
   const nextTexts = ['>', '»', '다음', '다음페이지', '다음 페이지', 'next'];
   const isNextLike = (t) => nextTexts.includes((t || '').trim().toLowerCase());
-  const candidates = Array.from(document.querySelectorAll('a, button, span[onclick], li[onclick]'));
   const next = candidates.find(el => isNextLike(el.innerText) && el.offsetParent !== null);
-  if (!next) return false;
-  next.click();
-  return true;
+  if (next) {
+    next.click();
+    return true;
+  }
+  return false;
 }
 """
 
@@ -86,10 +97,16 @@ def open_row(frame: Frame, index: int) -> bool:
         return False
 
 
-def go_to_next_page(frame: Frame) -> bool:
-    """목록 화면에서 '다음 페이지' 버튼(> , 다음, Next 등)을 찾아 클릭한다. 못 찾으면 False."""
+def go_to_next_page(frame: Frame, next_page_num: int) -> bool:
+    """목록 화면에서 다음 페이지로 이동한다. 못 찾으면 False.
+
+    우선 '다음 페이지 번호'(예: 2페이지에 있으면 "3")가 그대로 텍스트로 보이는 링크를
+    찾아서 클릭하고, 없으면 '>'/'다음' 같은 화살표/텍스트 버튼을 시도한다.
+    (숫자 링크를 우선하는 이유: '>' 화살표가 아이콘 폰트로 그려지는 사이트가 많아
+    innerText 로는 안 잡히는 경우가 있기 때문)
+    """
     try:
-        return bool(frame.evaluate(_NEXT_PAGE_JS))
+        return bool(frame.evaluate(_GOTO_PAGE_JS, next_page_num))
     except Exception:
         return False
 

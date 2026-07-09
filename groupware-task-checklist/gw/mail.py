@@ -139,7 +139,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
             log.info("메일함: 최대 페이지 수(%d)에 도달해 중단", max_pages)
             break
 
-        if not go_to_next_page(list_frame):
+        if not go_to_next_page(list_frame, page_num + 1):
             log.info("메일함: 다음 페이지 버튼을 못 찾음 (마지막 페이지로 추정)")
             break
         try:
