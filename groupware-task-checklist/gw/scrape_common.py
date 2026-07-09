@@ -93,16 +93,23 @@ def open_row(frame: Frame, index: int) -> bool:
 
     스크립트(frame.evaluate)에서 DOM의 .click()을 직접 호출하면 브라우저가 이를
     '진짜 사용자 조작'으로 인정하지 않아서, 그 클릭으로 뜨는 새 창(window.open)이
-    팝업 차단으로 조용히 막히는 경우가 있다 (에러 없이 그냥 아무 일도 안 일어남).
-    대신 Playwright의 ElementHandle.click()으로 실제 마우스 클릭 이벤트를 보내면
-    '진짜 사용자 조작'으로 인정되어 팝업 차단을 피할 수 있다.
+    팝업 차단으로 조용히 막히는 경우가 있다. 그래서 Playwright의 ElementHandle로
+    실제 마우스 이벤트를 보낸다.
+
+    많은 그리드형 목록 UI(Outlook 스타일 메일함 등)는 한 번 클릭하면 그냥 선택만
+    되고, 실제로 상세화면을 열려면 더블클릭이 필요하다 - 실제로 겪은 증상이
+    "클릭은 에러 없이 성공하는데 상세 내용이 매번 목록 그대로"였는데, 이게 바로
+    그 패턴이라 더블클릭을 우선 시도한다.
     """
     try:
         handle = frame.evaluate_handle(_GET_LINK_JS, index)
         el = handle.as_element()
         if el is None:
             return False
-        el.click(timeout=3000)
+        try:
+            el.dblclick(timeout=3000)
+        except Exception:
+            el.click(timeout=3000)
         return True
     except Exception:
         return False
