@@ -268,8 +268,58 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   color: var(--title);
 }
 
+/* ── Modal & Links ───────────────────────────────────────────── */
+.clickable-name {
+  color: var(--title);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.clickable-name:hover {
+  opacity: 0.8;
+}
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.show {
+  opacity: 1; pointer-events: auto;
+}
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 680px; max-width: 95%;
+  position: relative;
+}
+#investorModalTable { table-layout: fixed; font-size: 12px; }
+#investorModalTable th, #investorModalTable td { padding: 7px 5px; }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--title); }
+.modal-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 20px; cursor: pointer;
+}
+.modal-close:hover { color: var(--text); }
+
 /* ── Print ───────────────────────────────────────────────────── */
+/* 이 블록은 반드시 파일 맨 끝에 있어야 한다 — 동일 우선순위(specificity)일 때
+   CSS는 소스 순서상 나중에 나온 규칙이 이기므로, 위쪽 기본 규칙(.clickable-name
+   등)보다 앞에 있으면 print 전용 값이 화면/인쇄 공통 규칙에 도로 덮어써진다. */
 @media print {
+  .modal-overlay { display: none !important; }
+
   /* A4 세로, 여백 14mm×10mm */
   @page { size: A4 portrait; margin: 14mm 10mm; }
 
@@ -321,12 +371,12 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   th, td { padding: 4px 5px; }
 
   /* 회사명 클릭 링크 밑줄 제거 (인쇄본에서는 클릭 불가능하므로) */
-  .clickable-name { text-decoration: none; }
+  .clickable-name { text-decoration: none !important; }
 
-  /* "당일 주가" 컬럼(5번째) 강조 테두리 */
+  /* "당일 주가" 컬럼(5번째) 빨간색 강조 테두리 */
   #companies-table th:nth-child(5), #companies-table td:nth-child(5),
   #cement-table th:nth-child(5),    #cement-table td:nth-child(5) {
-    border: 2px solid #000000;
+    border: 2px solid var(--up) !important;
   }
 
   /* 주가 동향 코멘트 축소 */
@@ -336,54 +386,5 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   /* 버튼 숨김 */
   .btn { display: none; }
   .tab-group { display: none; }
-}
-
-/* ── Modal & Links ───────────────────────────────────────────── */
-.clickable-name {
-  color: var(--title);
-  text-decoration: underline;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.clickable-name:hover {
-  opacity: 0.8;
-}
-
-.modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex; justify-content: center; align-items: center;
-  z-index: 100;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.2s;
-}
-.modal-overlay.show {
-  opacity: 1; pointer-events: auto;
-}
-.modal-content {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  width: 680px; max-width: 95%;
-  position: relative;
-}
-#investorModalTable { table-layout: fixed; font-size: 12px; }
-#investorModalTable th, #investorModalTable td { padding: 7px 5px; }
-.modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-.modal-title { font-size: 16px; font-weight: 700; color: var(--title); }
-.modal-close {
-  background: none; border: none; color: var(--muted);
-  font-size: 20px; cursor: pointer;
-}
-.modal-close:hover { color: var(--text); }
-
-@media print {
-  .modal-overlay { display: none !important; }
 }
 

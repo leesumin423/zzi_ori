@@ -16,6 +16,13 @@ CORS(app)
 # 정적 파일 서빙 (HTML/CSS/JS) — 이 라우트 덕분에 python server.py
 # 하나만 실행해도 http://localhost:5000 에서 대시보드가 통째로 열림
 # ─────────────────────────────────────────────────────────────
+@app.after_request
+def no_cache(response):
+    # html/css/js를 브라우저가 캐싱하면 server.py를 껐다 켜도 예전 화면이 보일 수
+    # 있어서(수정한 스타일이 안 바뀐 것처럼 보임), 이 앱은 항상 최신 파일을 받도록 함
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
 @app.route('/')
 def index():
     for candidate in ('주가현황.html', 'index.html'):
@@ -525,22 +532,42 @@ def _find_zero_volume_streak(history: list) -> int:
             break
     return length
 
+CORP_SUFFIXES = ['기업', '그룹', '증권', '홀딩스', '시멘트', '산업', '건설', '로보틱스']
+
+def _company_root(name: str) -> str:
+    """
+    회사명에서 흔한 법인 접미사를 뗀 '핵심 이름'을 구한다.
+    예: '유진기업' -> '유진' (그러면 '유진그룹'을 다룬 기사도 관련 기사로 인정됨).
+    '동양'처럼 접미사가 안 붙는 짧은 이름은 그대로 반환된다 — 다만 '동양'은 그
+    자체로 흔한 낱말이라, 제목에 이 낱말이 있다고 무조건 관련 기사는 아닐 수 있음
+    (예: '동양' 관련이 아니라 옛 '동양그룹' 시절 이슈를 다룬 기사 등). 그래서
+    이 함수는 "완전히 무관한 기사"를 걸러내는 최소한의 필터로만 쓴다.
+    """
+    for suf in CORP_SUFFIXES:
+        if name.endswith(suf) and len(name) > len(suf):
+            return name[:-len(suf)]
+    return name
+
 def _match_news(news_list: list, date_str: str, display_name: str):
     """
-    date_str('YYYY.MM.DD') 당일 뉴스 중 종목명이 제목에 들어간 것을 우선 매칭.
-    같은 날 여러 건이 있으면 종목명이 제목 앞쪽에 나오는 기사를 우선한다
+    date_str('YYYY.MM.DD') 당일 뉴스 중 종목명(또는 그 핵심 이름)이 제목에 들어간
+    것만 매칭한다. 같은 날짜에 이 코드로 태그된 기사가 있어도 제목에 회사명이 아예
+    없으면(예: 과거 계열사 시절 이슈 등 실제로는 무관한 기사) 매칭하지 않는다.
+    여러 건이면 이름이 제목 앞쪽에 나오는 기사를 우선한다
     (예: "유진기업, 장 초반 15% 급등…" 같은 단독 기사가 "…혼조…유진기업·KBI메탈…"
     같은 여러 종목 나열형 리스트 기사보다 실제 원인을 설명할 가능성이 높음).
     """
+    root = _company_root(display_name)
     same_day = [n for n in news_list if n['date'].startswith(date_str)]
-    named = [n for n in same_day if display_name in n['title']]
-    if named:
-        named.sort(key=lambda n: n['title'].find(display_name))
-        return named[0]
-    return same_day[0] if same_day else None
+    named = [n for n in same_day if root in n['title']]
+    if not named:
+        return None
+    named.sort(key=lambda n: n['title'].find(root))
+    return named[0]
 
 def _find_related_news(news_list: list, date_str: str, display_name: str, window_days: int = 3):
-    """같은 날 뉴스가 없으면, date_str 이전 window_days일 내의 가장 최근 뉴스로 대체"""
+    """같은 날 매칭이 없으면, date_str 이전 window_days일 내에서도 회사명이 제목에
+    들어간 기사가 있는지 찾는다 (이름이 없는 기사는 여기서도 매칭하지 않는다)."""
     matched = _match_news(news_list, date_str, display_name)
     if matched:
         return matched
@@ -548,7 +575,10 @@ def _find_related_news(news_list: list, date_str: str, display_name: str, window
         target = datetime.strptime(date_str, '%Y.%m.%d')
     except Exception:
         return None
+    root = _company_root(display_name)
     for n in news_list:  # news_list는 최신순
+        if root not in n['title']:
+            continue
         try:
             n_date = datetime.strptime(n['date'][:10], '%Y.%m.%d')
         except Exception:
