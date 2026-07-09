@@ -111,7 +111,7 @@ def collect_approval_tasks(session: GWSession, folder_urls: Dict[str, str], run_
                             sender=sender,
                             doc_date=doc_date,
                             due_date=m.due_date,
-                            matched_text=m.matched_text,
+                            matched_text=m.sentence,
                             url=page.url,
                         )
                     )

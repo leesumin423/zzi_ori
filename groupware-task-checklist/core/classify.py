@@ -97,17 +97,16 @@ def _sort_tasks(tasks: List[Task]) -> List[Task]:
 
 
 def simplified_sections(groups: dict) -> List[Tuple[str, List[Task]]]:
-    """지남 / 오늘(일간) / 주간(이번주+차주 합침) / 월간(그 이후 전부 합침) 4단으로 간략하게 묶는다.
+    """오늘(일간) / 주간(이번주+차주 합침) / 월간(그 이후 전부 합침) 3단으로 간략하게 묶는다.
+
+    지난 기한(OVERDUE)은 더 이상 실행할 수 없는 항목이라 팝업에는 표시하지 않는다
+    (완료 체크 대상에서만 빠질 뿐, 분류 자체는 계속 계산되어 groups 에는 남아있다).
 
     이번주/차주를 따로 안 보고 "이번주에 챙겨야 할지, 다음주까지 여유가 있는지" 정도만
     한눈에 보고 싶을 때를 위한 요약 뷰. 세밀한 버킷(THIS_WEEK/NEXT_WEEK/MONTH:*)이 필요하면
     ordered_buckets() + bucket_label() 조합을 그대로 쓰면 된다.
     """
     sections: List[Tuple[str, List[Task]]] = []
-
-    overdue = groups.get(OVERDUE, [])
-    if overdue:
-        sections.append(("기한 지남", _sort_tasks(overdue)))
 
     today = groups.get(TODAY, [])
     if today:

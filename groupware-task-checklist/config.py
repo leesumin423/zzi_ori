@@ -46,8 +46,8 @@ class Config:
         "개인함-참조/회람함": os.getenv("GW_APPROVAL_PERSONAL_REFERENCE_URL", ""),
     }
 
-    mail_lookback_days: int = _get_int("MAIL_LOOKBACK_DAYS", 21)
-    approval_lookback_days: int = _get_int("APPROVAL_LOOKBACK_DAYS", 21)
+    mail_lookback_days: int = _get_int("MAIL_LOOKBACK_DAYS", 14)
+    approval_lookback_days: int = _get_int("APPROVAL_LOOKBACK_DAYS", 14)
 
     # 목록이 최신순 정렬이라는 전제로, 조회기간보다 오래된 항목이 나올 때까지 다음 페이지로 넘어간다.
     # (하루 메일량이 많으면 첫 페이지(보통 50개)만으로는 조회기간을 다 못 채울 수 있어서 필요함)

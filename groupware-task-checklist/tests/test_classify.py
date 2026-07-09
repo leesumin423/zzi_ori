@@ -79,8 +79,10 @@ def test_simplified_sections_merges_weekly_and_monthly():
     groups = group_by_bucket(tasks)
     sections = simplified_sections(groups)
 
+    # 지난 기한(OVERDUE)은 더 이상 실행할 수 없어 팝업에 표시하지 않는다.
     labels = [label for label, _ in sections]
-    assert labels == ["기한 지남", "오늘 (일간)", "주간 (이번주~차주)", "월간"]
+    assert labels == ["오늘 (일간)", "주간 (이번주~차주)", "월간"]
+    assert "지남건" not in [t.title for _, tasks in sections for t in tasks]
 
     weekly_titles = [t.title for label, tasks in sections if label == "주간 (이번주~차주)" for t in tasks]
     assert weekly_titles == ["이번주건", "차주건"]

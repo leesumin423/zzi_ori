@@ -20,7 +20,6 @@ from core.models import Task
 BG_COLOR = "#FFF9C4"  # 포스트잇 느낌 파스텔 옐로우
 DEFAULT_SECTION_COLOR = "#455A64"
 SECTION_COLORS = {
-    "기한 지남": "#C62828",
     "오늘 (일간)": "#EF6C00",
     "주간 (이번주~차주)": "#F9A825",
     "월간": "#1565C0",

@@ -138,7 +138,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                         receiver=receiver,
                         doc_date=doc_date,
                         due_date=m.due_date,
-                        matched_text=m.matched_text,
+                        matched_text=m.sentence,
                         url=page.url,
                     )
                 )
