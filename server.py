@@ -767,6 +767,14 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
 DART_CORP_CODES = {
     "001520": "00117337",  # 동양 — DART 고유번호(종목코드와 다름)
     "023410": "00184667",  # 유진기업
+    "001200": "00131054",  # 유진투자증권
+    "040300": "00200275",  # YTN
+    "484810": "01458161",  # 티엑스알로보틱스
+    "300720": "01319808",  # 한일시멘트
+    "004980": "00132804",  # 성신양회
+    "038500": "00239639",  # 삼표시멘트
+    "183190": "00990165",  # 아세아시멘트
+    "198440": "01032583",  # 강동씨앤엘
 }
 
 def fetch_dart_disclosures(corp_code: str, bgn_de: str, end_de: str) -> list:
@@ -805,6 +813,44 @@ def fetch_dart_document_text(rcept_no: str) -> str:
     except Exception as e:
         print(f"[DEBUG] DART 문서({rcept_no}) 조회 중 예외: {e}")
         return ''
+
+_dart_capital_cache = {}  # {종목코드: 억원 단위 자본금(int) 또는 None} — 서버 실행 중 재사용
+
+def fetch_dart_capital(code: str):
+    """
+    DART 재무제표(개별, 최근 사업보고서)에서 재무상태표 '자본금' 계정을 조회해
+    억원 단위(반올림)로 반환. 액면가·우선주 유무에 따라 종목마다 계산식이 달라
+    수동으로 정확히 맞추기 어려웠는데, 이건 회사가 직접 공시한 실측값이라 정확하다.
+    DART_API_KEY가 없거나 조회 실패 시 None (호출부에서 하드코딩 폴백 사용).
+    """
+    if code in _dart_capital_cache:
+        return _dart_capital_cache[code]
+
+    corp_code = DART_CORP_CODES.get(code)
+    if not corp_code or not DART_API_KEY:
+        return None
+
+    this_year = datetime.now().year
+    # 연초에는 직전 연도 사업보고서가 아직 안 나왔을 수 있어 최대 2개 연도 재시도
+    for year in (this_year - 1, this_year - 2):
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bsns_year": str(year), "reprt_code": "11011", "fs_div": "OFS",
+            }, timeout=15)
+            data = r.json()
+            if data.get('status') != '000':
+                continue
+            for item in data.get('list', []):
+                if item.get('sj_div') == 'BS' and item.get('account_nm', '').strip() == '자본금':
+                    capital_billion = round(int(item['thstrm_amount']) / 100_000_000)
+                    _dart_capital_cache[code] = capital_billion
+                    return capital_billion
+        except Exception as e:
+            print(f"[DEBUG] {code} DART 자본금 조회 중 예외({year}): {e}")
+
+    _dart_capital_cache[code] = None
+    return None
 
 def _extract_date_range_section(html_text: str, section_label: str):
     """
@@ -1035,7 +1081,10 @@ def data_endpoint():
             "YTN":          "040300",
             "티엑스알로보틱스": "484810",
         }
-        CAPITAL = {
+        # DART 재무제표 조회가 안 될 때만 쓰는 폴백값 (DART_API_KEY 미설정 등).
+        # 종목마다 액면가/우선주 구성이 달라 수동 계산은 부정확할 수 있어서
+        # fetch_dart_capital()이 우선이고, 이건 최후 수단일 뿐이다.
+        CAPITAL_FALLBACK = {
             "동양":         "1,199",
             "유진기업":     "387",
             "유진투자증권": "5,376",
@@ -1046,7 +1095,8 @@ def data_endpoint():
         for name, code in COMPANIES.items():
             d = fetch_stock(code)
             d['display_name'] = name
-            d['capital_billion'] = CAPITAL.get(name, '0')
+            dart_capital = fetch_dart_capital(code)
+            d['capital_billion'] = f"{dart_capital:,}" if dart_capital is not None else CAPITAL_FALLBACK.get(name, '0')
             result.append(d)
         return jsonify(result)
 
@@ -1058,8 +1108,11 @@ def data_endpoint():
             "아세아시멘트": "183190",
             "강동씨앤엘":   "198440",
         }
-        # 자본금(억원): DART 공시 기준 납입자본금 (보통주 × 5,000원 액면가 / 1억)
-        CEMENT_CAPITAL = {
+        # DART 재무제표 조회가 안 될 때만 쓰는 폴백값. 예전엔 "보통주 × 5,000원
+        # 액면가"로 추정 계산했었는데, 실제 DART 공시와 대조해보니 종목별로
+        # 액면가가 500원인 곳도 있어 틀린 값이 섞여있었다(한일시멘트 310→368억,
+        # 성신양회 300→1,285억). fetch_dart_capital()이 실측값이라 우선한다.
+        CAPITAL_FALLBACK = {
             "한일시멘트":   "310",
             "성신양회":     "300",
             "삼표시멘트":   "254",
@@ -1070,7 +1123,8 @@ def data_endpoint():
         for name, code in CEMENT.items():
             d = fetch_stock(code)
             d['display_name'] = name
-            d['capital_billion'] = CEMENT_CAPITAL.get(name, '0')
+            dart_capital = fetch_dart_capital(code)
+            d['capital_billion'] = f"{dart_capital:,}" if dart_capital is not None else CAPITAL_FALLBACK.get(name, '0')
             result.append(d)
         return jsonify(result)
 
