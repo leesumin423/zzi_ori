@@ -936,11 +936,27 @@ DANPAN_LOOKBACK_YEARS = 10  # 공사기간이 보통 1~5년이라 이 정도면 
 DANPAN_CACHE_TTL = 6 * 3600  # 초 — 원문을 수십 건씩 새로 받아오는 무거운 작업이라 캐시
 
 def _danpan_parse_document(html_text: str) -> dict:
-    """단일판매ㆍ공급계약체결/정정/해지 공시 원문(XFormD1_Form0_Table0)에서
-    라벨을 매칭해 핵심 필드를 뽑는다. [기재정정] 문서에도 이 표는 항상 정정
-    반영 후 '현재' 값으로 들어있어서, 정정 전/후 비교표는 볼 필요가 없다."""
+    """단일판매ㆍ공급계약체결/정정/해지 공시 원문에서 라벨을 매칭해 핵심 필드를
+    뽑는다. [기재정정] 문서에도 본문 표는 항상 정정 반영 후 '현재' 값으로 들어있어서,
+    정정 전/후 비교표는 볼 필요가 없다.
+
+    표의 HTML id(XFormD1/XFormD8/XFormD14...)는 공시 작성 시점의 DART 서식 버전에
+    따라 달라서 id로 찾지 않는다 — 대신 "체결계약명"/"해지계약명"(또는 오래된
+    자율공시 서식에서 쓰는 "세부내용") 라벨이 있는 표를 찾는다. [기재정정] 문서는
+    본문 표 앞에 "정정 전/후" 비교표가 먼저 나오는데, 계약명이 정정 대상이면 그
+    비교표에도 우연히 같은 라벨이 걸릴 수 있어 문서에 여러 개 걸리면 문서 뒤쪽에
+    나오는(=본문) 표를 쓴다."""
     soup = BeautifulSoup(html_text, 'html.parser')
-    table = soup.find('table', id='XFormD1_Form0_Table0')
+    table = None
+    for t in soup.find_all('table'):
+        for row in t.find_all('tr'):
+            tds = row.find_all('td')
+            if not tds:
+                continue
+            label = ' '.join(td.get_text(strip=True) for td in tds[:-1])
+            if '체결계약명' in label or '해지계약명' in label or '세부내용' in label:
+                table = t  # 계속 덮어써서 마지막(=본문) 매치를 사용
+                break
     if not table:
         return {}
     result = {'related_rcept_nos': []}
@@ -951,7 +967,7 @@ def _danpan_parse_document(html_text: str) -> dict:
         label = ' '.join(td.get_text(strip=True) for td in tds[:-1])
         value_td = tds[-1]
         value = value_td.get_text(strip=True)
-        if '체결계약명' in label or '해지계약명' in label:
+        if '체결계약명' in label or '해지계약명' in label or '세부내용' in label:
             result['contract_name'] = value
             result['is_termination'] = '해지계약명' in label
         elif '계약금액' in label or '해지금액' in label:
@@ -962,7 +978,7 @@ def _danpan_parse_document(html_text: str) -> dict:
             result['period_end'] = value if value and value != '-' else None
         elif '계약상대' in label and '관계' not in label:
             result['counterparty'] = value
-        elif '계약' in label and '수주' in label and '일자' in label:
+        elif '계약' in label and '수주' in label and '일' in label:
             result['contract_date'] = value
         elif '해지일자' in label:
             result['contract_date'] = value

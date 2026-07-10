@@ -120,10 +120,17 @@ function fmtPct(rate) {
   return `${sign}${pct.toFixed(1)}%`;
 }
 
-function renderDanpan(list) {
+function escapeAttr(text) {
+  return String(text ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+function renderDanpan(payload) {
   const tbody = document.querySelector('#danpan-table tbody');
   const note = document.getElementById('danpanNote');
   if (!tbody) return;
+
+  const list = Array.isArray(payload) ? payload : (payload?.sites ?? []);
+  const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
 
   if (!Array.isArray(list) || list.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9">진행 중인 단판공시 현장이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
@@ -132,8 +139,14 @@ function renderDanpan(list) {
   }
 
   if (note) {
-    note.textContent = `총 ${list.length}건 (오늘 기준 만기가 지나지 않은 현장만 표시). `
-      + '공사기간이 "미정"인 건은 공시에 구체적 종료일이 없어 시스템이 진행 중으로 간주한 것으로, 실제로는 이미 준공되었을 수 있어 별도 확인이 필요합니다.';
+    let text = `총 ${list.length}건. `;
+    if (meta.periodic_check_available && meta.periodic_report_base_date) {
+      text += `가장 최근 정기보고서(기준일 ${meta.periodic_report_base_date})의 "단일판매ㆍ공급계약체결공시에 대한 진행 현황"에 남아있는 현장만 표시합니다 (그 표에서 빠지면 준공 등으로 관리가 종료된 것으로 판단). `
+        + `이 기준일 이후 새로 신고된 현장은 아직 정기보고서에 반영되지 않아 공사기간 종료일로만 판단합니다.`;
+    } else {
+      text += `정기보고서 진행현황 조회에 실패해 공사기간 종료일 기준으로만 판단했습니다 — 종료일이 없는 "미정" 건은 실제로 이미 끝났을 수 있어 별도 확인이 필요합니다.`;
+    }
+    note.textContent = text;
   }
 
   tbody.innerHTML = '';
@@ -143,14 +156,16 @@ function renderDanpan(list) {
       : '미정';
     const rate = item.change_rate;
     const rateClass = rate > 0 ? 'up' : rate < 0 ? 'down' : '';
-    const revisionLabel = item.revision_count > 0 ? `<br><span class="info">(${item.revision_count}차 정정)</span>` : '';
+    const revisionLabel = item.revision_count > 0 ? `${item.revision_count}차 정정` : '최초';
+    const siteName = item.site_name ?? '';
+    const counterparty = item.counterparty ?? '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num">${idx + 1}</td>
-      <td>${item.site_name ?? ''}</td>
-      <td>${item.counterparty ?? ''}</td>
+      <td title="${escapeAttr(siteName)}">${siteName}</td>
+      <td title="${escapeAttr(counterparty)}">${counterparty}</td>
       <td class="num">${item.initial_contract_date ?? ''}</td>
-      <td class="num">${item.latest_disclosure_date ?? ''}${revisionLabel}</td>
+      <td class="num">${item.latest_disclosure_date ?? ''} (${revisionLabel})</td>
       <td class="num">${fmtMillion(item.amount)}</td>
       <td class="num ${rateClass}">${fmtPct(rate)}</td>
       <td class="num">${period}</td>
