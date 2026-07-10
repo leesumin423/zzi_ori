@@ -720,6 +720,10 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
     if not prev_close:
         return ''
 
+    # 장중(당일 실시간)인지 확인 — 아직 안 끝난 하루를 "종가...마감"이라고 부르면
+    # 이미 끝난 것처럼 오해하게 되므로 문구를 다르게 처리한다.
+    is_live_today = (day['date'] == datetime.now().strftime('%Y.%m.%d')) and is_krx_open()
+
     open_pct = (day['open'] - prev_close) / prev_close * 100
     high_pct = (day['high'] - prev_close) / prev_close * 100
     low_pct = (day['low'] - prev_close) / prev_close * 100
@@ -732,7 +736,7 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
     else:
         open_desc = f"시가 {day['open']:,}원으로 출발"
 
-    # 장중 고점/저점이 종가보다 훨씬 튀면(되돌림이 있었으면) 그 흐름을 덧붙임
+    # 장중 고점/저점이 종가(또는 현재가)보다 훨씬 튀면(되돌림이 있었으면) 그 흐름을 덧붙임
     peak_pct, direction = (high_pct, 'up') if abs(high_pct) >= abs(low_pct) else (low_pct, 'down')
     mid_desc = ''
     if abs(peak_pct - close_pct) >= 6.0:
@@ -741,7 +745,10 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
         else:
             mid_desc = f", 장중 한때 {day['low']:,}원까지 하락({peak_pct:+.1f}%)했으나 낙폭을 일부 만회"
 
-    close_desc = f"종가 {day['close']:,}원({close_pct:+.2f}%)에 마감"
+    if is_live_today:
+        close_desc = f"현재가(장중) {day['close']:,}원({close_pct:+.2f}%)"
+    else:
+        close_desc = f"종가 {day['close']:,}원({close_pct:+.2f}%)에 마감"
     parts = [f"{day['date']} {open_desc}{mid_desc}, {close_desc}"]
 
     h = hist_by_date.get(day['date'])
@@ -749,6 +756,11 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
         flow_sentence = _flow_summary_sentence(h, price_up=(close_pct > 0) if close_pct != 0 else None)
         if flow_sentence:
             parts.append(flow_sentence)
+    elif is_live_today:
+        # 네이버 수급 데이터(frgn.naver)는 장마감 후에야 당일 행이 채워지므로,
+        # 장중엔 오늘자 기관/외국인 순매매를 아직 알 수 없다 — 조용히 생략하는 대신
+        # 왜 없는지 명시해서 "수급 원인 없음"으로 오해하지 않게 한다.
+        parts.append("당일 기관·외국인 수급은 장마감 후 집계되어 아직 반영되지 않음")
 
     matched = _find_related_news(news, day['date'], display_name)
     if matched:
@@ -970,11 +982,81 @@ def _danpan_parse_won(text: str):
     except ValueError:
         return None
 
-_danpan_cache = {'ts': 0.0, 'data': None}
+def _danpan_fetch_periodic_progress(corp_code: str):
+    """가장 최근 정기보고서(사업/반기/분기보고서)의 "그 밖에 투자자 보호를 위하여
+    필요한 사항 > 1. 공시내용 진행 및 변경사항 > 나. 단일판매ㆍ공급계약체결공시에
+    대한 진행 현황" 표를 파싱한다.
+
+    이 표는 회사가 매 정기보고서마다 "현재 관리 중인 단판공시 현장"만 골라서
+    신고일자(최초) 기준으로 나열한 것이라, 공사기간 종료일이 지났는지 여부보다
+    훨씬 정확한 "아직 진행 중인가"의 근거가 된다 — 공사기간이 연장돼도 별도
+    정정공시를 안 내는 경우가 많아 종료일만으로는 이미 끝난 현장을 걸러낼 수
+    없기 때문. 반환값은 (기준일 date, {신고일자(최초) 'YYYY-MM-DD', ...} set).
+    조회/파싱에 실패하면 (None, None) — 호출부는 이 경우 종료일 기반 판단으로
+    폴백해야 한다.
+    """
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=400)).strftime('%Y%m%d')
+    try:
+        r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+            "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+            "bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": "A",
+            "page_no": 1, "page_count": 20,
+        }, timeout=15)
+        data = r.json()
+    except Exception as e:
+        print(f"[DEBUG] 정기보고서 목록 조회 중 예외: {e}")
+        return None, None
+    if data.get('status') != '000':
+        return None, None
+
+    # [기재정정]은 정정된 항목만 담고 있어 전체 표가 없을 수 있으므로 제외하고
+    # 가장 최근 "온전한" 정기보고서를 쓴다.
+    candidates = [d for d in data.get('list', [])
+                  if not d.get('report_nm', '').startswith('[기재정정]')
+                  and any(k in d.get('report_nm', '') for k in ('사업보고서', '반기보고서', '분기보고서'))]
+    if not candidates:
+        return None, None
+    candidates.sort(key=lambda d: d.get('rcept_dt', ''), reverse=True)
+    latest = candidates[0]
+
+    text = fetch_dart_document_text(latest['rcept_no'])
+    if not text:
+        return None, None
+
+    soup = BeautifulSoup(text, 'html.parser')
+    title_tag = next(
+        (p for p in soup.find_all('p') if '단일판매' in p.get_text() and '진행 현황' in p.get_text()),
+        None,
+    )
+    if not title_tag:
+        return None, None
+
+    tables = title_tag.find_all_next('table')
+    if len(tables) < 2:
+        return None, None
+
+    base_date = None
+    m = re.search(r'(\d{4})년\s*(\d{2})월\s*(\d{2})일', tables[0].get_text())
+    if m:
+        base_date = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+    reported_dates = set()
+    for row in tables[1].find_all('tr'):
+        cells = row.find_all('td')
+        if not cells:
+            continue
+        first = cells[0].get_text(strip=True)
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', first):
+            reported_dates.add(first)
+
+    return base_date, reported_dates
+
+_danpan_cache = {'ts': 0.0, 'data': None, 'meta': None}
 
 def fetch_danpan_monitoring(force: bool = False) -> list:
-    """만기(공사기간 종료일)가 아직 지나지 않은 단판공시 현장 목록을 반환.
-    DART_API_KEY가 없으면 빈 리스트."""
+    """정기보고서의 진행현황 표(우선) 또는 공사기간 종료일(폴백)로 판단해,
+    아직 관리 중인 단판공시 현장 목록을 반환. DART_API_KEY가 없으면 빈 리스트."""
     now = datetime.now().timestamp()
     if not force and _danpan_cache['data'] is not None and now - _danpan_cache['ts'] < DANPAN_CACHE_TTL:
         return _danpan_cache['data']
@@ -982,6 +1064,8 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
     corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
     if not corp_code or not DART_API_KEY:
         return []
+
+    periodic_base_date, periodic_dates = _danpan_fetch_periodic_progress(corp_code)
 
     end_de = datetime.now().strftime('%Y%m%d')
     bgn_de = (datetime.now() - timedelta(days=365 * DANPAN_LOOKBACK_YEARS)).strftime('%Y%m%d')
@@ -1069,13 +1153,35 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
             continue  # 해지된 계약 묶음은 통째로 제외
 
         earliest, latest = items[0], items[-1]
-        period_end = latest.get('period_end')
-        if period_end:
+        rcept_dt = earliest.get('rcept_dt', '')
+        earliest_date_fmt = f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}" if len(rcept_dt) == 8 else None
+        earliest_date_obj = None
+        if earliest_date_fmt:
             try:
-                if datetime.strptime(period_end, '%Y-%m-%d').date() < today:
-                    continue  # 만기 도래 → 제외
+                earliest_date_obj = datetime.strptime(earliest_date_fmt, '%Y-%m-%d').date()
             except ValueError:
                 pass
+
+        # 정기보고서 기준일 이전에 최초 신고된 현장이면 그 정기보고서의 진행현황
+        # 표가 이 현장을 다뤘어야 정상이다 — 표에 없으면 "더 이상 관리되지 않는
+        # 현장"(준공/종료됐지만 별도 정정·해지 공시는 안 낸 경우)으로 보고 제외한다.
+        # 정기보고서 기준일 이후에 새로 신고된 현장은 아직 그 표에 반영될 수 없으므로
+        # (아래) 공사기간 종료일 기준으로만 판단한다.
+        checked_by_periodic = bool(
+            periodic_dates is not None and periodic_base_date and earliest_date_obj
+            and earliest_date_obj <= periodic_base_date
+        )
+        if checked_by_periodic:
+            if earliest_date_fmt not in periodic_dates:
+                continue  # 정기보고서 진행현황에 더 이상 없음 → 관리 종료로 판단, 제외
+        else:
+            period_end = latest.get('period_end')
+            if period_end:
+                try:
+                    if datetime.strptime(period_end, '%Y-%m-%d').date() < today:
+                        continue  # 정기보고서로 아직 확인 불가한 신규 건 → 종료일로 판단
+                except ValueError:
+                    pass
 
         initial_amount = earliest.get('amount')
         current_amount = latest.get('amount')
@@ -1083,8 +1189,8 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
             (current_amount - initial_amount) / initial_amount
             if initial_amount and current_amount is not None else None
         )
-        rcept_dt = latest.get('rcept_dt', '')
-        latest_dt_fmt = f"{rcept_dt[:4]}.{rcept_dt[4:6]}.{rcept_dt[6:8]}" if len(rcept_dt) == 8 else rcept_dt
+        latest_rcept_dt = latest.get('rcept_dt', '')
+        latest_dt_fmt = f"{latest_rcept_dt[:4]}.{latest_rcept_dt[4:6]}.{latest_rcept_dt[6:8]}" if len(latest_rcept_dt) == 8 else latest_rcept_dt
 
         results.append({
             "site_name": latest.get('contract_name'),
@@ -1095,14 +1201,19 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
             "initial_amount": initial_amount,
             "change_rate": change_rate,
             "period_start": latest.get('period_start'),
-            "period_end": period_end,
+            "period_end": latest.get('period_end'),
             "revision_count": len(items) - 1,
             "rcept_no": latest['rcept_no'],
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest['rcept_no']}",
+            "checked_by_periodic_report": checked_by_periodic,
         })
 
     results.sort(key=lambda r: (r['period_end'] is None, r['period_end'] or ''))
-    _danpan_cache.update(ts=now, data=results)
+    meta = {
+        "periodic_report_base_date": periodic_base_date.isoformat() if periodic_base_date else None,
+        "periodic_check_available": periodic_dates is not None,
+    }
+    _danpan_cache.update(ts=now, data=results, meta=meta)
     return results
 
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
@@ -1340,7 +1451,8 @@ def data_endpoint():
 
     if section == 'danpan':
         force = request.args.get('refresh') == '1'
-        return jsonify(fetch_danpan_monitoring(force=force))
+        sites = fetch_danpan_monitoring(force=force)
+        return jsonify({"sites": sites, "meta": _danpan_cache.get('meta') or {}})
 
     return jsonify({"error": f"unknown section: {section}"}), 400
 
