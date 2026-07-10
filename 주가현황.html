@@ -10,6 +10,12 @@
   <div class="container">
     <!-- ── 좌측 사이드바 ── -->
     <aside class="sidebar">
+      <h2>메뉴</h2>
+      <div class="tab-group" id="pageTabs">
+        <button class="tab-btn active" data-page="stock">주가현황</button>
+        <button class="tab-btn" data-page="danpan">단판공시</button>
+      </div>
+
       <h2>기준 시점</h2>
       <div class="tab-group" id="basisTabs">
         <button class="tab-btn active" data-basis="current">현재기준</button>
@@ -25,6 +31,9 @@
 
     <!-- ── 메인 콘텐츠 ── -->
     <main class="main">
+
+    <!-- ═══ 페이지 1: 주가현황 ═══ -->
+    <div id="page-stock">
 
       <!-- 페이지 타이틀 -->
       <h1 class="page-title">주가현황 <span class="market-note" id="basisNote">(현재기준)</span></h1>
@@ -113,6 +122,45 @@
           <li>코멘트 불러오는 중…</li>
         </ul>
       </section>
+
+    </div>
+    <!-- ═══ /페이지 1 ═══ -->
+
+    <!-- ═══ 페이지 2: 단판공시 모니터링 ═══ -->
+    <div id="page-danpan" style="display:none;">
+
+      <h1 class="page-title">단판공시 모니터링 <span class="market-note">(동양(주) · 만기 미도래 현장)</span></h1>
+
+      <section class="section" id="danpan-section">
+        <h2>단일판매ㆍ공급계약 진행 현장</h2>
+        <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
+        <div class="table-wrap">
+          <table id="danpan-table">
+            <colgroup>
+              <col style="width:4%">  <!-- 순번 -->
+              <col style="width:22%"><!-- 현장명 -->
+              <col style="width:13%"><!-- 계약상대방 -->
+              <col style="width:9%"> <!-- 최초계약일 -->
+              <col style="width:11%"><!-- 최근공시일 -->
+              <col style="width:12%"><!-- 계약금액 -->
+              <col style="width:8%"> <!-- 변동율 -->
+              <col style="width:15%"><!-- 공사기간 -->
+              <col style="width:6%"> <!-- 원문 -->
+            </colgroup>
+            <thead>
+              <tr>
+                <th>순번</th><th>현장명</th><th>계약상대방</th><th>최초계약일</th>
+                <th>최근공시일<br>(정정횟수)</th><th>계약금액<br>(백만원)</th>
+                <th>변동율<br>(최초대비)</th><th>공사기간</th><th>원문</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+    <!-- ═══ /페이지 2 ═══ -->
 
     </main>
   </div>

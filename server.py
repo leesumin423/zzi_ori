@@ -910,6 +910,201 @@ def fetch_dart_halt_info(code: str):
     start, end = _extract_date_range_section(doc_text, '매매거래정지기간')
     return {"reason": reason_name, "start": start, "end": end, "date": date_fmt}
 
+# ─────────────────────────────────────────────────────────────
+# 3-3-2. 단판공시(단일판매ㆍ공급계약체결) 모니터링 — 동양(주)이 낸 개별 공사
+# 수주/공급계약 공시를 원문에서 파싱해 "현재 진행 중인(만기 미도래) 현장"만
+# 추려서 표로 보여준다. 같은 현장이라도 계약금액 증액/기간연장이 생기면
+# [기재정정] 공시가 계속 이어지는데, 원문 하단 '※ 관련공시' 링크에 그 현장의
+# 이전 공시 rcpno가 전부 들어있어서 이걸로 같은 현장 공시들을 하나로 묶는다.
+# (해지된 계약이 섞인 묶음은 통째로 제외 — 더 이상 진행 중인 현장이 아니므로.)
+# ─────────────────────────────────────────────────────────────
+DANPAN_TARGET_STOCK_CODE = "001520"  # 동양(주) — 건설부문 단판공시 모니터링 대상
+DANPAN_REPORT_KEYWORDS = ('단일판매', '공급계약')
+DANPAN_LOOKBACK_YEARS = 10  # 공사기간이 보통 1~5년이라 이 정도면 진행 중인 현장은 다 잡힘
+DANPAN_CACHE_TTL = 6 * 3600  # 초 — 원문을 수십 건씩 새로 받아오는 무거운 작업이라 캐시
+
+def _danpan_parse_document(html_text: str) -> dict:
+    """단일판매ㆍ공급계약체결/정정/해지 공시 원문(XFormD1_Form0_Table0)에서
+    라벨을 매칭해 핵심 필드를 뽑는다. [기재정정] 문서에도 이 표는 항상 정정
+    반영 후 '현재' 값으로 들어있어서, 정정 전/후 비교표는 볼 필요가 없다."""
+    soup = BeautifulSoup(html_text, 'html.parser')
+    table = soup.find('table', id='XFormD1_Form0_Table0')
+    if not table:
+        return {}
+    result = {'related_rcept_nos': []}
+    for row in table.find_all('tr'):
+        tds = row.find_all('td')
+        if not tds:
+            continue
+        label = ' '.join(td.get_text(strip=True) for td in tds[:-1])
+        value_td = tds[-1]
+        value = value_td.get_text(strip=True)
+        if '체결계약명' in label or '해지계약명' in label:
+            result['contract_name'] = value
+            result['is_termination'] = '해지계약명' in label
+        elif '계약금액' in label or '해지금액' in label:
+            result['amount'] = _danpan_parse_won(value)
+        elif '시작일' in label:
+            result['period_start'] = value if value and value != '-' else None
+        elif '종료일' in label:
+            result['period_end'] = value if value and value != '-' else None
+        elif '계약상대' in label and '관계' not in label:
+            result['counterparty'] = value
+        elif '계약' in label and '수주' in label and '일자' in label:
+            result['contract_date'] = value
+        elif '해지일자' in label:
+            result['contract_date'] = value
+        elif '관련공시' in label:
+            for a in value_td.find_all('a', href=True):
+                m = re.search(r'rcpno=(\d+)', a['href'])
+                if m:
+                    result['related_rcept_nos'].append(m.group(1))
+    return result
+
+def _danpan_parse_won(text: str):
+    text = text.replace(',', '').strip()
+    if not text or text == '-':
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+_danpan_cache = {'ts': 0.0, 'data': None}
+
+def fetch_danpan_monitoring(force: bool = False) -> list:
+    """만기(공사기간 종료일)가 아직 지나지 않은 단판공시 현장 목록을 반환.
+    DART_API_KEY가 없으면 빈 리스트."""
+    now = datetime.now().timestamp()
+    if not force and _danpan_cache['data'] is not None and now - _danpan_cache['ts'] < DANPAN_CACHE_TTL:
+        return _danpan_cache['data']
+
+    corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
+    if not corp_code or not DART_API_KEY:
+        return []
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=365 * DANPAN_LOOKBACK_YEARS)).strftime('%Y%m%d')
+
+    all_items = []
+    page = 1
+    while True:
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bgn_de": bgn_de, "end_de": end_de, "page_no": page, "page_count": 100,
+            }, timeout=15)
+            data = r.json()
+        except Exception as e:
+            print(f"[DEBUG] 단판공시 목록 조회 중 예외(page={page}): {e}")
+            break
+        if data.get('status') != '000':
+            break
+        all_items.extend(data.get('list', []))
+        if page >= int(data.get('total_page', 1) or 1):
+            break
+        page += 1
+
+    targets = [d for d in all_items
+               if all(k in d.get('report_nm', '') for k in DANPAN_REPORT_KEYWORDS)]
+
+    docs = {}
+    for item in targets:
+        rcept_no = item['rcept_no']
+        text = fetch_dart_document_text(rcept_no)
+        if not text:
+            continue
+        parsed = _danpan_parse_document(text)
+        if not parsed.get('contract_name'):
+            continue
+        parsed['rcept_no'] = rcept_no
+        parsed['rcept_dt'] = item.get('rcept_dt', '')
+        docs[rcept_no] = parsed
+
+    # union-find: '※ 관련공시' 링크로 이어진 문서들을 같은 현장 묶음으로 클러스터링
+    parent = {rn: rn for rn in docs}
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    # ※ 관련공시 링크의 rcpno는 KRX(KIND) 자체 접수번호라 DART API의 rcept_no와
+    # 자릿수 체계가 달라서 값을 그대로 비교하면 매칭되지 않는다 (같은 공시인데 예:
+    # KRX 20220224000460 ↔ DART 20220224800460 — 날짜 8자리는 같고, 뒤 6자리
+    # 일련번호의 첫 글자만 다르다). 코스피 상장사는 이 규칙(앞자리를 '8'로
+    # 치환)이 일관되게 성립해 이걸로 직접 변환해 매칭한다. 혹시 규칙이 안 맞는
+    # 예외가 있을 때만 같은 날짜에 접수된 단판공시가 정확히 1건일 경우에 한해
+    # 날짜로 폴백한다 (같은 날 서로 다른 두 현장 공시가 겹치면 오매칭 위험이
+    # 있어 후보가 여럿이면 연결하지 않는다).
+    date_index = {}
+    for rn, d in docs.items():
+        date_index.setdefault(d['rcept_dt'], []).append(rn)
+    for rn, d in docs.items():
+        for rel in d.get('related_rcept_nos', []):
+            cand = None
+            if len(rel) == 14:
+                guess = rel[:8] + '8' + rel[9:]
+                if guess in docs:
+                    cand = guess
+            if cand is None:
+                same_day = date_index.get(rel[:8], [])
+                if len(same_day) == 1:
+                    cand = same_day[0]
+            if cand and cand != rn:
+                union(rn, cand)
+
+    clusters = {}
+    for rn in docs:
+        clusters.setdefault(find(rn), []).append(rn)
+
+    today = datetime.now().date()
+    results = []
+    for members in clusters.values():
+        items = sorted((docs[m] for m in members), key=lambda d: (d['rcept_dt'], d['rcept_no']))
+        if any(d.get('is_termination') for d in items):
+            continue  # 해지된 계약 묶음은 통째로 제외
+
+        earliest, latest = items[0], items[-1]
+        period_end = latest.get('period_end')
+        if period_end:
+            try:
+                if datetime.strptime(period_end, '%Y-%m-%d').date() < today:
+                    continue  # 만기 도래 → 제외
+            except ValueError:
+                pass
+
+        initial_amount = earliest.get('amount')
+        current_amount = latest.get('amount')
+        change_rate = (
+            (current_amount - initial_amount) / initial_amount
+            if initial_amount and current_amount is not None else None
+        )
+        rcept_dt = latest.get('rcept_dt', '')
+        latest_dt_fmt = f"{rcept_dt[:4]}.{rcept_dt[4:6]}.{rcept_dt[6:8]}" if len(rcept_dt) == 8 else rcept_dt
+
+        results.append({
+            "site_name": latest.get('contract_name'),
+            "counterparty": latest.get('counterparty'),
+            "initial_contract_date": earliest.get('contract_date'),
+            "latest_disclosure_date": latest_dt_fmt,
+            "amount": current_amount,
+            "initial_amount": initial_amount,
+            "change_rate": change_rate,
+            "period_start": latest.get('period_start'),
+            "period_end": period_end,
+            "revision_count": len(items) - 1,
+            "rcept_no": latest['rcept_no'],
+            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest['rcept_no']}",
+        })
+
+    results.sort(key=lambda r: (r['period_end'] is None, r['period_end'] or ''))
+    _danpan_cache.update(ts=now, data=results)
+    return results
+
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
 # "매매거래정지및정지해제"처럼 당일 안에 풀리는 일회성 조치가 섞여 있어서,
 # 여러 날 이어지는 실제 거래정지의 '진짜' 원인을 공시 제목만 보고 자동으로
@@ -1142,6 +1337,10 @@ def data_endpoint():
         TARGETS = [("동양", "001520"), ("유진기업", "023410")]
         lines = [generate_stock_commentary(code, name) for name, code in TARGETS]
         return jsonify({"lines": lines})
+
+    if section == 'danpan':
+        force = request.args.get('refresh') == '1'
+        return jsonify(fetch_danpan_monitoring(force=force))
 
     return jsonify({"error": f"unknown section: {section}"}), 400
 

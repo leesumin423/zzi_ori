@@ -11,7 +11,7 @@ const API_BASE = 'http://localhost:5000/data';
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null };
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
@@ -30,6 +30,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const note = document.getElementById('basisNote');
       if (note) note.textContent = `(${BASIS_LABEL[basis]})`;
       renderAll();
+    });
+  });
+  document.querySelectorAll('#pageTabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#pageTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const page = btn.dataset.page;
+      document.getElementById('page-stock').style.display = page === 'stock' ? '' : 'none';
+      document.getElementById('page-danpan').style.display = page === 'danpan' ? '' : 'none';
+      if (page === 'danpan' && !lastData.danpan) loadDanpan();
     });
   });
   loadAllData();
@@ -81,6 +90,73 @@ async function loadCommentary() {
   } catch (err) {
     list.innerHTML = `<li>코멘트 로드 실패: ${err.message}</li>`;
   }
+}
+
+// ── 단판공시(단일판매ㆍ공급계약체결) 모니터링 ──────────────────
+async function loadDanpan() {
+  const note = document.getElementById('danpanNote');
+  const tbody = document.querySelector('#danpan-table tbody');
+  if (note) note.textContent = 'DART 공시 원문을 조회하는 중… (수십 건을 하나씩 받아오므로 다소 걸릴 수 있습니다)';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9">로딩 중…</td></tr>';
+  try {
+    const data = await safeFetch(`${API_BASE}?section=danpan`);
+    lastData.danpan = data;
+    renderDanpan(data);
+  } catch (err) {
+    if (note) note.textContent = `조회 실패: ${err.message}`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9">조회 실패: ${err.message}</td></tr>`;
+  }
+}
+
+function fmtMillion(won) {
+  if (won == null) return '';
+  return Math.round(won / 1_000_000).toLocaleString('ko-KR');
+}
+
+function fmtPct(rate) {
+  if (rate == null) return '';
+  const pct = rate * 100;
+  const sign = pct > 0 ? '+' : '';
+  return `${sign}${pct.toFixed(1)}%`;
+}
+
+function renderDanpan(list) {
+  const tbody = document.querySelector('#danpan-table tbody');
+  const note = document.getElementById('danpanNote');
+  if (!tbody) return;
+
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9">진행 중인 단판공시 현장이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    if (note) note.textContent = '';
+    return;
+  }
+
+  if (note) {
+    note.textContent = `총 ${list.length}건 (오늘 기준 만기가 지나지 않은 현장만 표시). `
+      + '공사기간이 "미정"인 건은 공시에 구체적 종료일이 없어 시스템이 진행 중으로 간주한 것으로, 실제로는 이미 준공되었을 수 있어 별도 확인이 필요합니다.';
+  }
+
+  tbody.innerHTML = '';
+  list.forEach((item, idx) => {
+    const period = (item.period_start || item.period_end)
+      ? `${item.period_start ?? '?'} ~ ${item.period_end ?? '?'}`
+      : '미정';
+    const rate = item.change_rate;
+    const rateClass = rate > 0 ? 'up' : rate < 0 ? 'down' : '';
+    const revisionLabel = item.revision_count > 0 ? `<br><span class="info">(${item.revision_count}차 정정)</span>` : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${idx + 1}</td>
+      <td>${item.site_name ?? ''}</td>
+      <td>${item.counterparty ?? ''}</td>
+      <td class="num">${item.initial_contract_date ?? ''}</td>
+      <td class="num">${item.latest_disclosure_date ?? ''}${revisionLabel}</td>
+      <td class="num">${fmtMillion(item.amount)}</td>
+      <td class="num ${rateClass}">${fmtPct(rate)}</td>
+      <td class="num">${period}</td>
+      <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
+    tbody.appendChild(tr);
+  });
 }
 
 function renderAll() {
