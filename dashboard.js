@@ -11,7 +11,7 @@ const API_BASE = 'http://localhost:5000/data';
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null };
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
@@ -37,8 +37,22 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('#pageTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       const page = btn.dataset.page;
       document.getElementById('page-stock').style.display = page === 'stock' ? '' : 'none';
-      document.getElementById('page-danpan').style.display = page === 'danpan' ? '' : 'none';
-      if (page === 'danpan' && !lastData.danpan) loadDanpan();
+      document.getElementById('page-disclosures').style.display = page === 'disclosures' ? '' : 'none';
+      if (page === 'disclosures') {
+        const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'danpan';
+        if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
+        if (activeDisclosure === 'equity' && !lastData.equity) loadEquity();
+      }
+    });
+  });
+  document.querySelectorAll('#disclosureTabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#disclosureTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const kind = btn.dataset.disclosure;
+      document.getElementById('disclosure-danpan').style.display = kind === 'danpan' ? '' : 'none';
+      document.getElementById('disclosure-equity').style.display = kind === 'equity' ? '' : 'none';
+      if (kind === 'danpan' && !lastData.danpan) loadDanpan();
+      if (kind === 'equity' && !lastData.equity) loadEquity();
     });
   });
   loadAllData();
@@ -169,6 +183,63 @@ function renderDanpan(payload) {
       <td class="num">${fmtMillion(item.amount)}</td>
       <td class="num ${rateClass}">${fmtPct(rate)}</td>
       <td class="num">${period}</td>
+      <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── 지분공시(임원ㆍ주요주주 소유상황보고서) 이력 ────────────────
+async function loadEquity() {
+  const note = document.getElementById('equityNote');
+  const tbody = document.querySelector('#equity-table tbody');
+  if (note) note.textContent = 'DART 공시 원문을 조회하는 중… (최근 10년치를 하나씩 받아오므로 다소 걸릴 수 있습니다)';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7">로딩 중…</td></tr>';
+  try {
+    const data = await safeFetch(`${API_BASE}?section=equity`);
+    lastData.equity = data;
+    renderEquity(data);
+  } catch (err) {
+    if (note) note.textContent = `조회 실패: ${err.message}`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7">조회 실패: ${err.message}</td></tr>`;
+  }
+}
+
+function fmtWon(won) {
+  if (won == null) return '';
+  return Math.round(won).toLocaleString('ko-KR');
+}
+
+function renderEquity(payload) {
+  const tbody = document.querySelector('#equity-table tbody');
+  const note = document.getElementById('equityNote');
+  if (!tbody) return;
+
+  const list = Array.isArray(payload) ? payload : (payload?.records ?? []);
+  const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
+
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    if (note) note.textContent = '';
+    return;
+  }
+
+  if (note) {
+    note.textContent = `총 ${list.length}명. 최근 ${meta.lookback_years ?? 10}년간 "임원ㆍ주요주주특정증권등소유상황보고서" 중 장내매수 이력만 집계했습니다 (매도ㆍ증여ㆍ주식병합 등은 제외). `
+      + `직위는 최신 정기보고서의 임원 현황과 공시 원문을 함께 참고했습니다. DART 신고는 거래일로부터 최대 5영업일까지 걸릴 수 있어 아주 최근 거래는 아직 반영되지 않았을 수 있습니다.`;
+  }
+
+  tbody.innerHTML = '';
+  list.forEach((item, idx) => {
+    const holderName = item.holder_name ?? '';
+    const roleTitle = [item.registered_text, item.position].filter(Boolean).join(' · ');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${idx + 1}</td>
+      <td title="${escapeAttr(roleTitle)}">${holderName}</td>
+      <td class="num">${item.first_buy_date ?? ''}</td>
+      <td class="num">${item.latest_buy_date ?? ''}</td>
+      <td class="num">${fmtWon(item.total_qty)}</td>
+      <td class="num">${fmtWon(item.avg_price)}</td>
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
     tbody.appendChild(tr);
   });

@@ -12,8 +12,8 @@
     <aside class="sidebar">
       <h2>메뉴</h2>
       <div class="tab-group" id="pageTabs">
-        <button class="tab-btn active" data-page="stock">주가현황</button>
-        <button class="tab-btn" data-page="danpan">단판공시</button>
+        <button class="tab-btn active" data-page="stock">주가</button>
+        <button class="tab-btn" data-page="disclosures">공시</button>
       </div>
 
       <h2>기준 시점</h2>
@@ -126,38 +126,74 @@
     </div>
     <!-- ═══ /페이지 1 ═══ -->
 
-    <!-- ═══ 페이지 2: 단판공시 모니터링 ═══ -->
-    <div id="page-danpan" style="display:none;">
+    <!-- ═══ 페이지 2: 공시 (단판공시 / 지분공시) ═══ -->
+    <div id="page-disclosures" style="display:none;">
 
-      <h1 class="page-title">단판공시 모니터링 <span class="market-note">(동양(주) · 만기 미도래 현장)</span></h1>
+      <h1 class="page-title">공시 <span class="market-note">(동양(주))</span></h1>
 
-      <section class="section" id="danpan-section">
-        <h2>단일판매ㆍ공급계약 진행 현장</h2>
-        <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
-        <div class="table-wrap">
-          <table id="danpan-table">
-            <colgroup>
-              <col style="width:4%">  <!-- 순번 -->
-              <col style="width:22%"><!-- 현장명 -->
-              <col style="width:13%"><!-- 계약상대방 -->
-              <col style="width:9%"> <!-- 최초계약일 -->
-              <col style="width:11%"><!-- 최근공시일 -->
-              <col style="width:12%"><!-- 계약금액 -->
-              <col style="width:8%"> <!-- 변동율 -->
-              <col style="width:15%"><!-- 공사기간 -->
-              <col style="width:6%"> <!-- 원문 -->
-            </colgroup>
-            <thead>
-              <tr>
-                <th>순번</th><th>현장명</th><th>계약상대방</th><th>최초계약일</th>
-                <th>최근공시일<br>(정정횟수)</th><th>계약금액<br>(백만원)</th>
-                <th>변동율<br>(최초대비)</th><th>공사기간</th><th>원문</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
+      <div class="tab-group" id="disclosureTabs" style="max-width:320px; margin-bottom:24px;">
+        <button class="tab-btn active" data-disclosure="danpan">단판공시</button>
+        <button class="tab-btn" data-disclosure="equity">지분공시</button>
+      </div>
+
+      <!-- ── 단판공시 모니터링 ── -->
+      <div id="disclosure-danpan">
+        <section class="section" id="danpan-section">
+          <h2>단일판매ㆍ공급계약 진행 현장</h2>
+          <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
+          <div class="table-wrap">
+            <table id="danpan-table">
+              <colgroup>
+                <col style="width:4%">  <!-- 순번 -->
+                <col style="width:22%"><!-- 현장명 -->
+                <col style="width:13%"><!-- 계약상대방 -->
+                <col style="width:9%"> <!-- 최초계약일 -->
+                <col style="width:11%"><!-- 최근공시일 -->
+                <col style="width:12%"><!-- 계약금액 -->
+                <col style="width:8%"> <!-- 변동율 -->
+                <col style="width:15%"><!-- 공사기간 -->
+                <col style="width:6%"> <!-- 원문 -->
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>순번</th><th>현장명</th><th>계약상대방</th><th>최초계약일</th>
+                  <th>최근공시일<br>(정정횟수)</th><th>계약금액<br>(백만원)</th>
+                  <th>변동율<br>(최초대비)</th><th>공사기간</th><th>원문</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── 지분공시(임원ㆍ주요주주 소유상황보고서) 이력 ── -->
+      <div id="disclosure-equity" style="display:none;">
+        <section class="section" id="equity-section">
+          <h2>임원ㆍ주요주주 지분공시 이력</h2>
+          <p class="info" id="equityNote" style="margin-bottom:12px;">불러오는 중…</p>
+          <div class="table-wrap">
+            <table id="equity-table">
+              <colgroup>
+                <col style="width:5%"> <!-- 순번 -->
+                <col style="width:25%"><!-- 주주명 -->
+                <col style="width:13%"><!-- 최초 매수일 -->
+                <col style="width:16%"><!-- 최근 매수일(공시일) -->
+                <col style="width:15%"><!-- 누적 주식수 -->
+                <col style="width:14%"><!-- 평균단가 -->
+                <col style="width:12%"><!-- 원문 -->
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>순번</th><th>주주명</th><th>최초 매수일</th><th>최근 매수일<br>(공시일)</th>
+                  <th>누적 주식수</th><th>평균단가<br>(원)</th><th>원문<br>(최근 공시문)</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
 
     </div>
     <!-- ═══ /페이지 2 ═══ -->

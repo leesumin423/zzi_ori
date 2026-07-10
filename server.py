@@ -998,19 +998,20 @@ def _danpan_parse_won(text: str):
     except ValueError:
         return None
 
-def _danpan_fetch_periodic_progress(corp_code: str):
-    """가장 최근 정기보고서(사업/반기/분기보고서)의 "그 밖에 투자자 보호를 위하여
-    필요한 사항 > 1. 공시내용 진행 및 변경사항 > 나. 단일판매ㆍ공급계약체결공시에
-    대한 진행 현황" 표를 파싱한다.
+_periodic_report_cache = {}  # {corp_code: {'ts': float, 'rcept_no', 'rcept_dt', 'text'}}
+PERIODIC_REPORT_CACHE_TTL = 6 * 3600
 
-    이 표는 회사가 매 정기보고서마다 "현재 관리 중인 단판공시 현장"만 골라서
-    신고일자(최초) 기준으로 나열한 것이라, 공사기간 종료일이 지났는지 여부보다
-    훨씬 정확한 "아직 진행 중인가"의 근거가 된다 — 공사기간이 연장돼도 별도
-    정정공시를 안 내는 경우가 많아 종료일만으로는 이미 끝난 현장을 걸러낼 수
-    없기 때문. 반환값은 (기준일 date, {신고일자(최초) 'YYYY-MM-DD', ...} set).
-    조회/파싱에 실패하면 (None, None) — 호출부는 이 경우 종료일 기반 판단으로
-    폴백해야 한다.
+def _fetch_latest_periodic_report(corp_code: str, force: bool = False):
+    """가장 최근의 "온전한"(정정본 아닌) 사업/반기/분기보고서 원문을 찾아 반환한다.
+    단판공시·지분공시 두 기능이 똑같이 "최근 정기보고서 한 건"을 필요로 해서 공용으로
+    뺐다 — 두 기능을 같이 열어도 같은 정기보고서를 두 번 받아오지 않는다.
+    반환값: (rcept_no, rcept_dt, 원문 text) 또는 실패 시 (None, None, None).
     """
+    now = datetime.now().timestamp()
+    cached = _periodic_report_cache.get(corp_code)
+    if not force and cached and now - cached['ts'] < PERIODIC_REPORT_CACHE_TTL:
+        return cached['rcept_no'], cached['rcept_dt'], cached['text']
+
     end_de = datetime.now().strftime('%Y%m%d')
     bgn_de = (datetime.now() - timedelta(days=400)).strftime('%Y%m%d')
     try:
@@ -1022,9 +1023,9 @@ def _danpan_fetch_periodic_progress(corp_code: str):
         data = r.json()
     except Exception as e:
         print(f"[DEBUG] 정기보고서 목록 조회 중 예외: {e}")
-        return None, None
+        return None, None, None
     if data.get('status') != '000':
-        return None, None
+        return None, None, None
 
     # [기재정정]은 정정된 항목만 담고 있어 전체 표가 없을 수 있으므로 제외하고
     # 가장 최근 "온전한" 정기보고서를 쓴다.
@@ -1032,11 +1033,32 @@ def _danpan_fetch_periodic_progress(corp_code: str):
                   if not d.get('report_nm', '').startswith('[기재정정]')
                   and any(k in d.get('report_nm', '') for k in ('사업보고서', '반기보고서', '분기보고서'))]
     if not candidates:
-        return None, None
+        return None, None, None
     candidates.sort(key=lambda d: d.get('rcept_dt', ''), reverse=True)
     latest = candidates[0]
 
     text = fetch_dart_document_text(latest['rcept_no'])
+    if not text:
+        return None, None, None
+
+    _periodic_report_cache[corp_code] = {
+        'ts': now, 'rcept_no': latest['rcept_no'], 'rcept_dt': latest.get('rcept_dt', ''), 'text': text,
+    }
+    return latest['rcept_no'], latest.get('rcept_dt', ''), text
+
+def _danpan_fetch_periodic_progress(corp_code: str):
+    """가장 최근 정기보고서의 "그 밖에 투자자 보호를 위하여 필요한 사항 > 1. 공시내용
+    진행 및 변경사항 > 나. 단일판매ㆍ공급계약체결공시에 대한 진행 현황" 표를 파싱한다.
+
+    이 표는 회사가 매 정기보고서마다 "현재 관리 중인 단판공시 현장"만 골라서
+    신고일자(최초) 기준으로 나열한 것이라, 공사기간 종료일이 지났는지 여부보다
+    훨씬 정확한 "아직 진행 중인가"의 근거가 된다 — 공사기간이 연장돼도 별도
+    정정공시를 안 내는 경우가 많아 종료일만으로는 이미 끝난 현장을 걸러낼 수
+    없기 때문. 반환값은 (기준일 date, {신고일자(최초) 'YYYY-MM-DD', ...} set).
+    조회/파싱에 실패하면 (None, None) — 호출부는 이 경우 종료일 기반 판단으로
+    폴백해야 한다.
+    """
+    _, _, text = _fetch_latest_periodic_report(corp_code)
     if not text:
         return None, None
 
@@ -1230,6 +1252,206 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
         "periodic_check_available": periodic_dates is not None,
     }
     _danpan_cache.update(ts=now, data=results, meta=meta)
+    return results
+
+# ─────────────────────────────────────────────────────────────
+# 3-3-3. 지분공시(임원ㆍ주요주주 소유상황보고서) 모니터링 — 동전주 이슈로 임원들이
+# 매월 자사주를 사들이는 걸 팀에서 사람이 직접 취합하고 있었는데, 이걸 DART
+# Open API로 자동화한다. "임원ㆍ주요주주 특정증권등 소유상황보고서"는 임원/주요
+# 주주 본인이 지분 변동 시마다 개별적으로 제출하는 공시라 corp_code로 조회하면
+# 동양(주)과 관련된 소유상황보고서가 전부 걸린다(제출자=flr_nm은 회사가 아니라
+# 그 개인/법인 이름).
+# ─────────────────────────────────────────────────────────────
+EQUITY_REPORT_NAME = '임원ㆍ주요주주특정증권등소유상황보고서'
+EQUITY_LOOKBACK_YEARS = 10
+EQUITY_CACHE_TTL = 6 * 3600
+
+def _equity_parse_num(text: str):
+    """"50,000" 같은 보통 형식뿐 아니라, 오래된 서식에서 보이는 "1,961(원)"처럼
+    뒤에 단위가 붙은 값도 앞의 숫자만 뽑아 처리한다."""
+    text = text.strip()
+    if not text or text == '-':
+        return None
+    m = re.match(r'-?[\d,]+', text)
+    if not m:
+        return None
+    try:
+        return int(m.group(0).replace(',', ''))
+    except ValueError:
+        return None
+
+def _equity_parse_document(html_text: str) -> dict:
+    """임원ㆍ주요주주 특정증권등 소유상황보고서 원문을 파싱한다. 단판공시 문서와
+    달리 이 서식은 값마다 ACODE(고정값)/AUNIT(선택값, aunitvalue에 코드)가 직접
+    붙어있는 표준 서식이라 라벨 텍스트 매칭 대신 이 속성으로 바로 찾는다(개인
+    보고자든 유진기업 같은 법인 보고자든 태그 구조는 동일)."""
+    soup = BeautifulSoup(html_text, 'html.parser')
+    name_tag = soup.find(attrs={'acode': 'IFR_NM'})
+    if not name_tag:
+        return {}
+    name = name_tag.get_text(strip=True)
+
+    reg_tag = soup.find(attrs={'aunit': 'STF_RYN'})          # 임원 등기여부 (예: 등기임원/비등기임원/-)
+    position_tag = soup.find(attrs={'acode': 'STF_PSM'})     # 직위명
+    mainsh_tag = soup.find(attrs={'aunit': 'MAIN_SH'})       # 주요주주 여부 (값이 있으면 "-"가 아님)
+
+    # "다. 세부변동내역" 표: 행마다 RPT_RSN(보고사유, 예: 장내매수(+)/주식병합 등)이
+    # 있고, 매수 외에 증여ㆍ병합 등 지분수만 바뀌는 사유도 섞여 있어 사유 텍스트로
+    # 걸러야 한다(예: 주식병합 시 MDF_STK_CNT가 음수로 찍혀 매도로 오인될 수 있음).
+    transactions = []
+    for reason_tag in soup.find_all(attrs={'aunit': 'RPT_RSN'}):
+        row = reason_tag.find_parent('tr')
+        if not row:
+            continue
+        date_tag = row.find(attrs={'aunit': 'MDF_DM'})
+        qty_tag = row.find(attrs={'acode': 'MDF_STK_CNT'})
+        price_tag = row.find(attrs={'acode': 'ACI_AMT2'})
+        date_val = date_tag.attrs.get('aunitvalue') if date_tag else None
+        qty = _equity_parse_num(qty_tag.get_text(strip=True)) if qty_tag else None
+        if not date_val or len(date_val) != 8 or qty is None:
+            continue
+        transactions.append({
+            'reason': reason_tag.get_text(strip=True),
+            'date': f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}",
+            'qty': qty,
+            'price': _equity_parse_num(price_tag.get_text(strip=True)) if price_tag else None,
+        })
+
+    return {
+        'name': name,
+        'registered_text': reg_tag.get_text(strip=True) if reg_tag else '',
+        'position': position_tag.get_text(strip=True) if position_tag else '',
+        'is_major_shareholder': bool(mainsh_tag and mainsh_tag.get_text(strip=True) not in ('', '-')),
+        'transactions': transactions,
+    }
+
+def _equity_fetch_officer_roster(corp_code: str) -> dict:
+    """가장 최근 정기보고서의 "VIII. 임원 및 직원 등에 관한 사항 > 1. 임원 및 직원
+    등의 현황 > 가. 임원 현황" 표에서 현재 재직 중인 임원의 직위를 뽑아온다
+    ({성명: 직위명}). 지분공시 이력에 등재된 사람이 지금도 재직 중인 임원인지,
+    직위가 뭔지 참고용으로 보여주기 위한 것 — 이 표에 없다고 결과에서 제외하지는
+    않는다(퇴임한 임원이나 주요주주 법인도 "이력"에는 남아있어야 하므로)."""
+    _, _, text = _fetch_latest_periodic_report(corp_code)
+    if not text:
+        return {}
+    soup = BeautifulSoup(text, 'html.parser')
+    roster = {}
+    for name_tag in soup.find_all(attrs={'acode': 'SH5_NM_T'}):
+        row = name_tag.find_parent('tr')
+        if not row:
+            continue
+        name = name_tag.get_text(strip=True)
+        if not name:
+            continue
+        position_tag = row.find(attrs={'acode': 'SH5_LEV'})
+        roster[name] = position_tag.get_text(strip=True) if position_tag else ''
+    return roster
+
+_equity_cache = {'ts': 0.0, 'data': None, 'meta': None}
+
+def fetch_equity_monitoring(force: bool = False) -> list:
+    """최근 10년간 임원ㆍ주요주주 소유상황보고서를 스캔해 주주(임원/주요주주)별
+    매수 이력(최초/최근 매수일, 누적 매수량, 평균단가)을 집계한다. 매도ㆍ증여ㆍ
+    주식병합 등 매수가 아닌 사유는 집계에서 제외한다. DART_API_KEY가 없으면
+    빈 리스트."""
+    now = datetime.now().timestamp()
+    if not force and _equity_cache['data'] is not None and now - _equity_cache['ts'] < EQUITY_CACHE_TTL:
+        return _equity_cache['data']
+
+    corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
+    if not corp_code or not DART_API_KEY:
+        return []
+
+    roster = _equity_fetch_officer_roster(corp_code)
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=365 * EQUITY_LOOKBACK_YEARS)).strftime('%Y%m%d')
+
+    all_items = []
+    page = 1
+    while True:
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": "D",
+                "page_no": page, "page_count": 100,
+            }, timeout=15)
+            data = r.json()
+        except Exception as e:
+            print(f"[DEBUG] 지분공시 목록 조회 중 예외(page={page}): {e}")
+            break
+        if data.get('status') != '000':
+            break
+        all_items.extend(data.get('list', []))
+        if page >= int(data.get('total_page', 1) or 1):
+            break
+        page += 1
+
+    # 정정본은 이미 제출된 보고서의 오기재를 바로잡는 것뿐이라 새 거래내역이
+    # 아니므로 뺀다 — 원본 보고서만으로 매수 이력을 집계한다.
+    targets = [d for d in all_items if d.get('report_nm', '') == EQUITY_REPORT_NAME]
+
+    by_person = {}
+    for item in targets:
+        rcept_no = item['rcept_no']
+        text = fetch_dart_document_text(rcept_no)
+        if not text:
+            continue
+        parsed = _equity_parse_document(text)
+        name = parsed.get('name')
+        if not name:
+            continue
+        by_person.setdefault(name, []).append({
+            'rcept_no': rcept_no, 'rcept_dt': item.get('rcept_dt', ''), 'parsed': parsed,
+        })
+
+    results = []
+    for name, docs in by_person.items():
+        docs.sort(key=lambda d: (d['rcept_dt'], d['rcept_no']))
+        buy_txns = [
+            (d['rcept_dt'], d['rcept_no'], t['date'], t['qty'], t['price'])
+            for d in docs for t in d['parsed']['transactions']
+            if '매수' in t['reason'] and t['qty'] and t['qty'] > 0
+        ]
+        if not buy_txns:
+            continue  # 매수 이력이 없으면(매도ㆍ증여ㆍ병합 등만 있으면) 이 표에서는 제외
+
+        buy_txns.sort(key=lambda t: t[2])  # 실제 매매(변동)일 기준 정렬
+        first_date = buy_txns[0][2]
+
+        # "최근 매수일(공시일)"ㆍ원문은 매수 거래가 포함된 공시 중 가장 최근 것을 기준으로
+        latest_doc = max(
+            (d for d in docs if any('매수' in t['reason'] and t['qty'] and t['qty'] > 0 for t in d['parsed']['transactions'])),
+            key=lambda d: (d['rcept_dt'], d['rcept_no']),
+        )
+        latest_rcept_dt = latest_doc['rcept_dt']
+        latest_dt_fmt = f"{latest_rcept_dt[:4]}.{latest_rcept_dt[4:6]}.{latest_rcept_dt[6:8]}" if len(latest_rcept_dt) == 8 else latest_rcept_dt
+
+        total_qty = sum(t[3] for t in buy_txns)
+        priced = [t for t in buy_txns if t[4] is not None]
+        avg_price = (sum(t[3] * t[4] for t in priced) / sum(t[3] for t in priced)) if priced else None
+
+        last_parsed = docs[-1]['parsed']  # 가장 최근 공시에 적힌 신상정보(직위 등)를 채택
+        results.append({
+            "holder_name": name,
+            "position": roster.get(name) or last_parsed.get('position') or '',
+            "registered_text": last_parsed.get('registered_text') or '',
+            "is_major_shareholder": last_parsed.get('is_major_shareholder', False),
+            "first_buy_date": first_date,
+            "latest_buy_date": latest_dt_fmt,
+            "total_qty": total_qty,
+            "avg_price": round(avg_price, 1) if avg_price is not None else None,
+            "disclosure_count": len(docs),
+            "rcept_no": latest_doc['rcept_no'],
+            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest_doc['rcept_no']}",
+        })
+
+    results.sort(key=lambda r: r['latest_buy_date'], reverse=True)
+    meta = {
+        "officer_roster_available": bool(roster),
+        "lookback_years": EQUITY_LOOKBACK_YEARS,
+    }
+    _equity_cache.update(ts=now, data=results, meta=meta)
     return results
 
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
@@ -1469,6 +1691,11 @@ def data_endpoint():
         force = request.args.get('refresh') == '1'
         sites = fetch_danpan_monitoring(force=force)
         return jsonify({"sites": sites, "meta": _danpan_cache.get('meta') or {}})
+
+    if section == 'equity':
+        force = request.args.get('refresh') == '1'
+        records = fetch_equity_monitoring(force=force)
+        return jsonify({"records": records, "meta": _equity_cache.get('meta') or {}})
 
     return jsonify({"error": f"unknown section: {section}"}), 400
 

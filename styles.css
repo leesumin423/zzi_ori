@@ -246,12 +246,13 @@ tr:hover td { background: rgba(255,255,255,0.025); }
    현장명처럼 긴 텍스트가 줄바꿈되면 행마다 높이가 들쭉날쭉해지고 인쇄할 때
    페이지 경계를 넘어갈 수 있어, 모든 셀을 한 줄로 고정하고 넘치는 텍스트는
    말줄임표(…)로 자른다 — 전체 내용은 마우스를 올리면(title 툴팁) 보인다. */
-#danpan-table td, #danpan-table th {
+#danpan-table td, #danpan-table th,
+#equity-table td, #equity-table th {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#danpan-table tbody tr { page-break-inside: avoid; }
+#danpan-table tbody tr, #equity-table tbody tr { page-break-inside: avoid; }
 
 /* ── 주가 동향 코멘트 ────────────────────────────────────────── */
 .commentary-list {
