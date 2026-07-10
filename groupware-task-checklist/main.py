@@ -85,6 +85,7 @@ def main() -> None:
             config.mail_lookback_days, config.mail_subject_exclude,
             debug_dir=debug_dir, max_pages=config.mail_max_pages,
             sender_exclude=config.sender_exclude,
+            my_name=config.my_name if config.exclude_cc_only else "",
         )
         log.info("전자결재함 조회 중...")
         tasks += collect_approval_tasks(

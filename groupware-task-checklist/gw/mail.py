@@ -7,12 +7,29 @@ from typing import List, Optional
 
 from core.date_extract import extract_dates, guess_doc_date
 from core.models import Task
-from core.text_parse import parse_receiver, parse_sender, parse_subject, strip_quoted_reply
+from core.text_parse import (
+    is_cc_only,
+    parse_cc,
+    parse_receiver,
+    parse_sender,
+    parse_subject,
+    strip_quoted_reply,
+)
 
 from .browser import GWSession
-from .scrape_common import go_to_next_page, is_excluded, open_row, row_html, scan_rows
+from .scrape_common import go_to_next_page, is_excluded, open_row, row_html, row_meta, scan_rows
 
 log = logging.getLogger(__name__)
+
+
+def _parse_receivedate(value: Optional[str]) -> Optional[date]:
+    """행 속성의 receivedate(예: "2026-07-09 1723")를 date로 변환한다. 실패하면 None."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.split(" ")[0], "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def _dump(debug_dir: Optional[Path], row_texts: List[str], opened_bodies: List[str],
@@ -43,7 +60,8 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                         lookback_days: int, subject_exclude: List[str],
                         max_rows: int = 60, open_detail: bool = True,
                         debug_dir: Optional[Path] = None, max_pages: int = 5,
-                        sender_exclude: Optional[List[str]] = None) -> List[Task]:
+                        sender_exclude: Optional[List[str]] = None,
+                        my_name: str = "") -> List[Task]:
     """메일함 목록을 조회기간(lookback_days)이 지난 항목이 나올 때까지 페이지를 넘겨가며 읽는다.
 
     목록이 "받은 날짜" 내림차순(최신순)으로 정렬돼 있다는 전제로, 한 페이지 안에서 조회기간보다
@@ -74,6 +92,7 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
     n_opened = 0
     n_matched = 0
     n_sender_excluded = 0
+    n_cc_only_excluded = 0
 
     for page_num in range(1, max_pages + 1):
         list_frame = session.largest_text_frame()
@@ -94,7 +113,11 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                 n_excluded += 1
                 continue
 
-            doc_date = guess_doc_date(row_text, run_date)
+            # 행의 체크박스 <input>에 subject/sender/receivedate 가 정확한 값으로
+            # 이미 들어있는 경우가 많다 (본문 텍스트를 정규식으로 추측하는 것보다 훨씬
+            # 정확함). 있으면 최우선으로 쓰고, 없으면 기존 방식(텍스트 추측)으로 대체한다.
+            meta = row_meta(list_frame, idx)
+            doc_date = _parse_receivedate(meta.get("receivedate")) or guess_doc_date(row_text, run_date)
             if doc_date < lookback_start:
                 n_lookback_skipped += len(row_texts) - idx
                 reached_lookback_end = True
@@ -122,9 +145,16 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                 except Exception:
                     body_text = row_text
 
-            sender = parse_sender(body_text) or parse_sender(row_text) or ""
+            sender = meta.get("sender") or parse_sender(body_text) or parse_sender(row_text) or ""
             if sender and is_excluded(sender, sender_exclude):
                 n_sender_excluded += 1
+                continue
+
+            receiver = parse_receiver(body_text) or parse_receiver(row_text) or ""
+            cc = parse_cc(body_text) or parse_cc(row_text) or ""
+            if is_cc_only(my_name, receiver, cc):
+                # 받는사람이 아니라 참조로만 걸린 메일 - 나에게 직접 요청된 게 아니므로 제외.
+                n_cc_only_excluded += 1
                 continue
 
             combined = f"{row_text}\n{body_text}"
@@ -133,10 +163,9 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
                 continue
             n_matched += 1
 
-            title = parse_subject(body_text) or parse_subject(row_text)
+            title = meta.get("subject") or parse_subject(body_text) or parse_subject(row_text)
             if not title:
                 title = row_text.splitlines()[0][:120] if row_text else "(제목 없음)"
-            receiver = parse_receiver(body_text) or parse_receiver(row_text) or ""
             raw_snippet = body_text[:1500] if body_text else row_text[:1500]
 
             for m in matches:
@@ -174,9 +203,9 @@ def collect_mail_tasks(session: GWSession, mail_list_url: str, run_date: date,
 
     log.info(
         "메일함: 총 %d개 행(전 페이지 합산), 제외(전표 등) %d건, 기간초과(%d일 이전) %d건, "
-        "상세열람 성공 %d건, 발신자 제외 %d건, 마감일 찾음 %d건 → 최종 %d건",
+        "상세열람 성공 %d건, 발신자 제외 %d건, 참조만 걸림 제외 %d건, 마감일 찾음 %d건 → 최종 %d건",
         len(all_row_texts), n_excluded, lookback_days, n_lookback_skipped, n_opened,
-        n_sender_excluded, n_matched, len(tasks),
+        n_sender_excluded, n_cc_only_excluded, n_matched, len(tasks),
     )
     _dump(debug_dir, all_row_texts, opened_bodies, row_htmls)
 

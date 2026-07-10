@@ -59,6 +59,11 @@ class Config:
     # 이름/이메일 일부를 쉼표로 구분해서 넣으면, 그 발신자의 항목은 체크리스트에서 빠진다.
     sender_exclude: List[str] = _get_list("SENDER_EXCLUDE")
 
+    # 내 이름(그룹웨어에 표시되는 이름 그대로). 설정해두면 "받는사람"이 아니라
+    # "참조"로만 걸린 메일(나에게 직접 요청된 게 아닌 메일)은 체크리스트에서 제외한다.
+    my_name: str = os.getenv("MY_NAME", "")
+    exclude_cc_only: bool = _get_bool("EXCLUDE_CC_ONLY", True)
+
     headed: bool = _get_bool("HEADED", False)
     slowmo_ms: int = _get_int("SLOWMO_MS", 0)
 

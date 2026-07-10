@@ -1,4 +1,6 @@
 from core.text_parse import (
+    is_cc_only,
+    parse_cc,
     parse_form_type,
     parse_receiver,
     parse_sender,
@@ -60,3 +62,28 @@ def test_strip_quoted_reply_removes_forwarded_history():
 def test_strip_quoted_reply_keeps_original_when_no_marker():
     text = "그냥 평범한 본문입니다."
     assert strip_quoted_reply(text) == text
+
+
+def test_parse_cc_multiple_names():
+    text = "받는 사람 \t\t\n권윤, Yong Seok Kwon (LeeKo)\n\n참조\t\t\n전장규, 이수민, Hee Woong Lee (LeeKo)"
+    assert parse_receiver(text) == "권윤, Yong Seok Kwon (LeeKo)"
+    assert parse_cc(text) == "전장규, 이수민, Hee Woong Lee (LeeKo)"
+
+
+def test_is_cc_only_true_when_in_cc_not_receiver():
+    receiver = "권윤, Yong Seok Kwon (LeeKo)"
+    cc = "전장규, 이수민, Hee Woong Lee (LeeKo)"
+    assert is_cc_only("이수민", receiver, cc) is True
+
+
+def test_is_cc_only_false_when_directly_addressed():
+    receiver = "이수민"
+    cc = "전장규"
+    assert is_cc_only("이수민", receiver, cc) is False
+
+
+def test_is_cc_only_false_when_fields_missing():
+    # 정보가 부족하면(못 읽었으면) 잘못 걸러내는 것보다 보여주는 쪽이 안전하다.
+    assert is_cc_only("이수민", None, "전장규, 이수민") is False
+    assert is_cc_only("이수민", "권윤", None) is False
+    assert is_cc_only("", "권윤", "이수민") is False

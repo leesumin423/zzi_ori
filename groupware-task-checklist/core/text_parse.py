@@ -12,10 +12,14 @@ from typing import List, Optional
 
 SENDER_LABELS = ["보낸\\s*사람", "발신자", "기안자", "상신자", "작성자", "신청자", "From"]
 RECEIVER_LABELS = ["받는\\s*사람", "수신자", "결재자", "To"]
+CC_LABELS = ["참조", "Cc", "CC"]
 SUBJECT_LABELS = ["제\\s*목", "문서명", "건\\s*명", "Subject"]
 FORM_TYPE_LABELS = ["양식명", "문서종류", "기안종류", "서식명", "결재종류"]
 
+# 받는사람/참조는 여러 명이 콤마로 나열되는 경우가 많아서(예: "권윤, Yong Seok Kwon (LeeKo)")
+# 발신자/제목보다 넉넉하게 잡는다.
 _MAX_LEN = 60
+_MAX_LEN_LIST = 200
 
 # 이메일 본문 안에 '인용된 이전 메일(전달/회신 히스토리)' 이 시작되는 지점을 찾는 패턴.
 # 인용문 안의 "내일"/"오늘" 같은 상대 표현이 현재 메일 기준으로 잘못 해석되거나,
@@ -41,7 +45,7 @@ def strip_quoted_reply(text: str) -> str:
     return text
 
 
-def _search_first(text: str, labels: List[str]) -> Optional[str]:
+def _search_first(text: str, labels: List[str], max_len: int = _MAX_LEN) -> Optional[str]:
     if not text:
         return None
     for label in labels:
@@ -56,7 +60,7 @@ def _search_first(text: str, labels: List[str]) -> Optional[str]:
         # 표 형태 텍스트에서 다음 컬럼까지 같이 잡히는 경우가 많아, 공백 2칸 이상/탭을 컬럼 구분으로 보고 자른다.
         val = re.split(r"\t|\s{2,}", val)[0].strip()
         if val:
-            return val[:_MAX_LEN]
+            return val[:max_len]
     return None
 
 
@@ -65,7 +69,12 @@ def parse_sender(text: str) -> Optional[str]:
 
 
 def parse_receiver(text: str) -> Optional[str]:
-    return _search_first(text, RECEIVER_LABELS)
+    return _search_first(text, RECEIVER_LABELS, max_len=_MAX_LEN_LIST)
+
+
+def parse_cc(text: str) -> Optional[str]:
+    """참조(Cc)로 들어간 사람 목록을 반환한다 (여러 명이면 콤마로 나열된 문자열 그대로)."""
+    return _search_first(text, CC_LABELS, max_len=_MAX_LEN_LIST)
 
 
 def parse_subject(text: str) -> Optional[str]:
@@ -74,3 +83,14 @@ def parse_subject(text: str) -> Optional[str]:
 
 def parse_form_type(text: str) -> Optional[str]:
     return _search_first(text, FORM_TYPE_LABELS)
+
+
+def is_cc_only(my_name: str, receiver_field: Optional[str], cc_field: Optional[str]) -> bool:
+    """이 메일이 '나에게 직접 요청된 것'이 아니라 참조(Cc)로만 걸린 것인지 판단한다.
+
+    받는사람(To) 필드를 정확히 못 읽은 경우(정보 부족)에는 잘못 걸러내는 것보다
+    보여주는 쪽이 안전하므로 False(=참조만은 아님, 즉 계속 보여줌)를 반환한다.
+    """
+    if not my_name or not receiver_field or not cc_field:
+        return False
+    return my_name in cc_field and my_name not in receiver_field

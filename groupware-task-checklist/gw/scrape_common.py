@@ -95,6 +95,24 @@ _ROW_HTML_JS = """
 }
 """
 
+_ROW_META_JS = """
+(idx) => {
+  const el = window.__gwRows && window.__gwRows[idx];
+  if (!el) return null;
+  // 메일함 행의 체크박스 <input>에는 subject/sender/senderemail/receivedate 같은
+  // 정확한 값이 속성으로 이미 박혀있다 (본문 텍스트를 정규식으로 긁는 것보다 훨씬
+  // 정확하다). 있으면 이 값을 최우선으로 쓴다.
+  const input = el.querySelector('input[subject]') || el.querySelector('input[mid]');
+  if (!input) return null;
+  return {
+    subject: input.getAttribute('subject') || '',
+    sender: input.getAttribute('sender') || '',
+    senderemail: input.getAttribute('senderemail') || '',
+    receivedate: input.getAttribute('receivedate') || '',
+  };
+}
+"""
+
 
 def scan_rows(frame: Frame, max_rows: int = 80) -> List[str]:
     try:
@@ -115,6 +133,20 @@ def row_html(frame: Frame, index: int) -> str:
         return html or ""
     except Exception:
         return ""
+
+
+def row_meta(frame: Frame, index: int) -> dict:
+    """index번째 행의 subject/sender/senderemail/receivedate 속성을 그대로 읽어온다.
+
+    (있으면) 본문을 정규식으로 긁어서 추측하는 것보다 훨씬 정확한 값이라, 제목/
+    발신자/수신일 판단에 최우선으로 쓴다. 이런 속성이 없는 화면(전자결재 등)이면
+    빈 dict를 반환하니 호출하는 쪽에서 기존 방식으로 대체해야 한다.
+    """
+    try:
+        meta = frame.evaluate(_ROW_META_JS, index)
+        return meta or {}
+    except Exception:
+        return {}
 
 
 def open_row(frame: Frame, index: int) -> bool:
