@@ -69,8 +69,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') closeRuleModal();
   });
   document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
+  attachCommaFormatting(document.getElementById('checkAmount'));
   loadAllData();
 });
+
+// 숫자 입력칸에 입력하는 즉시 천단위 콤마를 넣어준다 — 0을 세다 실수하는 걸
+// 방지하려는 목적. type="number"는 콤마 표시가 아예 안 돼서 type="text"로 받고
+// 이 핸들러로 서식을 입힌다(전송 시에는 콤마를 다시 제거해서 보낸다).
+function attachCommaFormatting(input) {
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/[^\d]/g, '').length;
+    const digitsOnly = input.value.replace(/[^\d]/g, '');
+    input.value = digitsOnly ? Number(digitsOnly).toLocaleString('ko-KR') : '';
+    let seen = 0, pos = input.value.length;
+    for (let i = 0; i < input.value.length; i++) {
+      if (/\d/.test(input.value[i])) seen++;
+      if (seen === digitsBeforeCursor) { pos = i + 1; break; }
+    }
+    input.setSelectionRange(pos, pos);
+  });
+}
 
 async function safeFetch(url) {
   const resp = await fetch(url);
@@ -378,7 +397,7 @@ async function runDanpanCheck() {
   if (!result) return;
 
   const contractDate = dateInput?.value;
-  const amount = amountInput?.value;
+  const amount = amountInput?.value?.replace(/,/g, '');
   if (!contractDate || amount === '' || amount == null) {
     result.innerHTML = '<p class="check-error">계약(예정)일자와 계약금액을 모두 입력해주세요.</p>';
     return;
@@ -413,7 +432,7 @@ function renderDanpanCheckResult(r) {
       참조 가능했던 매출액입니다.<br>
       ${r.applicable_fiscal_year}년 연결 매출액 <b>${fmtWon(r.revenue)}원</b> × ${largeLabel}
       <b>${(r.threshold_pct * 100).toFixed(1)}%</b> = 기준금액 <b>${fmtWon(r.threshold_amount)}원</b><br>
-      입력하신 계약금액 <b>${fmtWon(r.amount)}원</b>과 비교한 결과입니다.
+      입력하신 계약금액(부가세 포함) <b>${fmtWon(r.amount)}원</b>과 비교한 결과입니다.
     </div>`;
 }
 
