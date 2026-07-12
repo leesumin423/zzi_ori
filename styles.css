@@ -381,6 +381,71 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   font-size: 18px; color: var(--muted); padding: 0 2px;
 }
 
+/* ── 단판공시 대상여부 사전검증 계산기 ──────────────────────────── */
+.check-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.check-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.check-form input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 180px;
+}
+.check-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#checkResult { margin-top: 16px; }
+#checkResult .check-verdict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+#checkResult .check-verdict.required {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid var(--up);
+  color: var(--up);
+}
+#checkResult .check-verdict.not-required {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid var(--down);
+  color: var(--down);
+}
+#checkResult .check-detail {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+#checkResult .check-detail b { color: var(--text); }
+#checkResult .check-error {
+  color: var(--up);
+  font-size: 13px;
+}
+
 /* ── Print ───────────────────────────────────────────────────── */
 /* 이 블록은 반드시 파일 맨 끝에 있어야 한다 — 동일 우선순위(specificity)일 때
    CSS는 소스 순서상 나중에 나온 규칙이 이기므로, 위쪽 기본 규칙(.clickable-name
@@ -466,5 +531,6 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   .btn { display: none; }
   .tab-group { display: none; }
   .rule-btn { display: none; }
+  #danpan-check-section { display: none; }
 }
 

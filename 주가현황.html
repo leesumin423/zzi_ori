@@ -169,6 +169,24 @@
             </table>
           </div>
         </section>
+
+        <section class="section" id="danpan-check-section">
+          <h2>단판공시 대상여부 사전검증</h2>
+          <p class="info" style="margin-bottom:12px;">계약(예정)일자와 계약금액을 넣으면, <b>그 계약일자 시점에 실제로 적용됐을</b>
+            "최근 사업연도" 매출액 기준으로 공시 대상 여부를 계산합니다 — 오늘 기준 최신 매출액이 아니라
+            계약 당시 참조 가능했던 매출액을 씁니다(2021년부터 이어져 온 현장도 그 당시 기준으로 정확히
+            검증하기 위함). 사업부서든 누구든 로그인 없이 바로 확인할 수 있습니다.</p>
+          <div class="check-form">
+            <label>계약(예정)일자
+              <input type="date" id="checkContractDate">
+            </label>
+            <label>계약금액(원, 부가세 제외)
+              <input type="number" id="checkAmount" placeholder="예: 5000000000" min="0" step="1">
+            </label>
+            <button id="checkSubmitBtn" class="btn" style="width:auto;">판단하기</button>
+          </div>
+          <div id="checkResult"></div>
+        </section>
       </div>
 
       <!-- ── 지분공시(임원ㆍ주요주주 소유상황보고서) 이력 ── -->
@@ -179,17 +197,18 @@
           <div class="table-wrap">
             <table id="equity-table">
               <colgroup>
-                <col style="width:5%"> <!-- 순번 -->
-                <col style="width:21%"><!-- 주주명(등기구분) -->
-                <col style="width:13%"><!-- 최초 매수일 -->
-                <col style="width:16%"><!-- 최근 매수일(공시일) -->
-                <col style="width:15%"><!-- 누적 주식수 -->
-                <col style="width:14%"><!-- 평균단가 -->
-                <col style="width:16%"><!-- 원문 -->
+                <col style="width:4%">  <!-- 순번 -->
+                <col style="width:15%"><!-- 이름 -->
+                <col style="width:10%"><!-- 구분 -->
+                <col style="width:12%"><!-- 최초 매수일 -->
+                <col style="width:15%"><!-- 최근 매수일(공시일) -->
+                <col style="width:14%"><!-- 누적 주식수 -->
+                <col style="width:13%"><!-- 평균단가 -->
+                <col style="width:17%"><!-- 원문 -->
               </colgroup>
               <thead>
                 <tr>
-                  <th>순번</th><th>주주명</th><th>최초 매수일</th><th>최근 매수일<br>(공시일)</th>
+                  <th>순번</th><th>이름</th><th>구분</th><th>최초 매수일</th><th>최근 매수일<br>(공시일)</th>
                   <th>누적 주식수</th><th>평균단가<br>(원)</th><th>원문<br>(최근 공시문)</th>
                 </tr>
               </thead>

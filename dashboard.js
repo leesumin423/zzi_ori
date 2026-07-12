@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeRuleModal();
   });
+  document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
   loadAllData();
 });
 
@@ -206,14 +207,14 @@ async function loadEquity() {
   const note = document.getElementById('equityNote');
   const tbody = document.querySelector('#equity-table tbody');
   if (note) note.textContent = 'DART 공시 원문을 조회하는 중… (최근 10년치를 하나씩 받아오므로 다소 걸릴 수 있습니다)';
-  if (tbody) tbody.innerHTML = '<tr><td colspan="7">로딩 중…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8">로딩 중…</td></tr>';
   try {
     const data = await safeFetch(`${API_BASE}?section=equity`);
     lastData.equity = data;
     renderEquity(data);
   } catch (err) {
     if (note) note.textContent = `조회 실패: ${err.message}`;
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7">조회 실패: ${err.message}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8">조회 실패: ${err.message}</td></tr>`;
   }
 }
 
@@ -231,7 +232,7 @@ function renderEquity(payload) {
   const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
 
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
     if (note) note.textContent = '';
     return;
   }
@@ -248,11 +249,11 @@ function renderEquity(payload) {
   list.forEach((item, idx) => {
     const holderName = item.holder_name ?? '';
     const roleLabel = item.role_label ?? '';
-    const displayName = roleLabel ? `${holderName}(${roleLabel})` : holderName;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num">${idx + 1}</td>
-      <td title="${escapeAttr(displayName)}">${displayName}</td>
+      <td title="${escapeAttr(holderName)}">${holderName}</td>
+      <td>${roleLabel}</td>
       <td class="num">${item.first_buy_date ?? ''}</td>
       <td class="num">${item.latest_buy_date ?? ''}</td>
       <td class="num">${fmtWon(item.total_qty)}</td>
@@ -367,6 +368,53 @@ function ruleEquityHtml() {
     <p class="rule-cite">근거: 자본시장법 제173조, 동법 시행령 제200조 (출처:
     <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
     <a href="https://dart.fss.or.kr/info/main.do?menu=320" target="_blank" class="clickable-name">DART 기업공시 길라잡이</a>).</p>`;
+}
+
+// ── 단판공시 대상여부 사전검증 계산기 ────────────────────────────
+async function runDanpanCheck() {
+  const dateInput = document.getElementById('checkContractDate');
+  const amountInput = document.getElementById('checkAmount');
+  const result = document.getElementById('checkResult');
+  if (!result) return;
+
+  const contractDate = dateInput?.value;
+  const amount = amountInput?.value;
+  if (!contractDate || amount === '' || amount == null) {
+    result.innerHTML = '<p class="check-error">계약(예정)일자와 계약금액을 모두 입력해주세요.</p>';
+    return;
+  }
+
+  result.innerHTML = '<p class="info">판단하는 중…</p>';
+  try {
+    const resp = await fetch(`${API_BASE}?section=danpan_check&contract_date=${encodeURIComponent(contractDate)}&amount=${encodeURIComponent(amount)}`);
+    const data = await resp.json();
+    if (!resp.ok) {
+      result.innerHTML = `<p class="check-error">${escapeAttr(data.error ?? `조회 실패 (HTTP ${resp.status})`)}</p>`;
+      return;
+    }
+    result.innerHTML = renderDanpanCheckResult(data);
+  } catch (err) {
+    result.innerHTML = `<p class="check-error">조회 실패: ${escapeAttr(err.message)}</p>`;
+  }
+}
+
+function renderDanpanCheckResult(r) {
+  const verdictClass = r.is_disclosure_required ? 'required' : 'not-required';
+  const verdictText = r.is_disclosure_required
+    ? '공시 대상입니다 — 계약체결(또는 해지)일 다음날까지 공시 필요'
+    : '공시 대상이 아닙니다 (기준금액 미만)';
+  const largeLabel = r.is_large_corp ? '대규모법인(2.5% 기준)' : '일반법인(5% 기준)';
+  return `
+    <div class="check-verdict ${verdictClass}">${verdictText}</div>
+    <div class="check-detail">
+      계약일자 <b>${r.contract_date}</b> 시점 기준 "최근 사업연도"는
+      <b>${r.applicable_fiscal_year}년</b>입니다 (근거: <b>${escapeAttr(r.applicable_report_nm ?? '')}</b>,
+      ${r.applicable_report_date} 제출) — 오늘 기준 최신 매출액이 아니라 그 계약 시점에 실제로
+      참조 가능했던 매출액입니다.<br>
+      ${r.applicable_fiscal_year}년 연결 매출액 <b>${fmtWon(r.revenue)}원</b> × ${largeLabel}
+      <b>${(r.threshold_pct * 100).toFixed(1)}%</b> = 기준금액 <b>${fmtWon(r.threshold_amount)}원</b><br>
+      입력하신 계약금액 <b>${fmtWon(r.amount)}원</b>과 비교한 결과입니다.
+    </div>`;
 }
 
 function renderAll() {

@@ -1098,21 +1098,29 @@ def _danpan_fetch_periodic_progress(corp_code: str):
 
     return base_date, reported_dates
 
-_annual_financials_cache = {}  # {corp_code: {'ts': float, ...}}
+_annual_financials_cache = {}  # {(corp_code, bsns_year_or_None): {'ts': float, 'data': ...}}
 ANNUAL_FINANCIALS_CACHE_TTL = 24 * 3600
 
-def _fetch_annual_financials(corp_code: str):
+def _fetch_annual_financials(corp_code: str, bsns_year: int = None):
     """단일판매ㆍ공급계약체결 공시의무 기준(유가증권시장 공시규정 제7조제1항제1호다목:
-    최근 사업연도 매출액의 5%, 대규모법인은 2.5%)을 계산하기 위해 최근 사업연도의
+    최근 사업연도 매출액의 5%, 대규모법인은 2.5%)을 계산하기 위해 특정 사업연도의
     연결 매출액ㆍ자산총계를 가져온다. 자산총계 2조원 이상이면 대규모법인으로 보고
-    2.5% 기준을 적용한다. 조회 실패 시 None."""
+    2.5% 기준을 적용한다. `bsns_year`를 안 주면(=지금 "규정 보기" 모달 용도) 올해
+    기준 "최근 사업연도"를 자동으로 찾고, 특정 연도를 주면(=사전검증 계산기 용도)
+    그 연도만 조회한다. 조회 실패 시 None."""
     now = datetime.now().timestamp()
-    cached = _annual_financials_cache.get(corp_code)
+    cache_key = (corp_code, bsns_year)
+    cached = _annual_financials_cache.get(cache_key)
     if cached and now - cached['ts'] < ANNUAL_FINANCIALS_CACHE_TTL:
         return cached['data']
 
-    this_year = datetime.now().year
-    for year in (this_year - 1, this_year - 2):
+    if bsns_year is not None:
+        years_to_try = [bsns_year]
+    else:
+        this_year = datetime.now().year
+        years_to_try = [this_year - 1, this_year - 2]
+
+    for year in years_to_try:
         try:
             r = requests.get("https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json", params={
                 "crtfc_key": DART_API_KEY, "corp_code": corp_code,
@@ -1147,10 +1155,85 @@ def _fetch_annual_financials(corp_code: str):
                 "threshold_pct": threshold_pct,
                 "threshold_amount": round(revenue * threshold_pct),
             }
-            _annual_financials_cache[corp_code] = {'ts': now, 'data': result}
+            _annual_financials_cache[cache_key] = {'ts': now, 'data': result}
             return result
 
     return None
+
+def _resolve_fiscal_year_asof(corp_code: str, as_of_date):
+    """계약일자(as_of_date) 시점에 실제로 이미 DART에 제출돼있던 가장 최근
+    "사업보고서"(반기ㆍ분기보고서 제외 — "최근 사업연도"는 연간 결산 기준)를 찾아
+    그 사업연도를 반환한다. 예: 2023-06-02에 계약을 맺었다면, 그 시점에 최근
+    제출된 사업보고서가 "사업보고서 (2022.12)"였는지 확인해 2022를 반환 — 지금
+    시점(2026년)의 "최근 사업연도"가 아니라, **계약 당시** 실제로 참조 가능했던
+    매출액 기준을 재현하기 위함이다. 회사는 2021년부터 이어져 온 단판공시 현장을
+    지금도 관리하고 있어서, 오래된 계약을 사후 검증하려면 이 시점 보정이 필요하다.
+    반환값: (사업연도:int, report_nm, rcept_dt) 또는 실패 시 (None, None, None)."""
+    end_de = as_of_date.strftime('%Y%m%d')
+    bgn_de = (as_of_date - timedelta(days=800)).strftime('%Y%m%d')  # 사업보고서는 매년 1건 → 2년 넉넉히
+    try:
+        r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+            "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+            "bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": "A",
+            "page_no": 1, "page_count": 20,
+        }, timeout=15)
+        data = r.json()
+    except Exception as e:
+        print(f"[DEBUG] {corp_code} 사업보고서 목록 조회 중 예외: {e}")
+        return None, None, None
+    if data.get('status') != '000':
+        return None, None, None
+
+    # 반기ㆍ분기보고서는 "사업연도" 확정 기준이 아니므로 제외, [기재정정]은 원본과
+    # 사업연도가 같으므로 어느 쪽이 걸려도 무방하지만 원본을 우선한다.
+    candidates = [
+        d for d in data.get('list', [])
+        if re.match(r'^(\[기재정정\])?사업보고서', d.get('report_nm', ''))
+        and d.get('rcept_dt', '') <= end_de
+    ]
+    if not candidates:
+        return None, None, None
+    candidates.sort(key=lambda d: (d.get('rcept_dt', ''), not d.get('report_nm', '').startswith('[')))
+    latest = candidates[-1]
+    m = re.search(r'\((\d{4})\.\d{2}\)', latest.get('report_nm', ''))
+    if not m:
+        return None, None, None
+    return int(m.group(1)), latest.get('report_nm', '').strip(), latest.get('rcept_dt', '')
+
+def check_danpan_disclosure(contract_date_str: str, amount: int):
+    """단판공시 사전검증 — 계약(예정)일자와 계약금액을 받아, **그 계약일자 시점에
+    실제로 적용됐을 "최근 사업연도" 매출액 기준**으로 공시대상 여부를 판단한다.
+    (지금 시점 기준 최신 매출액이 아니라 계약일자 당시 매출액을 쓰는 이유는 위
+    _resolve_fiscal_year_asof 설명 참고.) 실패 시 None."""
+    corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
+    if not corp_code or not DART_API_KEY:
+        return None
+    try:
+        contract_date = datetime.strptime(contract_date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return None
+
+    fiscal_year, report_nm, rcept_dt = _resolve_fiscal_year_asof(corp_code, contract_date)
+    if fiscal_year is None:
+        return None
+
+    financials = _fetch_annual_financials(corp_code, bsns_year=fiscal_year)
+    if not financials:
+        return None
+
+    return {
+        "contract_date": _dots(contract_date_str),
+        "applicable_fiscal_year": fiscal_year,
+        "applicable_report_nm": report_nm,
+        "applicable_report_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
+        "revenue": financials["revenue"],
+        "assets": financials["assets"],
+        "is_large_corp": financials["is_large_corp"],
+        "threshold_pct": financials["threshold_pct"],
+        "threshold_amount": financials["threshold_amount"],
+        "amount": amount,
+        "is_disclosure_required": amount >= financials["threshold_amount"],
+    }
 
 _danpan_cache = {'ts': 0.0, 'data': None, 'meta': None}
 
@@ -1815,6 +1898,18 @@ def data_endpoint():
         force = request.args.get('refresh') == '1'
         records = fetch_equity_monitoring(force=force)
         return jsonify({"records": records, "meta": _equity_cache.get('meta') or {}})
+
+    if section == 'danpan_check':
+        contract_date = request.args.get('contract_date', '')
+        amount_raw = request.args.get('amount', '')
+        try:
+            amount = int(amount_raw)
+        except ValueError:
+            return jsonify({"error": "계약금액(amount)은 원 단위 숫자로 입력해주세요."}), 400
+        result = check_danpan_disclosure(contract_date, amount)
+        if result is None:
+            return jsonify({"error": "판단할 수 없습니다 — 계약일자 형식(YYYY-MM-DD)을 확인하거나, DART 조회에 실패했을 수 있습니다."}), 400
+        return jsonify(result)
 
     return jsonify({"error": f"unknown section: {section}"}), 400
 
