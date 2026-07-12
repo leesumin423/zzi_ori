@@ -1426,6 +1426,17 @@ def _equity_parse_num(text: str):
     except ValueError:
         return None
 
+def _equity_is_buy(t: dict) -> bool:
+    """"매수 이력"으로 집계할 거래인지 판단한다. 보고사유 텍스트에 "매수"가 들어간
+    "장내매수(+)"/"장외매수(+)" 외에도, "시간외매매(+)"나 "제3자배정유상증자(+)"처럼
+    문구엔 "매수"가 없지만 실질은 유상 취득인 사유들이 있어서(유진기업의
+    2026-06-24 시간외매매 800,000주 취득이 "매수"라는 단어가 없어 누락됐던 게
+    실제 사례) 사유 텍스트로 화이트리스트를 만드는 대신 "수량이 늘었고(qty>0)
+    단가가 있다(price is not None)"로 판단한다. 무상증자ㆍ주식병합ㆍ상속ㆍ증여처럼
+    대가 없이 수량만 바뀌는 사유는 취득/처분단가란이 항상 "-"(파싱하면 None)라
+    이 조합으로 자연스럽게 제외된다."""
+    return bool(t.get('qty') and t['qty'] > 0 and t.get('price') is not None)
+
 def _equity_parse_document(html_text: str) -> dict:
     """임원ㆍ주요주주 특정증권등 소유상황보고서 원문을 파싱한다. 단판공시 문서와
     달리 이 서식은 값마다 ACODE(고정값)/AUNIT(선택값, aunitvalue에 코드)가 직접
@@ -1441,14 +1452,28 @@ def _equity_parse_document(html_text: str) -> dict:
     position_tag = soup.find(attrs={'acode': 'STF_PSM'})     # 직위명
     mainsh_tag = soup.find(attrs={'aunit': 'MAIN_SH'})       # 주요주주 여부 (값이 있으면 "-"가 아님)
 
-    # "다. 세부변동내역" 표: 행마다 RPT_RSN(보고사유, 예: 장내매수(+)/주식병합 등)이
-    # 있고, 매수 외에 증여ㆍ병합 등 지분수만 바뀌는 사유도 섞여 있어 사유 텍스트로
-    # 걸러야 한다(예: 주식병합 시 MDF_STK_CNT가 음수로 찍혀 매도로 오인될 수 있음).
+    # "다. 세부변동내역" 표: 행마다 RPT_RSN(보고사유, 예: 장내매수(+)/시간외매매(+)/
+    # 제3자배정유상증자(+)/주식병합 등)이 있다. 두 가지를 걸러야 한다:
+    # - 증권종류(STR_KND)가 보통주(코드 "1")가 아닌 행은 건너뛴다. 유진기업처럼
+    #   보통주ㆍ우선주를 모두 보유한 보고자는 한 공시 안에 두 증권종류가 각각 별도
+    #   행으로 나오는데(예: 2026-07-07 주식병합 공시가 보통주 행 하나, 우선주 행
+    #   하나), 이 필드를 안 보고 "마지막 행"만 가져오면 우선주 수량이 보통주
+    #   누적수량을 덮어써버린다. 이 기능은 동전주(보통주) 이슈를 보려는 것이라
+    #   우선주는 애초에 대상이 아니다.
+    # - 증가 거래인지는 사유 텍스트를 "매수"로 문자열 매칭하지 않는다. "시간외매매(+)"
+    #   나 "제3자배정유상증자(+)"처럼 실질적으로는 매수와 같은 유상 취득인데 "매수"라는
+    #   단어가 안 들어간 사유가 있어서(유진기업의 800,000주 시간외매매 건이 이렇게
+    #   빠졌었음) 대신 "수량이 늘었고(qty>0) 단가가 있다(price is not None)"로
+    #   판단한다 — 무상증자ㆍ주식병합ㆍ상속ㆍ증여처럼 대가 없이 수량만 바뀌는 사유는
+    #   단가란이 항상 "-"(None)라 이 조합으로 자연스럽게 걸러진다.
     transactions = []
     for reason_tag in soup.find_all(attrs={'aunit': 'RPT_RSN'}):
         row = reason_tag.find_parent('tr')
         if not row:
             continue
+        kind_tag = row.find(attrs={'aunit': 'STR_KND'})
+        if kind_tag and kind_tag.attrs.get('aunitvalue') != '1':
+            continue  # 보통주(1)가 아닌 행(우선주 등)은 건너뜀
         date_tag = row.find(attrs={'aunit': 'MDF_DM'})
         qty_tag = row.find(attrs={'acode': 'MDF_STK_CNT'})
         price_tag = row.find(attrs={'acode': 'ACI_AMT2'})
@@ -1580,7 +1605,7 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         buy_txns = [
             (d['rcept_dt'], d['rcept_no'], t['date'], t['qty'], t['price'])
             for d in docs for t in d['parsed']['transactions']
-            if '매수' in t['reason'] and t['qty'] and t['qty'] > 0
+            if _equity_is_buy(t)
         ]
         if not buy_txns:
             continue  # 매수 이력이 없으면(매도ㆍ증여ㆍ병합 등만 있으면) 이 표에서는 제외
@@ -1590,7 +1615,7 @@ def fetch_equity_monitoring(force: bool = False) -> list:
 
         # "최근 매수일(공시일)"ㆍ원문은 매수 거래가 포함된 공시 중 가장 최근 것을 기준으로
         latest_doc = max(
-            (d for d in docs if any('매수' in t['reason'] and t['qty'] and t['qty'] > 0 for t in d['parsed']['transactions'])),
+            (d for d in docs if any(_equity_is_buy(t) for t in d['parsed']['transactions'])),
             key=lambda d: (d['rcept_dt'], d['rcept_no']),
         )
         latest_rcept_dt = latest_doc['rcept_dt']
