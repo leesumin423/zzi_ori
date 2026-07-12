@@ -1090,6 +1090,60 @@ def _danpan_fetch_periodic_progress(corp_code: str):
 
     return base_date, reported_dates
 
+_annual_financials_cache = {}  # {corp_code: {'ts': float, ...}}
+ANNUAL_FINANCIALS_CACHE_TTL = 24 * 3600
+
+def _fetch_annual_financials(corp_code: str):
+    """단일판매ㆍ공급계약체결 공시의무 기준(유가증권시장 공시규정 제7조제1항제1호다목:
+    최근 사업연도 매출액의 5%, 대규모법인은 2.5%)을 계산하기 위해 최근 사업연도의
+    연결 매출액ㆍ자산총계를 가져온다. 자산총계 2조원 이상이면 대규모법인으로 보고
+    2.5% 기준을 적용한다. 조회 실패 시 None."""
+    now = datetime.now().timestamp()
+    cached = _annual_financials_cache.get(corp_code)
+    if cached and now - cached['ts'] < ANNUAL_FINANCIALS_CACHE_TTL:
+        return cached['data']
+
+    this_year = datetime.now().year
+    for year in (this_year - 1, this_year - 2):
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bsns_year": str(year), "reprt_code": "11011", "fs_div": "CFS",
+            }, timeout=15)
+            data = r.json()
+        except Exception as e:
+            print(f"[DEBUG] {corp_code} 연결 매출액/자산총계 조회 중 예외({year}): {e}")
+            continue
+        if data.get('status') != '000':
+            continue
+
+        revenue = assets = None
+        for item in data.get('list', []):
+            name = item.get('account_nm', '').strip()
+            try:
+                if item.get('sj_div') == 'IS' and name in ('매출액', '수익(매출액)') and revenue is None:
+                    revenue = int(item['thstrm_amount'])
+                elif item.get('sj_div') == 'BS' and name == '자산총계' and assets is None:
+                    assets = int(item['thstrm_amount'])
+            except (ValueError, KeyError):
+                continue
+
+        if revenue is not None:
+            is_large_corp = bool(assets and assets >= 2_000_000_000_000)  # 자산총액 2조원 이상
+            threshold_pct = 0.025 if is_large_corp else 0.05
+            result = {
+                "fiscal_year": year,
+                "revenue": revenue,
+                "assets": assets,
+                "is_large_corp": is_large_corp,
+                "threshold_pct": threshold_pct,
+                "threshold_amount": round(revenue * threshold_pct),
+            }
+            _annual_financials_cache[corp_code] = {'ts': now, 'data': result}
+            return result
+
+    return None
+
 _danpan_cache = {'ts': 0.0, 'data': None, 'meta': None}
 
 def fetch_danpan_monitoring(force: bool = False) -> list:
@@ -1250,6 +1304,7 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
     meta = {
         "periodic_report_base_date": periodic_base_date.isoformat() if periodic_base_date else None,
         "periodic_check_available": periodic_dates is not None,
+        "disclosure_rule": _fetch_annual_financials(corp_code),
     }
     _danpan_cache.update(ts=now, data=results, meta=meta)
     return results
@@ -1306,6 +1361,7 @@ def _equity_parse_document(html_text: str) -> dict:
         date_tag = row.find(attrs={'aunit': 'MDF_DM'})
         qty_tag = row.find(attrs={'acode': 'MDF_STK_CNT'})
         price_tag = row.find(attrs={'acode': 'ACI_AMT2'})
+        after_tag = row.find(attrs={'acode': 'AFR_STK_CNT'})
         date_val = date_tag.attrs.get('aunitvalue') if date_tag else None
         qty = _equity_parse_num(qty_tag.get_text(strip=True)) if qty_tag else None
         if not date_val or len(date_val) != 8 or qty is None:
@@ -1315,7 +1371,16 @@ def _equity_parse_document(html_text: str) -> dict:
             'date': f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}",
             'qty': qty,
             'price': _equity_parse_num(price_tag.get_text(strip=True)) if price_tag else None,
+            'after_qty': _equity_parse_num(after_tag.get_text(strip=True)) if after_tag else None,
         })
+
+    # 이 보고서 기준 "현재 보유 총수량"은 표 맨 마지막 거래 행의 변동후(AFR_STK_CNT)를
+    # 쓴다. 처음엔 "합계" 행의 AFR_STK_SUM을 썼는데, 실제로 받아보니 그 값은 거래가
+    # 1건뿐인 보고서에서만 채워지고 여러 건이면 "-"로 비워두는 서식이라(정진학의
+    # 2026-06-10 보고서처럼 매수가 2건이면 합계 행 변동후가 "-") 그 경우 결과가
+    # None이 돼버렸다. 개별 거래 행의 변동후는 거래 건수와 무관하게 항상 채워져
+    # 있어서 이걸로 바꿨다(표는 항상 날짜 오름차순으로 기재되므로 마지막 행 = 최신).
+    final_holding = transactions[-1]['after_qty'] if transactions else None
 
     return {
         'name': name,
@@ -1323,17 +1388,19 @@ def _equity_parse_document(html_text: str) -> dict:
         'position': position_tag.get_text(strip=True) if position_tag else '',
         'is_major_shareholder': bool(mainsh_tag and mainsh_tag.get_text(strip=True) not in ('', '-')),
         'transactions': transactions,
+        'final_holding': final_holding,
     }
 
-def _equity_fetch_officer_roster(corp_code: str) -> dict:
+def _equity_fetch_officer_roster(corp_code: str):
     """가장 최근 정기보고서의 "VIII. 임원 및 직원 등에 관한 사항 > 1. 임원 및 직원
     등의 현황 > 가. 임원 현황" 표에서 현재 재직 중인 임원의 직위를 뽑아온다
-    ({성명: 직위명}). 지분공시 이력에 등재된 사람이 지금도 재직 중인 임원인지,
-    직위가 뭔지 참고용으로 보여주기 위한 것 — 이 표에 없다고 결과에서 제외하지는
-    않는다(퇴임한 임원이나 주요주주 법인도 "이력"에는 남아있어야 하므로)."""
+    ({성명: 직위명}). 지분공시 이력에서 이 표에 없는 사람(퇴임한 임원)은 걸러내는
+    기준으로 쓰인다 — 주요주주(법인 등)는 애초에 이 표 대상이 아니므로 걸러내지
+    않는다. 정기보고서 조회 자체에 실패하면 잘못 걸러내는 걸 막기 위해 None을
+    반환한다(호출부는 이 경우 필터링을 건너뛰어야 함)."""
     _, _, text = _fetch_latest_periodic_report(corp_code)
     if not text:
-        return {}
+        return None
     soup = BeautifulSoup(text, 'html.parser')
     roster = {}
     for name_tag in soup.find_all(attrs={'acode': 'SH5_NM_T'}):
@@ -1362,7 +1429,7 @@ def fetch_equity_monitoring(force: bool = False) -> list:
     if not corp_code or not DART_API_KEY:
         return []
 
-    roster = _equity_fetch_officer_roster(corp_code)
+    roster = _equity_fetch_officer_roster(corp_code)  # None이면 정기보고서 조회 실패 → 퇴임자 필터링 건너뜀
 
     end_de = datetime.now().strftime('%Y%m%d')
     bgn_de = (datetime.now() - timedelta(days=365 * EQUITY_LOOKBACK_YEARS)).strftime('%Y%m%d')
@@ -1427,16 +1494,37 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         latest_rcept_dt = latest_doc['rcept_dt']
         latest_dt_fmt = f"{latest_rcept_dt[:4]}.{latest_rcept_dt[4:6]}.{latest_rcept_dt[6:8]}" if len(latest_rcept_dt) == 8 else latest_rcept_dt
 
-        total_qty = sum(t[3] for t in buy_txns)
+        # "누적 주식수" = 가장 최근 공시(전체 중 최신, 매수 공시가 아니어도 됨)의
+        # 최종 보유수량(final_holding) — 그 시점의 확정된 총 보유수량이다. 매수
+        # 거래만 다시 더해서 계산하면 증여ㆍ주식병합 등으로 실제 보유수량과
+        # 어긋나거나, 보고서마다 "누적"이 아니라 "그 회차 변동분"만 적힌 경우도
+        # 있어 값이 들쭉날쭉해지는 문제가 있었다.
+        total_qty = None
+        for d in reversed(docs):
+            if d['parsed'].get('final_holding') is not None:
+                total_qty = d['parsed']['final_holding']
+                break
+        if total_qty is None:
+            total_qty = sum(t[3] for t in buy_txns)  # 폴백: 파싱 실패 시 매수 합계라도
+
         priced = [t for t in buy_txns if t[4] is not None]
         avg_price = (sum(t[3] * t[4] for t in priced) / sum(t[3] for t in priced)) if priced else None
 
         last_parsed = docs[-1]['parsed']  # 가장 최근 공시에 적힌 신상정보(직위 등)를 채택
+        is_major_shareholder = last_parsed.get('is_major_shareholder', False)
+
+        # 현재 정기보고서의 임원 현황에 없는 사람은 퇴임한 임원 — 주요주주(법인 등)는
+        # 이 표(임원 현황)에 애초에 안 잡히는 별개 카테고리라 걸러내지 않는다.
+        # roster가 None이면 정기보고서 조회 자체가 실패한 것이라 필터링을 건너뛴다
+        # (안 그러면 조회 실패 시 전원이 "퇴임자"로 잘못 걸러짐).
+        if roster is not None and not is_major_shareholder and name not in roster:
+            continue
+
         results.append({
             "holder_name": name,
-            "position": roster.get(name) or last_parsed.get('position') or '',
+            "position": (roster or {}).get(name) or last_parsed.get('position') or '',
             "registered_text": last_parsed.get('registered_text') or '',
-            "is_major_shareholder": last_parsed.get('is_major_shareholder', False),
+            "is_major_shareholder": is_major_shareholder,
             "first_buy_date": first_date,
             "latest_buy_date": latest_dt_fmt,
             "total_qty": total_qty,
@@ -1448,7 +1536,7 @@ def fetch_equity_monitoring(force: bool = False) -> list:
 
     results.sort(key=lambda r: r['latest_buy_date'], reverse=True)
     meta = {
-        "officer_roster_available": bool(roster),
+        "officer_roster_available": roster is not None,
         "lookback_years": EQUITY_LOOKBACK_YEARS,
     }
     _equity_cache.update(ts=now, data=results, meta=meta)

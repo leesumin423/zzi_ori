@@ -325,6 +325,62 @@ tr:hover td { background: rgba(255,255,255,0.025); }
 }
 .modal-close:hover { color: var(--text); }
 
+/* ── 공시 규정 안내 (규정 보기 버튼 + 모달 내 도식) ─────────────── */
+.rule-btn {
+  margin-left: 10px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--title);
+  background: rgba(125, 211, 252, 0.1);
+  border: 1px solid var(--title);
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: middle;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rule-btn:hover { background: rgba(125, 211, 252, 0.2); }
+
+.rule-modal-body { font-size: 13px; line-height: 1.7; }
+.rule-modal-body h4 {
+  font-size: 13px; color: var(--title); margin: 18px 0 8px;
+}
+.rule-modal-body h4:first-child { margin-top: 0; }
+.rule-modal-body p { margin-bottom: 8px; color: var(--text); }
+.rule-modal-body .rule-cite {
+  font-size: 11px; color: var(--muted); margin-top: 4px;
+}
+.rule-modal-body ul { margin: 4px 0 8px 18px; }
+.rule-modal-body li { margin-bottom: 4px; }
+
+/* 도식 흐름: [매출액] → [× 비율] → [기준금액] 같은 박스+화살표 다이어그램 */
+.rule-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin: 10px 0 16px;
+  flex-wrap: wrap;
+}
+.rule-flow-box {
+  flex: 1;
+  min-width: 140px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+}
+.rule-flow-box.highlight { border-color: var(--title); background: rgba(125, 211, 252, 0.08); }
+.rule-flow-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.rule-flow-value { font-size: 15px; font-weight: 700; color: var(--text); word-break: keep-all; }
+.rule-flow-box.highlight .rule-flow-value { color: var(--title); }
+.rule-flow-arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--muted); padding: 0 2px;
+}
+
 /* ── Print ───────────────────────────────────────────────────── */
 /* 이 블록은 반드시 파일 맨 끝에 있어야 한다 — 동일 우선순위(specificity)일 때
    CSS는 소스 순서상 나중에 나온 규칙이 이기므로, 위쪽 기본 규칙(.clickable-name
@@ -409,5 +465,6 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   /* 버튼 숨김 */
   .btn { display: none; }
   .tab-group { display: none; }
+  .rule-btn { display: none; }
 }
 

@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const page = btn.dataset.page;
       document.getElementById('page-stock').style.display = page === 'stock' ? '' : 'none';
       document.getElementById('page-disclosures').style.display = page === 'disclosures' ? '' : 'none';
+      // 기준시점/실시간환율은 주가 데이터 전용이라 공시 화면에서는 숨긴다
+      const stockOnly = document.getElementById('stockOnlySidebar');
+      if (stockOnly) stockOnly.style.display = page === 'stock' ? '' : 'none';
       if (page === 'disclosures') {
         const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'danpan';
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
@@ -54,6 +57,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
       if (kind === 'equity' && !lastData.equity) loadEquity();
     });
+  });
+  document.querySelectorAll('.rule-btn').forEach(btn => {
+    btn.addEventListener('click', () => showRuleModal(btn.dataset.rule));
+  });
+  document.getElementById('ruleModalClose')?.addEventListener('click', closeRuleModal);
+  document.getElementById('ruleModalOverlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'ruleModalOverlay') closeRuleModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeRuleModal();
   });
   loadAllData();
 });
@@ -225,7 +238,10 @@ function renderEquity(payload) {
 
   if (note) {
     note.textContent = `총 ${list.length}명. 최근 ${meta.lookback_years ?? 10}년간 "임원ㆍ주요주주특정증권등소유상황보고서" 중 장내매수 이력만 집계했습니다 (매도ㆍ증여ㆍ주식병합 등은 제외). `
-      + `직위는 최신 정기보고서의 임원 현황과 공시 원문을 함께 참고했습니다. DART 신고는 거래일로부터 최대 5영업일까지 걸릴 수 있어 아주 최근 거래는 아직 반영되지 않았을 수 있습니다.`;
+      + (meta.officer_roster_available
+          ? '현재 정기보고서의 임원 현황에 없는(=퇴임한) 임원은 제외했습니다(주요주주 법인은 예외). '
+          : '정기보고서 임원 현황 조회에 실패해 퇴임 여부를 걸러내지 못했습니다 — 지난 임원이 섞여 있을 수 있습니다. ')
+      + `DART 신고는 거래일로부터 최대 5영업일까지 걸릴 수 있어 아주 최근 거래는 아직 반영되지 않았을 수 있습니다.`;
   }
 
   tbody.innerHTML = '';
@@ -243,6 +259,113 @@ function renderEquity(payload) {
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
     tbody.appendChild(tr);
   });
+}
+
+// ── 공시 규정 안내 모달 ──────────────────────────────────────
+function fmtEok(won) {
+  // 억원 단위로 보기 좋게 (예: 31,531,394,952 → "약 315.3억원")
+  if (won == null) return '';
+  return `약 ${(won / 100_000_000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억원`;
+}
+
+function showRuleModal(kind) {
+  const overlay = document.getElementById('ruleModalOverlay');
+  const title = document.getElementById('ruleModalTitle');
+  const body = document.getElementById('ruleModalBody');
+  if (!overlay || !body) return;
+
+  if (kind === 'danpan') {
+    title.textContent = '단판공시 — 수시공시 의무기준';
+    const rule = lastData.danpan?.meta?.disclosure_rule;
+    body.innerHTML = ruleDanpanHtml(rule);
+  } else {
+    title.textContent = '지분공시 — 소유상황 보고의무';
+    body.innerHTML = ruleEquityHtml();
+  }
+  overlay.classList.add('show');
+}
+
+function closeRuleModal() {
+  document.getElementById('ruleModalOverlay')?.classList.remove('show');
+}
+
+function ruleDanpanHtml(rule) {
+  if (!rule) {
+    return '<p>매출액 기준 정보를 불러오지 못했습니다 (DART 재무제표 조회 실패). 잠시 후 "단판공시" 탭을 다시 열어보세요.</p>';
+  }
+  const pctLabel = `${(rule.threshold_pct * 100).toFixed(1)}%`;
+  const largeLabel = rule.is_large_corp ? '대규모법인 (자산총액 2조원 이상)' : '일반법인 (대규모법인 아님)';
+  return `
+    <p>동양(주)이 단일판매ㆍ공급계약을 공시해야 하는 기준은 <b>최근 사업연도 연결 매출액의 5%</b>
+    (자산총액 2조원 이상 대규모법인은 2.5%) 이상입니다. 계약해지도 같은 기준으로 공시 대상입니다.</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">${rule.fiscal_year}년 연결 매출액</div>
+        <div class="rule-flow-value">${fmtWon(rule.revenue)}원</div>
+      </div>
+      <div class="rule-flow-arrow">×</div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">${largeLabel}</div>
+        <div class="rule-flow-value">${pctLabel}</div>
+      </div>
+      <div class="rule-flow-arrow">=</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">공시 의무 기준금액</div>
+        <div class="rule-flow-value">${fmtEok(rule.threshold_amount)}</div>
+      </div>
+    </div>
+    <p class="info">즉, 계약(또는 해지)금액이 <b>${fmtWon(rule.threshold_amount)}원(${fmtEok(rule.threshold_amount)}) 이상</b>이면
+    다음날까지 공시해야 합니다. (참고: ${rule.fiscal_year}년 연결 자산총계 ${fmtWon(rule.assets)}원 —
+    2조원 미만이라 대규모법인 완화 기준은 적용되지 않습니다.)</p>
+    <h4>그 외 관련 기준</h4>
+    <ul>
+      <li>공시시한: 계약 체결ㆍ해지일 다음날(익일)까지</li>
+      <li>변경공시: 계약금액이 최초 대비 50% 이상 변경되면 재공시</li>
+      <li>변경 신고 면제: 계약기간 시작일ㆍ종료일이 20일(계약기간 1년 이상이면 3개월) 이내로 변경되거나,
+        계약금액이 최초 대비 10% 이내로 변경되는 경우</li>
+    </ul>
+    <p class="rule-cite">근거: 유가증권시장 공시규정 제7조제1항제1호다목 (출처:
+    <a href="https://rule.krx.co.kr/out/index.do" target="_blank" class="clickable-name">KRX 법규서비스</a>).
+    매출액ㆍ자산총계는 DART 연결재무제표 기준으로 매일 자동 계산되며, 사업보고서가 갱신되면 자동으로 반영됩니다.</p>`;
+}
+
+function ruleEquityHtml() {
+  return `
+    <p>임원ㆍ주요주주는 <b>매출액이나 금액 기준(%) 없이</b>, 소유 지분에 변동이 생길 때마다 무조건
+    보고해야 합니다 — 단판공시처럼 "일정 규모 이상만" 공시하는 게 아니라 전건 대상입니다.</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">임원ㆍ주요주주가 된 날</div>
+        <div class="rule-flow-value">최초 소유상황</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">보고기한</div>
+        <div class="rule-flow-value">5일 이내</div>
+      </div>
+    </div>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">소유 특정증권등 변동 발생일</div>
+        <div class="rule-flow-value">매수ㆍ매도ㆍ증여 등</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">보고기한</div>
+        <div class="rule-flow-value">변동일로부터 5일 이내</div>
+      </div>
+    </div>
+    <h4>보고의무 면제</h4>
+    <ul>
+      <li>1회 변동수량이 <b>1,000주 미만</b>이면서 취득ㆍ처분금액이 <b>1천만원 미만</b>인 경우</li>
+    </ul>
+    <h4>단판공시와 차이점</h4>
+    <p>이건 거래소(KRX) 공시규정이 아니라 <b>자본시장법 제173조</b>(금융위원회 소관)에 따른 의무입니다.
+    그래서 매출액ㆍ자산 대비 몇 % 같은 규모 기준이 없고, "임원ㆍ주요주주 본인"이 직접 보고 주체라는
+    점도 다릅니다(단판공시는 회사가 직접 공시).</p>
+    <p class="rule-cite">근거: 자본시장법 제173조, 동법 시행령 제200조 (출처:
+    <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
+    <a href="https://dart.fss.or.kr/info/main.do?menu=320" target="_blank" class="clickable-name">DART 기업공시 길라잡이</a>).</p>`;
 }
 
 function renderAll() {

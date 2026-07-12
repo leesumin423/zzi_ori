@@ -16,14 +16,18 @@
         <button class="tab-btn" data-page="disclosures">공시</button>
       </div>
 
-      <h2>기준 시점</h2>
-      <div class="tab-group" id="basisTabs">
-        <button class="tab-btn active" data-basis="current">현재기준</button>
-        <button class="tab-btn" data-basis="close">장마감기준</button>
-      </div>
+      <!-- 기준시점/실시간환율은 주가 화면 전용 데이터라 공시 화면에서는 숨긴다
+           (dashboard.js의 pageTabs 클릭 핸들러가 display를 토글) -->
+      <div id="stockOnlySidebar">
+        <h2>기준 시점</h2>
+        <div class="tab-group" id="basisTabs">
+          <button class="tab-btn active" data-basis="current">현재기준</button>
+          <button class="tab-btn" data-basis="close">장마감기준</button>
+        </div>
 
-      <h2>실시간 환율 (USD/KRW)</h2>
-      <div id="exchangeRate" class="card">--</div>
+        <h2>실시간 환율 (USD/KRW)</h2>
+        <div id="exchangeRate" class="card">--</div>
+      </div>
       <button id="refreshBtn" class="btn">Refresh</button>
       <button id="pdfBtn" class="btn">Export PDF</button>
       <div id="lastUpdated" class="info"></div>
@@ -139,7 +143,7 @@
       <!-- ── 단판공시 모니터링 ── -->
       <div id="disclosure-danpan">
         <section class="section" id="danpan-section">
-          <h2>단일판매ㆍ공급계약 진행 현장</h2>
+          <h2>단일판매ㆍ공급계약 진행 현장 <button class="rule-btn" data-rule="danpan">규정 보기</button></h2>
           <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
           <div class="table-wrap">
             <table id="danpan-table">
@@ -170,18 +174,18 @@
       <!-- ── 지분공시(임원ㆍ주요주주 소유상황보고서) 이력 ── -->
       <div id="disclosure-equity" style="display:none;">
         <section class="section" id="equity-section">
-          <h2>임원ㆍ주요주주 지분공시 이력</h2>
+          <h2>임원ㆍ주요주주 지분공시 이력 <button class="rule-btn" data-rule="equity">규정 보기</button></h2>
           <p class="info" id="equityNote" style="margin-bottom:12px;">불러오는 중…</p>
           <div class="table-wrap">
             <table id="equity-table">
               <colgroup>
                 <col style="width:5%"> <!-- 순번 -->
-                <col style="width:25%"><!-- 주주명 -->
-                <col style="width:13%"><!-- 최초 매수일 -->
-                <col style="width:16%"><!-- 최근 매수일(공시일) -->
-                <col style="width:15%"><!-- 누적 주식수 -->
-                <col style="width:14%"><!-- 평균단가 -->
-                <col style="width:12%"><!-- 원문 -->
+                <col style="width:14%"><!-- 주주명 -->
+                <col style="width:14%"><!-- 최초 매수일 -->
+                <col style="width:17%"><!-- 최근 매수일(공시일) -->
+                <col style="width:17%"><!-- 누적 주식수 -->
+                <col style="width:15%"><!-- 평균단가 -->
+                <col style="width:18%"><!-- 원문 -->
               </colgroup>
               <thead>
                 <tr>
@@ -228,6 +232,17 @@
           <tbody></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ── 공시 규정 안내 모달 (기본 숨김) ── -->
+  <div class="modal-overlay" id="ruleModalOverlay">
+    <div class="modal-content" style="width:640px;">
+      <div class="modal-header">
+        <span class="modal-title" id="ruleModalTitle">공시 규정</span>
+        <button class="modal-close" id="ruleModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="ruleModalBody" class="rule-modal-body"></div>
     </div>
   </div>
 
