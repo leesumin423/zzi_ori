@@ -247,11 +247,12 @@ function renderEquity(payload) {
   tbody.innerHTML = '';
   list.forEach((item, idx) => {
     const holderName = item.holder_name ?? '';
-    const roleTitle = [item.registered_text, item.position].filter(Boolean).join(' · ');
+    const roleLabel = item.role_label ?? '';
+    const displayName = roleLabel ? `${holderName}(${roleLabel})` : holderName;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num">${idx + 1}</td>
-      <td title="${escapeAttr(roleTitle)}">${holderName}</td>
+      <td title="${escapeAttr(displayName)}">${displayName}</td>
       <td class="num">${item.first_buy_date ?? ''}</td>
       <td class="num">${item.latest_buy_date ?? ''}</td>
       <td class="num">${fmtWon(item.total_qty)}</td>

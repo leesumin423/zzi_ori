@@ -998,6 +998,14 @@ def _danpan_parse_won(text: str):
     except ValueError:
         return None
 
+def _dots(date_str):
+    """"2026-07-13" → "2026.07.13" — 공시 탭(단판공시ㆍ지분공시) 화면에 나가는
+    날짜는 전부 이 점(.) 구분 표기로 통일한다. None/빈 문자열/형식이 다른 값은
+    그대로 둔다."""
+    if not date_str:
+        return date_str
+    return date_str.replace('-', '.') if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str) else date_str
+
 _periodic_report_cache = {}  # {corp_code: {'ts': float, 'rcept_no', 'rcept_dt', 'text'}}
 PERIODIC_REPORT_CACHE_TTL = 6 * 3600
 
@@ -1287,13 +1295,13 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
         results.append({
             "site_name": latest.get('contract_name'),
             "counterparty": latest.get('counterparty'),
-            "initial_contract_date": earliest.get('contract_date'),
+            "initial_contract_date": _dots(earliest.get('contract_date')),
             "latest_disclosure_date": latest_dt_fmt,
             "amount": current_amount,
             "initial_amount": initial_amount,
             "change_rate": change_rate,
-            "period_start": latest.get('period_start'),
-            "period_end": latest.get('period_end'),
+            "period_start": _dots(latest.get('period_start')),
+            "period_end": _dots(latest.get('period_end')),
             "revision_count": len(items) - 1,
             "rcept_no": latest['rcept_no'],
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest['rcept_no']}",
@@ -1393,11 +1401,16 @@ def _equity_parse_document(html_text: str) -> dict:
 
 def _equity_fetch_officer_roster(corp_code: str):
     """가장 최근 정기보고서의 "VIII. 임원 및 직원 등에 관한 사항 > 1. 임원 및 직원
-    등의 현황 > 가. 임원 현황" 표에서 현재 재직 중인 임원의 직위를 뽑아온다
-    ({성명: 직위명}). 지분공시 이력에서 이 표에 없는 사람(퇴임한 임원)은 걸러내는
-    기준으로 쓰인다 — 주요주주(법인 등)는 애초에 이 표 대상이 아니므로 걸러내지
-    않는다. 정기보고서 조회 자체에 실패하면 잘못 걸러내는 걸 막기 위해 None을
-    반환한다(호출부는 이 경우 필터링을 건너뛰어야 함)."""
+    등의 현황 > 가. 임원 현황" 표에서 현재 재직 중인 임원의 직위ㆍ등기구분을 뽑아온다
+    ({성명: {'position': 직위명, 'reg_type': '사내이사'|'사외이사'|'미등기'}}).
+    지분공시 이력에서 이 표에 없는 사람(퇴임한 임원)은 걸러내는 기준으로 쓰인다 —
+    주요주주(법인 등)는 애초에 이 표 대상이 아니므로 걸러내지 않는다. 정기보고서
+    조회 자체에 실패하면 잘못 걸러내는 걸 막기 위해 None을 반환한다(호출부는 이
+    경우 필터링을 건너뛰어야 함).
+
+    같은 표 앞쪽에 "최대주주 및 특수관계인" 등 다른 표에서도 우연히 같은
+    ACODE="SH5_NM_T"가 붙은 행이 섞여 나오는데, 그 행들은 등기구분(SH5_REG_DRCT)이
+    없어서 자동으로 걸러진다 — 등기구분이 있는 행만 채택한다."""
     _, _, text = _fetch_latest_periodic_report(corp_code)
     if not text:
         return None
@@ -1410,8 +1423,14 @@ def _equity_fetch_officer_roster(corp_code: str):
         name = name_tag.get_text(strip=True)
         if not name:
             continue
+        regdrct_tag = row.find(attrs={'aunit': 'SH5_REG_DRCT'})
+        if not regdrct_tag:
+            continue  # 임원 현황 표가 아닌 다른 표에서 우연히 걸린 행 — 무시
         position_tag = row.find(attrs={'acode': 'SH5_LEV'})
-        roster[name] = position_tag.get_text(strip=True) if position_tag else ''
+        roster[name] = {
+            'position': position_tag.get_text(strip=True) if position_tag else '',
+            'reg_type': regdrct_tag.get_text(strip=True),  # 사내이사/사외이사/미등기
+        }
     return roster
 
 _equity_cache = {'ts': 0.0, 'data': None, 'meta': None}
@@ -1520,12 +1539,24 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         if roster is not None and not is_major_shareholder and name not in roster:
             continue
 
+        roster_entry = (roster or {}).get(name) or {}
+        if is_major_shareholder:
+            role_label = '최대주주'
+        else:
+            # 정기보고서 임원현황의 등기구분("사내이사"/"사외이사"/"미등기")을 우선 쓰고,
+            # 그 표에 없는 예외적인 경우에만 공시 원문 자체의 등기임원여부로 대체한다.
+            role_label = roster_entry.get('reg_type') or ('등기' if '등기임원' in (last_parsed.get('registered_text') or '') else '미등기')
+
+        # "유진기업 주식회사" 같은 "OO 주식회사" 표기를 팀에서 익숙한 "OO(주)"로 정리
+        display_name = name[:-5] + '(주)' if name.endswith(' 주식회사') else name
+
         results.append({
-            "holder_name": name,
-            "position": (roster or {}).get(name) or last_parsed.get('position') or '',
+            "holder_name": display_name,
+            "role_label": role_label,
+            "position": roster_entry.get('position') or last_parsed.get('position') or '',
             "registered_text": last_parsed.get('registered_text') or '',
             "is_major_shareholder": is_major_shareholder,
-            "first_buy_date": first_date,
+            "first_buy_date": _dots(first_date),
             "latest_buy_date": latest_dt_fmt,
             "total_qty": total_qty,
             "avg_price": round(avg_price, 1) if avg_price is not None else None,
@@ -1534,7 +1565,7 @@ def fetch_equity_monitoring(force: bool = False) -> list:
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest_doc['rcept_no']}",
         })
 
-    results.sort(key=lambda r: r['latest_buy_date'], reverse=True)
+    results.sort(key=lambda r: r['holder_name'])  # 가나다순
     meta = {
         "officer_roster_available": roster is not None,
         "lookback_years": EQUITY_LOOKBACK_YEARS,
