@@ -1730,33 +1730,39 @@ def _lh_parse_ratio(text: str):
 
 def _large_holding_parse_document(html_text: str) -> list:
     """주식등의 대량보유상황보고서(일반/약식) 원문에서 "보고자 및 특별관계자별
-    보유내역"을 뽑는다. 두 표를 함께 봐야 한다:
-    - "나. 특별관계자 개요"(ACLASS="SPC_NM") 표: 특별관계자 각각의 "발행회사와의
-      관계"(FLT_CRP_RLT, 예: "주주"/"임원(등기)"/"10%이상주주")를 담고 있다.
-    - "1. 보고자 및 특별관계자별 보유내역 > 가. 주식등의 종류별 보유내역"
-      (ACLASS="CST_CNT1") 표: 보고자 1행 + 특별관계자 N행(관계 컬럼이 세로로
-      병합된 TD라 값이 있는 행이 나올 때마다 갱신해가며 다음 행들에 적용해야
-      함)으로, 각 행에 성명(SPC_NM)ㆍ보유주식합계(STK_CNT)ㆍ비율(STK_RT)이 있다
-      — 이게 실제 "누가 몇 주 들고 있는지"의 근거.
-    보고자 자신의 구분은 표지의 FLT_CRP_RLT(발행회사와의 관계, 예: "최대주주")를
-    쓴다. 특별관계자는 법인(이름이 "(주)"로 끝남)이면 위 개요 표에서 찾은 자신의
-    FLT_CRP_RLT(예: "주주")를 쓰고, 개인(자연인)이면 그 세부 텍스트 대신 관계
-    그 자체인 "특별관계자"로 단순 표기한다. 반환하는 각 행에는 이 문서의 관계="보고자"
-    행 이름(reporter_name, 연명보고의 대표 보고자)도 함께 붙는다 — 화면에서는 표를
-    순번이 아니라 이 보고자명으로 묶어서 보여준다."""
+    보유내역"("1. 보고자 및 특별관계자별 보유내역 > 가. 주식등의 종류별 보유내역",
+    ACLASS="CST_CNT1")을 뽑는다. 보고자 1행 + 특별관계자 N행(관계 컬럼이 세로로
+    병합된 TD라 값이 있는 행이 나올 때마다 갱신해가며 다음 행들에 적용해야 함)으로,
+    각 행에 성명(SPC_NM)ㆍ보유주식합계(STK_CNT)ㆍ비율(STK_RT)이 있다 — 이게 실제
+    "누가 몇 주 들고 있는지"의 근거.
+
+    구분(classification)은 딱 두 갈래다:
+    - 보고자 본인: 표지의 FLT_CRP_RLT(발행회사와의 관계)가 문자 그대로 "최대주주"면
+      그대로 "최대주주"로 쓴다. 그렇지 않으면(예: "주주") 이 보고자 그룹 전체(보고자+
+      특별관계자 합산) 보유비율인 SUM_TMT_RT를 기준으로 10% 이상이면 "10%이상주주",
+      5% 이상이면 "5%이상주주"로 판단한다 — 개별 보고자의 FLT_CRP_RLT 텍스트는
+      "최대주주"만 명시적으로 나오고 5%/10%대 문구는 나오지 않는 경우가 있어서,
+      대량보유상황보고서 제도 자체의 기준(5%/10%)을 직접 적용한다.
+    - 그 외(특별관계자, 법인ㆍ개인 불문): 전부 "특별관계자"로 단순 표기한다.
+
+    반환하는 각 행에는 이 문서의 관계="보고자" 행 이름(reporter_name, 연명보고의
+    대표 보고자)도 함께 붙는다 — 화면에서는 표를 순번이 아니라 이 보고자명으로
+    묶어서 보여준다."""
     soup = BeautifulSoup(html_text, 'html.parser')
 
     top_relation_tag = soup.find(attrs={'aunit': 'FLT_CRP_RLT'})
     top_relation = _lh_clean(top_relation_tag.get_text(strip=True)) if top_relation_tag else ''
+    group_ratio_tag = soup.find(attrs={'acode': 'SUM_TMT_RT'})
+    group_ratio = _lh_parse_ratio(group_ratio_tag.get_text(strip=True)) if group_ratio_tag else None
 
-    relation_by_name = {}
-    for name_tag in soup.find_all(attrs={'acode': 'SPC_NM'}):
-        row = name_tag.find_parent('tr')
-        if not row:
-            continue
-        rel_tag = row.find(attrs={'aunit': 'FLT_CRP_RLT'})
-        if rel_tag:
-            relation_by_name[_lh_normalize_name(_lh_clean(name_tag.get_text(strip=True)))] = _lh_clean(rel_tag.get_text(strip=True))
+    if top_relation == '최대주주':
+        reporter_classification = '최대주주'
+    elif group_ratio is not None and group_ratio >= 10:
+        reporter_classification = '10%이상주주'
+    elif group_ratio is not None and group_ratio >= 5:
+        reporter_classification = '5%이상주주'
+    else:
+        reporter_classification = top_relation or '보고자'
 
     holdings_group = soup.find('table-group', attrs={'aclass': 'CST_CNT1'})
     entries = []
@@ -1775,15 +1781,7 @@ def _large_holding_parse_document(html_text: str) -> list:
             qty = _equity_parse_num(qty_tag.get_text(strip=True))
             if not name or qty is None:
                 continue
-            if current_relation == '보고자':
-                classification = top_relation or '보고자'
-            elif name.endswith('(주)'):
-                # 특별관계자 중 법인은 발행회사와의 관계 텍스트(예: "주주")를 그대로 쓴다.
-                classification = relation_by_name.get(name) or '특별관계자'
-            else:
-                # 특별관계자 중 개인(이름에 "(주)"가 없는 자연인)은 "임원(등기)" 같은
-                # 세부 텍스트 대신 관계 그 자체인 "특별관계자"로 표기한다.
-                classification = '특별관계자'
+            classification = reporter_classification if current_relation == '보고자' else '특별관계자'
             entries.append({
                 'name': name,
                 'relation': current_relation,

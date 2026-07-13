@@ -340,17 +340,27 @@ function renderLargeHolding(payload) {
       + `같은 사람/법인이 여러 회차에 걸쳐 나오면 가장 최근 회차의 보유수량을 "누적 주식수"로 표시하며, 가장 최근 등장 이후 새 보고가 없는 경우 그 시점 수치가 최신 그대로 유지됩니다.`;
   }
 
+  // 서버가 이미 보고자명 기준으로 그룹핑해 정렬해 보내주므로, 같은 보고자명이
+  // 연속된 구간의 길이(rowspan)만 미리 세어둔다 — 그룹 첫 행에만 보고자명 셀을
+  // rowspan으로 찍고 나머지 행에는 그 컬럼 자체를 생략해 시각적으로 병합한다.
   tbody.innerHTML = '';
-  list.forEach((item) => {
+  list.forEach((item, idx) => {
     const reporterName = item.reporter_name ?? '';
     const holderName = item.holder_name ?? '';
     const roleLabel = item.role_label ?? '';
     const qtyLabel = item.total_qty != null
       ? `${fmtWon(item.total_qty)}${item.ratio != null ? ` (${fmtPct1(item.ratio)})` : ''}`
       : '';
+    const isGroupStart = idx === 0 || list[idx - 1].reporter_name !== reporterName;
+    let reporterCell = '';
+    if (isGroupStart) {
+      let span = 1;
+      while (idx + span < list.length && list[idx + span].reporter_name === reporterName) span++;
+      reporterCell = `<td rowspan="${span}" title="${escapeAttr(reporterName)}">${reporterName}</td>`;
+    }
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td title="${escapeAttr(reporterName)}">${reporterName}</td>
+      ${reporterCell}
       <td title="${escapeAttr(holderName)}">${holderName}</td>
       <td>${roleLabel}</td>
       <td class="num">${item.first_disclosure_date ?? ''}</td>
