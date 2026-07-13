@@ -13,6 +13,11 @@ debug_*.html
 .kis_app_key
 .kis_app_secret
 
+# Supabase(포털 연동용) URL·service role key — RLS를 무시하는 최고 권한 키라
+# DART/KIS 키보다도 훨씬 민감함. 절대 커밋하지 않음.
+.env
+.env.*
+
 # OS
 .DS_Store
 Thumbs.db
