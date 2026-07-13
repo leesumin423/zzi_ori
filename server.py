@@ -1507,6 +1507,47 @@ def _equity_parse_document(html_text: str) -> dict:
         'final_holding': final_holding,
     }
 
+def _equity_parse_post_base_date_officer_changes(soup):
+    """"임원 현황" 본표는 정기보고서 "작성기준일" 시점의 스냅샷이라, 그 이후 실제로
+    발생한 임원 변동(퇴임ㆍ신규선임)은 본표 바로 아래 "* 보고서 작성기준일 이후
+    퇴임현황" / "* 보고서 작성기준일 이후 신규 선임현황"이라는 안내문과 함께 별도
+    표로 붙는다(예: 2026.05.15 분기보고서 — 작성기준일 자체는 2026.03.31이지만,
+    보고서를 실제 제출한 5월 15일 시점에 이미 알려진 3월 말 퇴임ㆍ5월 초 신규선임
+    까지 반영해 이 두 표에 적어둠). 본표와 달리 이 두 표는 ACODE/AUNIT 없는
+    순수 HTML 표라 라벨 텍스트로 표를 찾고 컬럼 순서로 값을 읽는다.
+    반환: (퇴임자 이름 집합, 신규 선임자 {성명: {position, reg_type}} dict).
+    둘 다 해당 안내문 자체가 없으면(그 분기에 변동이 없었으면) 빈 값을 반환한다."""
+    retired = set()
+    retire_marker = soup.find(string=re.compile('퇴임현황'))
+    if retire_marker:
+        table = retire_marker.find_next('table')
+        if table:
+            for row in table.find_all('tr'):
+                cells = row.find_all(['td', 'te'])
+                if len(cells) < 2:
+                    continue
+                name = cells[1].get_text(strip=True)  # 구분(0) / 성명(1) / 직위(2) / 등기임원 여부(3) / 발령일자(4)
+                if name and name != '성명':
+                    retired.add(name)
+
+    new_hires = {}
+    hire_marker = soup.find(string=re.compile(r'신규\s*선임현황'))
+    if hire_marker:
+        table = hire_marker.find_next('table')
+        if table:
+            for row in table.find_all('tr'):
+                cells = row.find_all(['td', 'te'])
+                if len(cells) < 5:
+                    continue
+                name = cells[0].get_text(strip=True)  # 성명(0)/성별(1)/출생년월(2)/직위(3)/등기임원여부(4)/...
+                if not name or name == '성명':
+                    continue
+                new_hires[name] = {
+                    'position': cells[3].get_text(strip=True),
+                    'reg_type': cells[4].get_text(strip=True),
+                }
+    return retired, new_hires
+
 def _equity_fetch_officer_roster(corp_code: str):
     """가장 최근 정기보고서의 "VIII. 임원 및 직원 등에 관한 사항 > 1. 임원 및 직원
     등의 현황 > 가. 임원 현황" 표에서 현재 재직 중인 임원의 직위ㆍ등기구분을 뽑아온다
@@ -1518,7 +1559,12 @@ def _equity_fetch_officer_roster(corp_code: str):
 
     같은 표 앞쪽에 "최대주주 및 특수관계인" 등 다른 표에서도 우연히 같은
     ACODE="SH5_NM_T"가 붙은 행이 섞여 나오는데, 그 행들은 등기구분(SH5_REG_DRCT)이
-    없어서 자동으로 걸러진다 — 등기구분이 있는 행만 채택한다."""
+    없어서 자동으로 걸러진다 — 등기구분이 있는 행만 채택한다.
+
+    이 본표는 "작성기준일" 시점 스냅샷이라, 실제 사용자 사례(김종택 전무)처럼 본표에는
+    아직 남아있지만 보고서 제출 시점에는 이미 퇴임 처리된 경우가 있다. 그래서 본표를
+    읽은 뒤 _equity_parse_post_base_date_officer_changes()로 "작성기준일 이후
+    퇴임현황"/"신규 선임현황" 표를 마저 반영해 최종 roster를 보정한다."""
     _, _, text = _fetch_latest_periodic_report(corp_code)
     if not text:
         return None
@@ -1539,6 +1585,11 @@ def _equity_fetch_officer_roster(corp_code: str):
             'position': position_tag.get_text(strip=True) if position_tag else '',
             'reg_type': regdrct_tag.get_text(strip=True),  # 사내이사/사외이사/미등기
         }
+
+    retired, new_hires = _equity_parse_post_base_date_officer_changes(soup)
+    for name in retired:
+        roster.pop(name, None)
+    roster.update(new_hires)  # 신규 선임자가 본표에 없던 이름이면 추가, 있었으면 최신 정보로 덮어씀
     return roster
 
 _equity_cache = {'ts': 0.0, 'data': None, 'meta': None}
