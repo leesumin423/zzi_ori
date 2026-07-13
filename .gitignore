@@ -8,6 +8,11 @@ debug_*.html
 # Claude Code 로컬 설정 (개인 환경/권한 설정이라 공유 불필요)
 .claude/
 
+# KIS(한국투자증권) API 키 — 실제 증권계좌에 연결된 키라 DART와 달리
+# 절대 공유 저장소/배포 zip에 넣지 않음. 회원님 PC에서만 로컬로 사용.
+.kis_app_key
+.kis_app_secret
+
 # OS
 .DS_Store
 Thumbs.db

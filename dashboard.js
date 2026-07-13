@@ -11,7 +11,7 @@ const API_BASE = 'http://localhost:5000/data';
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null };
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (page === 'disclosures') {
         const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'danpan';
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
-        if (activeDisclosure === 'equity' && !lastData.equity) loadEquity();
+        if (activeDisclosure === 'equity') loadActiveEquitySub();
       }
     });
   });
@@ -55,7 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('disclosure-danpan').style.display = kind === 'danpan' ? '' : 'none';
       document.getElementById('disclosure-equity').style.display = kind === 'equity' ? '' : 'none';
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
-      if (kind === 'equity' && !lastData.equity) loadEquity();
+      if (kind === 'equity') loadActiveEquitySub();
+    });
+  });
+  document.querySelectorAll('#equitySubTabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#equitySubTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const sub = btn.dataset.equitySub;
+      document.getElementById('equity-sub-officer').style.display = sub === 'officer' ? '' : 'none';
+      document.getElementById('equity-sub-large-holding').style.display = sub === 'large_holding' ? '' : 'none';
+      loadActiveEquitySub();
     });
   });
   document.querySelectorAll('.rule-btn').forEach(btn => {
@@ -221,6 +230,14 @@ function renderDanpan(payload) {
   });
 }
 
+// 지분공시 탭 안에는 임원ㆍ주요주주(officer) / 대량보유상황보고서(large_holding)
+// 두 하위 탭이 있다 — 현재 선택된 쪽만, 아직 안 불러왔으면 불러온다.
+function loadActiveEquitySub() {
+  const sub = document.querySelector('#equitySubTabs .tab-btn.active')?.dataset.equitySub ?? 'officer';
+  if (sub === 'officer' && !lastData.equity) loadEquity();
+  if (sub === 'large_holding' && !lastData.large_holding) loadLargeHolding();
+}
+
 // ── 지분공시(임원ㆍ주요주주 소유상황보고서) 이력 ────────────────
 async function loadEquity() {
   const note = document.getElementById('equityNote');
@@ -282,6 +299,67 @@ function renderEquity(payload) {
   });
 }
 
+// ── 지분공시(주식등의 대량보유상황보고서, "5% Rule") 이력 ──────────
+async function loadLargeHolding() {
+  const note = document.getElementById('largeHoldingNote');
+  const tbody = document.querySelector('#large-holding-table tbody');
+  if (note) note.textContent = 'DART 공시 원문을 조회하는 중… (최근 10년치를 하나씩 받아오므로 다소 걸릴 수 있습니다)';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7">로딩 중…</td></tr>';
+  try {
+    const data = await safeFetch(`${API_BASE}?section=large_holding`);
+    lastData.large_holding = data;
+    renderLargeHolding(data);
+  } catch (err) {
+    if (note) note.textContent = `조회 실패: ${err.message}`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7">조회 실패: ${err.message}</td></tr>`;
+  }
+}
+
+function fmtPct1(ratio) {
+  if (ratio == null) return '';
+  return `${ratio.toFixed(2)}%`;
+}
+
+function renderLargeHolding(payload) {
+  const tbody = document.querySelector('#large-holding-table tbody');
+  const note = document.getElementById('largeHoldingNote');
+  if (!tbody) return;
+
+  const list = Array.isArray(payload) ? payload : (payload?.records ?? []);
+  const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
+
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">대량보유상황보고서 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    if (note) note.textContent = '';
+    return;
+  }
+
+  if (note) {
+    note.textContent = `총 ${list.length}명(법인 포함). 최근 ${meta.lookback_years ?? 10}년간 "주식등의 대량보유상황보고서"에 함께 연명 신고된 `
+      + `"보고자 및 특별관계자별 보유내역" 표를 신고자 단위로 펼쳐 집계했습니다 — 보고자 본인뿐 아니라 특별관계자(계열회사ㆍ공동보유자ㆍ임원 등)도 각자 한 행입니다. `
+      + `같은 사람/법인이 여러 회차에 걸쳐 나오면 가장 최근 회차의 보유수량을 "누적 주식수"로 표시하며, 가장 최근 등장 이후 새 보고가 없는 경우 그 시점 수치가 최신 그대로 유지됩니다.`;
+  }
+
+  tbody.innerHTML = '';
+  list.forEach((item, idx) => {
+    const holderName = item.holder_name ?? '';
+    const roleLabel = item.role_label ?? '';
+    const qtyLabel = item.total_qty != null
+      ? `${fmtWon(item.total_qty)}${item.ratio != null ? ` (${fmtPct1(item.ratio)})` : ''}`
+      : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${idx + 1}</td>
+      <td title="${escapeAttr(holderName)}">${holderName}</td>
+      <td>${roleLabel}</td>
+      <td class="num">${item.first_disclosure_date ?? ''}</td>
+      <td class="num">${item.latest_disclosure_date ?? ''}</td>
+      <td class="num">${qtyLabel}</td>
+      <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
 // ── 공시 규정 안내 모달 ──────────────────────────────────────
 function fmtEok(won) {
   // 억원 단위로 보기 좋게 (예: 31,531,394,952 → "약 315.3억원")
@@ -299,6 +377,9 @@ function showRuleModal(kind) {
     title.textContent = '단판공시 — 수시공시 의무기준';
     const rule = lastData.danpan?.meta?.disclosure_rule;
     body.innerHTML = ruleDanpanHtml(rule);
+  } else if (kind === 'large_holding') {
+    title.textContent = '대량보유상황보고서 — "5% Rule"';
+    body.innerHTML = ruleLargeHoldingHtml();
   } else {
     title.textContent = '지분공시 — 소유상황 보고의무';
     body.innerHTML = ruleEquityHtml();
@@ -385,6 +466,47 @@ function ruleEquityHtml() {
     그래서 매출액ㆍ자산 대비 몇 % 같은 규모 기준이 없고, "임원ㆍ주요주주 본인"이 직접 보고 주체라는
     점도 다릅니다(단판공시는 회사가 직접 공시).</p>
     <p class="rule-cite">근거: 자본시장법 제173조, 동법 시행령 제200조 (출처:
+    <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
+    <a href="https://dart.fss.or.kr/info/main.do?menu=320" target="_blank" class="clickable-name">DART 기업공시 길라잡이</a>).</p>`;
+}
+
+function ruleLargeHoldingHtml() {
+  return `
+    <p>발행주식 등의 <b>5% 이상</b>을 보유하게 된 자는 그 날로부터 <b>5영업일 이내</b>에 보유상황을
+    보고해야 합니다("5% Rule"). 이후 보유비율이 <b>1%포인트 이상</b> 변동하거나, 보유 목적ㆍ
+    주요계약내용이 바뀌는 경우에도 같은 기한 내에 다시 보고해야 합니다.</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">발행주식 등의 보유비율</div>
+        <div class="rule-flow-value">5% 이상 도달</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">신규보고 기한</div>
+        <div class="rule-flow-value">5영업일 이내</div>
+      </div>
+    </div>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">보유비율 변동</div>
+        <div class="rule-flow-value">1%p 이상 증감</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">변동보고 기한</div>
+        <div class="rule-flow-value">5영업일 이내</div>
+      </div>
+    </div>
+    <h4>"연명보고"(공동보고)</h4>
+    <p>본인(보고자)뿐 아니라 계열회사ㆍ공동보유자ㆍ임원 등 <b>특별관계자</b>의 보유분까지 합산해서
+    기준을 판단하며, 보고서 한 건 안에 "보고자 및 특별관계자별 보유내역" 표로 각자의 보유수량을
+    함께 신고합니다. 그래서 이 표는 회사당 신고자가 여러 명(법인 포함)일 수 있습니다.</p>
+    <h4>임원ㆍ주요주주 소유상황보고와 차이점</h4>
+    <p>임원ㆍ주요주주 소유상황보고(자본시장법 제173조)는 지분율과 무관하게 임원ㆍ주요주주 본인이
+    변동 건마다 개별 보고하는 제도이고, 대량보유상황보고(제147조)는 <b>5% 이상 보유자</b>(특별관계자
+    포함 합산 기준)가 대상이라는 점이 다릅니다. 동일인이 두 제도 모두에 해당해 이중으로 보고되는
+    경우도 있습니다(예: 최대주주가 임원을 겸하는 경우).</p>
+    <p class="rule-cite">근거: 자본시장법 제147조, 동법 시행령 제153조 (출처:
     <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
     <a href="https://dart.fss.or.kr/info/main.do?menu=320" target="_blank" class="clickable-name">DART 기업공시 길라잡이</a>).</p>`;
 }

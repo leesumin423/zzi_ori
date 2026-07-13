@@ -1681,6 +1681,206 @@ def fetch_equity_monitoring(force: bool = False) -> list:
     _equity_cache.update(ts=now, data=results, meta=meta)
     return results
 
+# ─────────────────────────────────────────────────────────────
+# 3-3-4. 지분공시 — 주식등의 대량보유상황보고서("5% Rule") 모니터링. 임원ㆍ주요주주
+# 소유상황보고서와 달리 이건 발행주식의 5% 이상을 보유하게 된 자(및 그 이후 1%p
+# 이상 변동 시, 자본시장법 제147조)가 본인뿐 아니라 특별관계자(계열회사ㆍ공동
+# 보유자ㆍ임원 등)까지 하나의 문서로 "연명보고"한다 — 그래서 공시 1건 안에
+# "보고자 및 특별관계자별 보유내역" 표로 여러 명의 보유수량이 함께 신고된다.
+# 조회 기준(10년 lookback, corp_code 목록 조회 방식)은 지분공시(임원ㆍ주요주주)와
+# 동일하게 맞춘다.
+# ─────────────────────────────────────────────────────────────
+LARGE_HOLDING_REPORT_KEYWORD = '대량보유'
+LARGE_HOLDING_LOOKBACK_YEARS = EQUITY_LOOKBACK_YEARS
+LARGE_HOLDING_CACHE_TTL = EQUITY_CACHE_TTL
+
+def _lh_clean(text: str) -> str:
+    """DART 문서의 셀 안 줄바꿈이 "&cr;"라는 자체 마커로 그대로 남아있는 경우가
+    있어(정식 HTML 엔티티가 아니라 BeautifulSoup이 디코딩하지 못함, 예:
+    "특별&cr;관계자") 텍스트 추출 후 항상 이걸 제거해야 한다."""
+    return (text or '').replace('&cr;', '').replace('&cr', '').strip()
+
+def _lh_normalize_name(name: str) -> str:
+    """같은 법인인데 공시마다 "(주)삼표기초소재"(접두)ㆍ"삼표기초소재(주)"(접미)
+    처럼 "(주)" 표기 위치가 뒤섞여 나와서, 정규화 없이 이름을 그대로 집계 키로
+    쓰면 동일 법인이 서로 다른 두 행으로 쪼개진다("(주)삼표기초소재" 행은 특정
+    공시에서 우연히 보유주식수가 "-"(0)로만 나온 반면, "삼표기초소재(주)" 행에는
+    실제 수치가 잡혀 실체는 하나인데 표에는 둘로 보였음). "OO(주)" 접미 표기로
+    통일한다."""
+    name = name.strip()
+    if name.startswith('(주)'):
+        return name[3:].strip() + '(주)'
+    if name.endswith(' 주식회사'):
+        return name[:-5].strip() + '(주)'
+    return name
+
+def _lh_parse_ratio(text: str):
+    """지분율(예: "23.68", "0.00")은 소수점까지 살려야 한다 — 정수 파싱용
+    _equity_parse_num을 쓰면 "23.68"이 정수부만 남아 "23"이 돼버린다."""
+    text = (text or '').strip()
+    if not text or text == '-':
+        return None
+    m = re.match(r'-?[\d,]+(\.\d+)?', text)
+    if not m:
+        return None
+    try:
+        return float(m.group(0).replace(',', ''))
+    except ValueError:
+        return None
+
+def _large_holding_parse_document(html_text: str) -> list:
+    """주식등의 대량보유상황보고서(일반/약식) 원문에서 "보고자 및 특별관계자별
+    보유내역"을 뽑는다. 두 표를 함께 봐야 한다:
+    - "나. 특별관계자 개요"(ACLASS="SPC_NM") 표: 특별관계자 각각의 "발행회사와의
+      관계"(FLT_CRP_RLT, 예: "주주"/"임원(등기)"/"10%이상주주")를 담고 있다.
+    - "1. 보고자 및 특별관계자별 보유내역 > 가. 주식등의 종류별 보유내역"
+      (ACLASS="CST_CNT1") 표: 보고자 1행 + 특별관계자 N행(관계 컬럼이 세로로
+      병합된 TD라 값이 있는 행이 나올 때마다 갱신해가며 다음 행들에 적용해야
+      함)으로, 각 행에 성명(SPC_NM)ㆍ보유주식합계(STK_CNT)ㆍ비율(STK_RT)이 있다
+      — 이게 실제 "누가 몇 주 들고 있는지"의 근거.
+    보고자 자신의 구분은 표지의 FLT_CRP_RLT(발행회사와의 관계, 예: "최대주주")를
+    쓰고, 특별관계자는 위 개요 표에서 이름으로 찾은 자신의 FLT_CRP_RLT를 쓴다
+    (개요 표에 이름이 없으면 "특별관계자"로 대체)."""
+    soup = BeautifulSoup(html_text, 'html.parser')
+
+    top_relation_tag = soup.find(attrs={'aunit': 'FLT_CRP_RLT'})
+    top_relation = _lh_clean(top_relation_tag.get_text(strip=True)) if top_relation_tag else ''
+
+    relation_by_name = {}
+    for name_tag in soup.find_all(attrs={'acode': 'SPC_NM'}):
+        row = name_tag.find_parent('tr')
+        if not row:
+            continue
+        rel_tag = row.find(attrs={'aunit': 'FLT_CRP_RLT'})
+        if rel_tag:
+            relation_by_name[_lh_normalize_name(_lh_clean(name_tag.get_text(strip=True)))] = _lh_clean(rel_tag.get_text(strip=True))
+
+    holdings_group = soup.find('table-group', attrs={'aclass': 'CST_CNT1'})
+    entries = []
+    if holdings_group:
+        current_relation = ''
+        for row in holdings_group.find_all('tr'):
+            relation_td = row.find('td')
+            if relation_td and _lh_clean(relation_td.get_text(strip=True)):
+                current_relation = _lh_clean(relation_td.get_text(strip=True))  # "보고자" / "특별관계자"
+            name_tag = row.find(attrs={'acode': 'SPC_NM'})
+            qty_tag = row.find(attrs={'acode': 'STK_CNT'})
+            ratio_tag = row.find(attrs={'acode': 'STK_RT'})
+            if not name_tag or not qty_tag:
+                continue
+            name = _lh_normalize_name(_lh_clean(name_tag.get_text(strip=True)))
+            qty = _equity_parse_num(qty_tag.get_text(strip=True))
+            if not name or qty is None:
+                continue
+            if current_relation == '보고자':
+                classification = top_relation or '보고자'
+            else:
+                classification = relation_by_name.get(name) or '특별관계자'
+            entries.append({
+                'name': name,
+                'relation': current_relation,
+                'classification': classification,
+                'qty': qty,
+                'ratio': _lh_parse_ratio(ratio_tag.get_text(strip=True)) if ratio_tag else None,
+            })
+    return entries
+
+_large_holding_cache = {'ts': 0.0, 'data': None, 'meta': None}
+
+def fetch_large_holding_monitoring(force: bool = False) -> list:
+    """최근 10년간 주식등의 대량보유상황보고서를 스캔해, 보고서마다 함께 연명
+    신고되는 "보고자 및 특별관계자별 보유내역"을 신고자(보고자 본인 + 특별관계자)
+    단위로 펼쳐 집계한다. 같은 사람/법인이 여러 회차에 걸쳐 등장하면 최초로 등장한
+    공시일을 "최초 공시일", 가장 최근 등장한 공시일을 "변동 공시일"로, 가장 최근
+    등장한 회차의 보유수량을 "누적 주식수"로 잡는다."""
+    now = datetime.now().timestamp()
+    if not force and _large_holding_cache['data'] is not None and now - _large_holding_cache['ts'] < LARGE_HOLDING_CACHE_TTL:
+        return _large_holding_cache['data']
+
+    corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
+    if not corp_code or not DART_API_KEY:
+        return []
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=365 * LARGE_HOLDING_LOOKBACK_YEARS)).strftime('%Y%m%d')
+
+    all_items = []
+    page = 1
+    while True:
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": "D",
+                "page_no": page, "page_count": 100,
+            }, timeout=15)
+            data = r.json()
+        except Exception as e:
+            print(f"[DEBUG] 대량보유상황보고서 목록 조회 중 예외(page={page}): {e}")
+            break
+        if data.get('status') != '000':
+            break
+        all_items.extend(data.get('list', []))
+        if page >= int(data.get('total_page', 1) or 1):
+            break
+        page += 1
+
+    # 정정본은 이미 제출된 보고서의 오기재를 바로잡는 것뿐이라 새 보유내역이
+    # 아니므로 뺀다 — 원본(일반/약식) 보고서만으로 집계한다.
+    targets = [
+        d for d in all_items
+        if LARGE_HOLDING_REPORT_KEYWORD in d.get('report_nm', '') and '정정' not in d.get('report_nm', '')
+    ]
+    targets.sort(key=lambda d: (d.get('rcept_dt', ''), d.get('rcept_no', '')))
+
+    by_entity = {}  # name -> {first_date, last_date, qty, ratio, classification, rcept_no}
+    for item in targets:
+        rcept_no = item['rcept_no']
+        rcept_dt = item.get('rcept_dt', '')
+        text = fetch_dart_document_text(rcept_no)
+        if not text:
+            continue
+        date_fmt = f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}" if len(rcept_dt) == 8 else rcept_dt
+        for entry in _large_holding_parse_document(text):
+            name = entry['name']
+            existing = by_entity.get(name)
+            if existing is None:
+                by_entity[name] = {
+                    'first_date': date_fmt,
+                    'last_date': date_fmt,
+                    'qty': entry['qty'],
+                    'ratio': entry['ratio'],
+                    'classification': entry['classification'],
+                    'rcept_no': rcept_no,
+                }
+            else:
+                existing['first_date'] = min(existing['first_date'], date_fmt)
+                if date_fmt >= existing['last_date']:
+                    existing['last_date'] = date_fmt
+                    existing['qty'] = entry['qty']
+                    existing['ratio'] = entry['ratio']
+                    existing['classification'] = entry['classification']
+                    existing['rcept_no'] = rcept_no
+
+    results = []
+    for name, v in by_entity.items():
+        if not v['qty']:
+            continue  # 가장 최근 등장한 회차의 보유수량이 0(완전 처분ㆍ서식상 "-")이면 현재는 보유자가 아니므로 제외
+        results.append({
+            "holder_name": name,
+            "role_label": v['classification'],
+            "first_disclosure_date": _dots(v['first_date']),
+            "latest_disclosure_date": _dots(v['last_date']),
+            "total_qty": v['qty'],
+            "ratio": v['ratio'],
+            "rcept_no": v['rcept_no'],
+            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={v['rcept_no']}",
+        })
+
+    results.sort(key=lambda r: r['holder_name'])  # 가나다순
+    meta = {"lookback_years": LARGE_HOLDING_LOOKBACK_YEARS}
+    _large_holding_cache.update(ts=now, data=results, meta=meta)
+    return results
+
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
 # "매매거래정지및정지해제"처럼 당일 안에 풀리는 일회성 조치가 섞여 있어서,
 # 여러 날 이어지는 실제 거래정지의 '진짜' 원인을 공시 제목만 보고 자동으로
@@ -1923,6 +2123,11 @@ def data_endpoint():
         force = request.args.get('refresh') == '1'
         records = fetch_equity_monitoring(force=force)
         return jsonify({"records": records, "meta": _equity_cache.get('meta') or {}})
+
+    if section == 'large_holding':
+        force = request.args.get('refresh') == '1'
+        records = fetch_large_holding_monitoring(force=force)
+        return jsonify({"records": records, "meta": _large_holding_cache.get('meta') or {}})
 
     if section == 'danpan_check':
         contract_date = request.args.get('contract_date', '')
