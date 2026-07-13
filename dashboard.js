@@ -11,7 +11,7 @@ const API_BASE = 'http://localhost:5000/data';
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null };
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (page === 'disclosures') {
         const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'danpan';
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
+        if (activeDisclosure === 'ftc' && !lastData.ftc) loadFtc();
         if (activeDisclosure === 'equity') loadActiveEquitySub();
       }
     });
@@ -53,9 +54,17 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('#disclosureTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       const kind = btn.dataset.disclosure;
       document.getElementById('disclosure-danpan').style.display = kind === 'danpan' ? '' : 'none';
+      document.getElementById('disclosure-ftc').style.display = kind === 'ftc' ? '' : 'none';
       document.getElementById('disclosure-equity').style.display = kind === 'equity' ? '' : 'none';
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
+      if (kind === 'ftc' && !lastData.ftc) loadFtc();
       if (kind === 'equity') loadActiveEquitySub();
+    });
+  });
+  document.querySelectorAll('#ftcRangeTabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#ftcRangeTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      loadFtc(btn.dataset.ftcRange);
     });
   });
   document.querySelectorAll('#equitySubTabs .tab-btn').forEach(btn => {
@@ -79,6 +88,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
   attachCommaFormatting(document.getElementById('checkAmount'));
+  document.getElementById('ftcCheckSubmitBtn')?.addEventListener('click', runFtcCheck);
+  document.getElementById('ftcCheckType')?.addEventListener('change', (e) => {
+    const isGoods = e.target.value === 'goods_services';
+    const label = document.getElementById('ftcCheckTargetLabel');
+    const hint = document.getElementById('ftcCheckTargetHint');
+    if (label) label.style.display = isGoods ? '' : 'none';
+    if (hint) {
+      hint.style.display = isGoods ? '' : 'none';
+      if (isGoods) {
+        const known = lastData.ftc?.meta?.known_goods_services_counterparties ?? [];
+        hint.textContent = known.length
+          ? `참고: 동양(주)이 최근 10년간 이 규정으로 실제 신고한 거래상대방은 ${known.join(', ')}뿐입니다(그 외 계열회사와의 상품ㆍ용역거래는 이 신고 이력이 없다는 뜻 — 다만 앞으로 다른 계열회사가 새로 20% 이상 지분을 갖게 되면 대상이 될 수 있으니 참고용으로만 쓰세요). 판단이 애매하면 자금팀에 문의하세요.`
+          : '참고: "공정위공시" 탭을 한 번 열어야 실제 신고 이력 참고자료가 표시됩니다.';
+      }
+    }
+  });
+  attachCommaFormatting(document.getElementById('ftcCheckAmount'));
+  attachCommaFormatting(document.getElementById('ftcCheckCapital'));
   loadAllData();
 });
 
@@ -228,6 +255,128 @@ function renderDanpan(payload) {
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
     tbody.appendChild(tr);
   });
+}
+
+// ── 공정위 공시(계열회사간 거래) 이력 ────────────────────────
+let ftcRange = 'recent';
+
+async function loadFtc(range = ftcRange) {
+  ftcRange = range;
+  const note = document.getElementById('ftcNote');
+  const tbody = document.querySelector('#ftc-table tbody');
+  if (note) note.textContent = 'DART 공시 원문을 조회하는 중… (처음 조회 시 최근 10년치를 하나씩 받아오므로 다소 걸릴 수 있습니다)';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8">로딩 중…</td></tr>';
+  try {
+    const data = await safeFetch(`${API_BASE}?section=ftc&range=${range}`);
+    lastData.ftc = data;
+    renderFtc(data);
+  } catch (err) {
+    if (note) note.textContent = `조회 실패: ${err.message}`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8">조회 실패: ${err.message}</td></tr>`;
+  }
+}
+
+function renderFtc(payload) {
+  const tbody = document.querySelector('#ftc-table tbody');
+  const note = document.getElementById('ftcNote');
+  if (!tbody) return;
+
+  const list = Array.isArray(payload) ? payload : (payload?.records ?? []);
+  const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
+  const isRecent = meta.range !== 'all';
+
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8">공정위 공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    if (note) {
+      note.textContent = isRecent && meta.total_count_all_years > 0
+        ? `최근 1년간은 해당 이력이 없습니다(전체 ${meta.lookback_years ?? 10}년간 ${meta.total_count_all_years}건 있음 — "전체 이력" 탭에서 확인).`
+        : '';
+    }
+    return;
+  }
+
+  if (note) {
+    note.textContent = isRecent
+      ? `최근 1년간 ${list.length}건. 특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래 3종만 집계했습니다 `
+        + `(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순 — `
+        + `전체 ${meta.lookback_years ?? 10}년간은 총 ${meta.total_count_all_years ?? list.length}건입니다("전체 이력" 탭 참고).`
+      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. 특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래 3종만 `
+        + `집계했습니다(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순입니다.`;
+  }
+
+  tbody.innerHTML = '';
+  list.forEach((item, idx) => {
+    const counterparty = item.counterparty ?? '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${idx + 1}</td>
+      <td>${item.type_label ?? ''}</td>
+      <td title="${escapeAttr(counterparty)}">${counterparty}</td>
+      <td>${item.relation ?? ''}</td>
+      <td class="num">${item.disclosure_date ?? ''}</td>
+      <td class="num">${item.board_date ?? ''}</td>
+      <td class="num">${item.amount_label ?? ''}</td>
+      <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── 공정위 공시(대규모내부거래) 대상여부 사전검증 ─────────────────
+async function runFtcCheck() {
+  const typeSelect = document.getElementById('ftcCheckType');
+  const amountInput = document.getElementById('ftcCheckAmount');
+  const capitalInput = document.getElementById('ftcCheckCapital');
+  const targetCheckbox = document.getElementById('ftcCheckTarget');
+  const result = document.getElementById('ftcCheckResult');
+  if (!result) return;
+
+  const transactionType = typeSelect?.value;
+  const amount = amountInput?.value?.replace(/,/g, '');
+  const capitalBase = capitalInput?.value?.replace(/,/g, '');
+  if (!amount || !capitalBase) {
+    result.innerHTML = '<p class="check-error">거래금액과 자본총계ㆍ자본금 중 큰 금액을 모두 입력해주세요.</p>';
+    return;
+  }
+
+  result.innerHTML = '<p class="info">판단하는 중…</p>';
+  try {
+    const isTarget = transactionType === 'goods_services' ? (targetCheckbox?.checked ? '1' : '0') : '1';
+    const resp = await fetch(`${API_BASE}?section=ftc_check&transaction_type=${encodeURIComponent(transactionType)}`
+      + `&amount=${encodeURIComponent(amount)}&capital_base=${encodeURIComponent(capitalBase)}&is_goods_services_target=${isTarget}`);
+    const data = await resp.json();
+    if (!resp.ok) {
+      result.innerHTML = `<p class="check-error">${escapeAttr(data.error ?? `조회 실패 (HTTP ${resp.status})`)}</p>`;
+      return;
+    }
+    result.innerHTML = renderFtcCheckResult(data);
+  } catch (err) {
+    result.innerHTML = `<p class="check-error">조회 실패: ${escapeAttr(err.message)}</p>`;
+  }
+}
+
+function renderFtcCheckResult(r) {
+  const verdictClass = r.is_disclosure_required ? 'required' : 'not-required';
+  const verdictText = r.is_disclosure_required ? '이사회 의결 및 공시 대상입니다' : '공시대상이 아닙니다';
+  const checkMark = (ok) => ok ? '<span class="up">✓ 충족</span>' : '<span class="down">✗ 미충족</span>';
+  const typeLabel = r.transaction_type === 'goods_services' ? '상품ㆍ용역 거래' : '자금ㆍ유가증권ㆍ자산 거래';
+
+  let targetRow = '';
+  if (r.transaction_type === 'goods_services') {
+    // is_goods_services_target=false로 판단이 끝난 경우만 reason에 "해당하지 않아"가 들어있음
+    const failedTarget = r.reason.includes('해당하지 않아');
+    targetRow = `<li>거래상대방 요건("동일인·동일인 친족 20%이상 출자 계열회사 또는 그 50%초과 자회사"): ${checkMark(!failedTarget)}</li>`;
+  }
+
+  return `
+    <div class="check-verdict ${verdictClass}">${verdictText}</div>
+    <p class="info">거래유형: <b>${typeLabel}</b></p>
+    <ul class="info" style="margin:4px 0 8px; padding-left:20px;">
+      <li>거래금액 100억원 이상: ${checkMark(r.amount_ge_100eok)}</li>
+      <li>자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 이상: ${checkMark(r.amount_ge_capital_pct)}</li>
+      ${targetRow}
+    </ul>
+    <p class="info">${escapeAttr(r.reason)}</p>
+    <p class="info">기준금액(자본총계ㆍ자본금 중 큰 금액의 5%, 최소 5억원): <b>${fmtWon(r.threshold_amount)}원</b></p>`;
 }
 
 // 지분공시 탭 안에는 임원ㆍ주요주주(officer) / 대량보유상황보고서(large_holding)
@@ -391,6 +540,9 @@ function showRuleModal(kind) {
   } else if (kind === 'large_holding') {
     title.textContent = '대량보유상황보고서 — "5% Rule"';
     body.innerHTML = ruleLargeHoldingHtml();
+  } else if (kind === 'ftc') {
+    title.textContent = '공정위 공시 — 대규모내부거래 이사회 의결ㆍ공시';
+    body.innerHTML = ruleFtcHtml();
   } else {
     title.textContent = '지분공시 — 소유상황 보고의무';
     body.innerHTML = ruleEquityHtml();
@@ -479,6 +631,50 @@ function ruleEquityHtml() {
     <p class="rule-cite">근거: 자본시장법 제173조, 동법 시행령 제200조 (출처:
     <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
     <a href="https://dart.fss.or.kr/info/main.do?menu=320" target="_blank" class="clickable-name">DART 기업공시 길라잡이</a>).</p>`;
+}
+
+function ruleFtcHtml() {
+  return `
+    <p>특수관계인(국외 계열회사는 제외)을 상대방으로 하거나 특수관계인을 위하여 <b>대통령령으로
+    정하는 규모 이상</b>의 거래를 하려는 경우, 미리 <b>이사회 의결</b>을 거친 후 <b>공시</b>해야
+    합니다 — "대규모내부거래".</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">거래금액</div>
+        <div class="rule-flow-value">100억원 이상</div>
+      </div>
+      <div class="rule-flow-arrow">또는</div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">자본총계ㆍ자본금 중 큰 금액</div>
+        <div class="rule-flow-value">5% 이상(최소 5억원)</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">기준 충족 시</div>
+        <div class="rule-flow-value">이사회 의결 + 공시</div>
+      </div>
+    </div>
+    <h4>거래유형별 차이 — 상품ㆍ용역거래만 상대방 요건이 따로 있음</h4>
+    <ul>
+      <li><b>자금ㆍ유가증권ㆍ자산 거래</b>: 특수관계인(동일인, 동일인관련자, 동일인이 사실상 지배하는
+        국내 계열회사 등 — 국외 계열회사는 제외) 상대방이면 위 금액기준으로 판단</li>
+      <li><b>상품ㆍ용역 거래</b>: 위 금액기준을 충족해도, 거래상대방이 반드시
+        <b>"동일인 및 동일인 친족이 발행주식총수의 20% 이상을 소유한 계열회사(A)" 또는
+        "A의 상법상 50% 초과 자회사(B)"</b>인 경우에만 대상입니다. 그 외 일반 계열회사와의
+        상품ㆍ용역거래는 금액이 아무리 커도 이 규정의 대상이 아닙니다.</li>
+    </ul>
+    <h4>거래금액 산정 기준</h4>
+    <ul>
+      <li>자금ㆍ유가증권ㆍ자산: 실제 거래금액 (담보제공은 담보한도액, 부동산임대차는
+        연간임대료+환산 보증금)</li>
+      <li>상품ㆍ용역: <b>분기에 이루어질 매출ㆍ매입 거래금액의 합계액</b>(부가세 제외)</li>
+    </ul>
+    <h4>공시시기</h4>
+    <p>이사회 의결 후 <b>상장법인 3영업일 이내</b>, 비상장법인ㆍ공익법인은 7영업일 이내 공시.</p>
+    <p class="rule-cite">근거: 독점규제 및 공정거래에 관한 법률 제26조, 동법 시행령 제33조,
+    공정위 고시 "대규모내부거래 등에 대한 이사회 의결 및 공시에 관한 규정" (출처:
+    <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
+    <a href="https://www.ftc.go.kr" target="_blank" class="clickable-name">공정거래위원회</a>).</p>`;
 }
 
 function ruleLargeHoldingHtml() {

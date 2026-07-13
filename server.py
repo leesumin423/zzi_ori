@@ -1983,6 +1983,17 @@ def _ftc_value_for(soup, *labels) -> str:
                 return nxt.get_text(strip=True)
     return ''
 
+def _ftc_normalize_counterparty(name: str) -> str:
+    """이 3종 공정위 공시의 거래상대방은 전부 "계열회사"(법인)라, "(주)"가 붙는 게
+    정상이다. 그런데 공시마다 표기가 "(주)X"/"X(주)"로 뒤섞이는 것에 더해(대량보유
+    상황보고서에서 겪은 문제와 동일), 아예 "(주)" 자체가 빠진 표기도 있다(2020년
+    필기 사례: "유진기업(주)"가 어느 공시에는 "유진기업"으로만 적혀 있었음). 법인임이
+    이미 확정된 필드이므로, 정규화 후에도 "(주)"가 없으면 그냥 붙인다."""
+    name = _lh_normalize_name(name.strip())
+    if name and not name.endswith('(주)'):
+        name = name + '(주)'
+    return name
+
 def _ftc_parse_invest(soup) -> dict:
     """특수관계인에 대한 출자."""
     return {
@@ -2126,7 +2137,7 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
 
         results.append({
             "type_label": FTC_TYPE_LABELS[kind],
-            "counterparty": parsed.get('counterparty') or '',
+            "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or ''),
             "relation": parsed.get('relation') or '',
             "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
             "board_date": parsed.get('board_date') or '',  # 원문에 이미 "YYYY.MM.DD"로 기재됨
@@ -2136,7 +2147,21 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
         })
 
     results.sort(key=lambda r: r['disclosure_date'], reverse=True)  # 최신순
-    meta = {"lookback_years": FTC_LOOKBACK_YEARS}
+
+    # 상품ㆍ용역거래는 "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그
+    # 50% 초과 자회사)"만 대상이라 사용자가 특정 계열사가 여기 해당하는지 판단하기
+    # 어렵다 — 최근 10년간 이 유형으로 실제 신고된 거래상대방 목록을 참고자료로
+    # 함께 내려준다(완전한 목록이라는 보장은 없지만, 이미 이 규정으로 신고된
+    # 이력이 있다는 것 자체가 강한 참고 근거가 된다).
+    known_counterparties = sorted({
+        r['counterparty'] for r in results
+        if r['type_label'] == FTC_TYPE_LABELS['goods_services'] and r['counterparty']
+    })
+
+    meta = {
+        "lookback_years": FTC_LOOKBACK_YEARS,
+        "known_goods_services_counterparties": known_counterparties,
+    }
     _ftc_cache.update(ts=now, data=results, meta=meta)
     return results
 
@@ -2158,25 +2183,33 @@ def check_ftc_disclosure(transaction_type: str, amount: int, capital_base: int, 
     if amount is None or capital_base is None or capital_base <= 0:
         return None
     threshold = max(capital_base * 0.05, 500_000_000)
-    amount_triggered = amount >= 10_000_000_000 or amount >= threshold
+    amount_ge_100eok = amount >= 10_000_000_000
+    amount_ge_capital_pct = amount >= threshold
+    amount_triggered = amount_ge_100eok or amount_ge_capital_pct
+
+    base = {
+        "transaction_type": transaction_type,
+        "amount_ge_100eok": amount_ge_100eok,
+        "amount_ge_capital_pct": amount_ge_capital_pct,
+        "amount_triggered": amount_triggered,
+        "threshold_amount": int(threshold),
+    }
 
     if transaction_type == 'goods_services' and not is_goods_services_target:
         return {
+            **base,
             "is_disclosure_required": False,
             "reason": "거래상대방이 \"동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 계열회사의 50% 초과 자회사)\"에 해당하지 않아, 금액과 무관하게 대규모내부거래 공시대상이 아닙니다.",
-            "threshold_amount": int(threshold),
-            "amount_triggered": amount_triggered,
         }
 
     return {
+        **base,
         "is_disclosure_required": bool(amount_triggered),
         "reason": (
             "거래금액이 100억원 이상이거나 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 이상이라 이사회 의결 및 공시 대상입니다."
             if amount_triggered else
             "거래금액이 100억원 미만이고 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 미만이라 공시대상이 아닙니다."
         ),
-        "threshold_amount": int(threshold),
-        "amount_triggered": amount_triggered,
     }
 
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
@@ -2429,8 +2462,18 @@ def data_endpoint():
 
     if section == 'ftc':
         force = request.args.get('refresh') == '1'
+        range_param = request.args.get('range', 'recent')  # 'recent'(최근 1년, 기본) | 'all'(최근 10년 전체)
         records = fetch_ftc_monitoring(force=force)
-        return jsonify({"records": records, "meta": _ftc_cache.get('meta') or {}})
+        meta = dict(_ftc_cache.get('meta') or {})
+        if range_param != 'all':
+            cutoff = (datetime.now() - timedelta(days=365)).strftime('%Y.%m.%d')
+            filtered = [r for r in records if r.get('disclosure_date', '') >= cutoff]
+            meta['range'] = 'recent'
+            meta['total_count_all_years'] = len(records)
+            records = filtered
+        else:
+            meta['range'] = 'all'
+        return jsonify({"records": records, "meta": meta})
 
     if section == 'ftc_check':
         transaction_type = request.args.get('transaction_type', '')

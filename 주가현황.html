@@ -135,8 +135,9 @@
 
       <h1 class="page-title">공시 <span class="market-note">(동양(주))</span></h1>
 
-      <div class="tab-group" id="disclosureTabs" style="max-width:320px; margin-bottom:24px;">
+      <div class="tab-group" id="disclosureTabs" style="max-width:460px; margin-bottom:24px;">
         <button class="tab-btn active" data-disclosure="danpan">단판공시</button>
+        <button class="tab-btn" data-disclosure="ftc">공정위공시</button>
         <button class="tab-btn" data-disclosure="equity">지분공시</button>
       </div>
 
@@ -250,6 +251,67 @@
             </div>
           </section>
         </div>
+      </div>
+
+      <!-- ── 공정위공시(계열회사간 거래) 모니터링 ── -->
+      <div id="disclosure-ftc" style="display:none;">
+        <section class="section" id="ftc-section">
+          <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button></h2>
+          <div class="tab-group" id="ftcRangeTabs" style="max-width:260px; margin-bottom:12px;">
+            <button class="tab-btn active" data-ftc-range="recent">최근 1년</button>
+            <button class="tab-btn" data-ftc-range="all">전체 이력(최근 10년)</button>
+          </div>
+          <p class="info" id="ftcNote" style="margin-bottom:12px;">불러오는 중…</p>
+          <div class="table-wrap">
+            <table id="ftc-table">
+              <colgroup>
+                <col style="width:4%">  <!-- 순번 -->
+                <col style="width:16%"><!-- 유형 -->
+                <col style="width:18%"><!-- 거래상대방 -->
+                <col style="width:10%"><!-- 관계 -->
+                <col style="width:11%"><!-- 공시일자 -->
+                <col style="width:11%"><!-- 이사회의결일 -->
+                <col style="width:16%"><!-- 금액/비율 -->
+                <col style="width:6%"> <!-- 원문 -->
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>순번</th><th>유형</th><th>거래상대방</th><th>관계</th><th>공시일자</th>
+                  <th>이사회의결일</th><th>거래금액<br>(매출액대비)</th><th>원문</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="ftc-check-section">
+          <h2>공정위 공시(대규모내부거래) 대상여부 사전검증</h2>
+          <p class="info" style="margin-bottom:12px;">공정거래법 제26조ㆍ시행령 제33조 기준입니다. 거래유형을 고르고 거래금액과
+            자본총계·자본금 중 큰 금액을 넣으면 이사회 의결ㆍ공시 대상 여부를 바로 판단합니다 — 상품ㆍ용역 거래는 거래상대방이
+            "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 50% 초과 자회사)"인 경우에만 대상이라는 점이 다릅니다.</p>
+          <div class="check-form">
+            <label>거래유형
+              <select id="ftcCheckType">
+                <option value="fund_securities_asset">자금ㆍ유가증권ㆍ자산 거래</option>
+                <option value="goods_services">상품ㆍ용역 거래</option>
+              </select>
+            </label>
+            <label>거래금액(원)
+              <input type="text" inputmode="numeric" id="ftcCheckAmount" placeholder="예: 12,000,000,000">
+            </label>
+            <label>자본총계ㆍ자본금 중 큰 금액(원)
+              <input type="text" inputmode="numeric" id="ftcCheckCapital" placeholder="예: 300,000,000,000">
+            </label>
+            <label id="ftcCheckTargetLabel" style="display:none;">
+              <input type="checkbox" id="ftcCheckTarget" checked style="width:auto; margin-right:6px;">
+              거래상대방이 "동일인·동일인 친족 20%이상 출자 계열회사(또는 그 50%초과 자회사)"에 해당함
+            </label>
+            <p class="info" id="ftcCheckTargetHint" style="display:none; margin:-8px 0 0;"></p>
+            <button id="ftcCheckSubmitBtn" class="btn" style="width:auto;">판단하기</button>
+          </div>
+          <div id="ftcCheckResult"></div>
+        </section>
       </div>
 
     </div>
