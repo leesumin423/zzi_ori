@@ -1949,6 +1949,236 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
     _large_holding_cache.update(ts=now, data=results, meta=meta)
     return results
 
+# ─────────────────────────────────────────────────────────────
+# 3-3-5. 공정위 공시(계열회사간 거래) 모니터링 — DART의 pblntf_ty="J"(공정위공시)로
+# 조회되는 여러 보고서 유형 중, 사용자가 지정한 3종(특수관계인에대한출자/채권매도,
+# 동일인등출자계열회사와의상품ㆍ용역거래)만 다룬다(대규모기업집단현황공시ㆍ지급
+# 수단별지급기간별지급금액및분쟁조정기구에관한사항은 제외). 근거는 독점규제 및
+# 공정거래에 관한 법률 제26조(대규모내부거래의 이사회 의결 및 공시), 같은 법
+# 시행령 제33조, 공정위 고시 — 사전검증 계산기(check_ftc_disclosure)도 이 근거를
+# 그대로 따른다.
+# ─────────────────────────────────────────────────────────────
+FTC_LOOKBACK_YEARS = 10
+FTC_CACHE_TTL = 6 * 3600
+FTC_REPORT_TYPES = {
+    'invest': '특수관계인에대한출자',
+    'bond_sale': '특수관계인에대한채권매도',
+    'goods_services': '동일인등출자계열회사와의상품ㆍ용역거래',
+}
+FTC_TYPE_LABELS = {
+    'invest': '특수관계인 출자',
+    'bond_sale': '특수관계인 채권매도',
+    'goods_services': '상품ㆍ용역거래(동일인등출자계열회사)',
+}
+
+def _ftc_value_for(soup, *labels) -> str:
+    """공정위 공시 문서는 단판공시와 마찬가지로 ACODE 없이 순수 라벨-값 <TD> 쌍으로만
+    구성된 서식이다("1. 거래상대방" <TD> 바로 다음 <TD>가 값). 번호 접두어("1. ")나
+    셀 안 공백 유무가 서식마다 달라 공백을 모두 제거하고 부분일치로 비교한다."""
+    for td in soup.find_all('td'):
+        norm = re.sub(r'\s+', '', td.get_text(strip=True))
+        if any(re.sub(r'\s+', '', lbl) in norm for lbl in labels):
+            nxt = td.find_next_sibling('td')
+            if nxt:
+                return nxt.get_text(strip=True)
+    return ''
+
+def _ftc_parse_invest(soup) -> dict:
+    """특수관계인에 대한 출자."""
+    return {
+        'counterparty': _ftc_value_for(soup, '거래상대방'),
+        'relation': _ftc_value_for(soup, '회사와의관계'),
+        'board_date': _ftc_value_for(soup, '이사회의결일'),
+        'amount': _equity_parse_num(_ftc_value_for(soup, '출자금액')),
+        'purpose': _ftc_value_for(soup, '출자목적'),
+    }
+
+def _ftc_parse_bond_sale(soup) -> dict:
+    """특수관계인에 대한 채권매도."""
+    return {
+        'counterparty': _ftc_value_for(soup, '매도상대방'),
+        'relation': _ftc_value_for(soup, '회사와의관계'),
+        'board_date': _ftc_value_for(soup, '이사회의결일'),
+        'amount': _equity_parse_num(_ftc_value_for(soup, '거래금액')),
+        'purpose': _ftc_value_for(soup, '거래목적'),
+    }
+
+def _ftc_parse_goods_services(soup) -> dict:
+    """동일인 등 출자 계열회사와의 상품ㆍ용역거래(변경). 이 서식은 두 가지 하위
+    레이아웃이 섞여 있다:
+    - "최초"(연 1회, 4개 분기 누적) 서식: "2. 거래상대방(...)" 라벨과 회사명이
+      한 행에 나란히 있고, 분기별 매출액대비(%) 값은 "1.59%"처럼 % 기호가 붙어
+      있다 — 라벨 바로 다음 <TD>, 그리고 텍스트 구간 내 "N.NN%" 정규식으로 처리.
+    - "변경"(분기별 갱신) 서식: "거래상대방(...)" 등은 헤더 행에만 있고 실제 값
+      (회사명ㆍ매출액대비 등)은 그 다음 데이터 행의 같은 열 위치에 있으며, 비율
+      값에는 % 기호가 없다(예: "0.59") — 이 경우 헤더 행의 각 라벨이 몇 번째
+      열인지 찾아, 다음 행에서 같은 열 위치의 값을 가져온다.
+    두 레이아웃 모두 지원하기 위해, "거래상대방"이 포함된 라벨 셀을 찾은 뒤 같은
+    행의 바로 다음 셀을 먼저 시도하고, 그 값이 "매출액(B)" 같은 다른 헤더 텍스트로
+    보이면(=값이 아니라 헤더 행이었다는 뜻) 다음 행의 같은 열 위치로 대체한다."""
+    board_date = _ftc_value_for(soup, '이사회의결일')
+    prior_revenue = _equity_parse_num(_ftc_value_for(soup, '직전사업연도매출액'))
+    text = soup.get_text(' ', strip=True)
+    section_m = re.search(r'거래금액(.*?)5\.\s*상품', text, re.S)
+    section = section_m.group(1) if section_m else ''
+    ratios = [float(x) for x in re.findall(r'([\d.]+)\s*%', section)]
+
+    counterparty = ''
+    for td in soup.find_all('td'):
+        norm = re.sub(r'\s+', '', td.get_text(strip=True))
+        if '거래상대방' not in norm:
+            continue
+        row = td.find_parent('tr')
+        cells = row.find_all('td')
+        idx = cells.index(td)
+        same_row_value = cells[idx + 1].get_text(strip=True) if idx + 1 < len(cells) else ''
+        if same_row_value and '매출액' not in same_row_value and '매입액' not in same_row_value:
+            counterparty = same_row_value  # "최초" 서식: 라벨-값이 한 행에 나란히
+        else:
+            # "변경" 서식: 헤더 행 다음 데이터 행의 같은 열 위치에서 회사명ㆍ비율을 가져옴
+            ratio_idx = next((i for i, c in enumerate(cells)
+                               if '매출액대비' in re.sub(r'\s+', '', c.get_text(strip=True))), None)
+            data_row = row.find_next_sibling('tr')
+            if data_row:
+                data_cells = data_row.find_all('td')
+                if idx < len(data_cells):
+                    counterparty = data_cells[idx].get_text(strip=True)
+                if not ratios and ratio_idx is not None and ratio_idx < len(data_cells):
+                    m = re.match(r'-?[\d.]+', data_cells[ratio_idx].get_text(strip=True))
+                    if m:
+                        ratios.append(float(m.group(0)))
+        break  # 문서당 "거래상대방" 라벨은 하나뿐 — 첫 매치만 처리
+
+    return {
+        'counterparty': counterparty,
+        'relation': '동일인등출자계열회사',
+        'board_date': board_date,
+        'prior_revenue': prior_revenue,
+        'max_quarterly_ratio': max(ratios) if ratios else None,
+    }
+
+_FTC_PARSERS = {
+    'invest': _ftc_parse_invest,
+    'bond_sale': _ftc_parse_bond_sale,
+    'goods_services': _ftc_parse_goods_services,
+}
+
+_ftc_cache = {'ts': 0.0, 'data': None, 'meta': None}
+
+def fetch_ftc_monitoring(force: bool = False) -> list:
+    """최근 10년간 공정위 공시(pblntf_ty=J) 중 계열회사간 거래 관련 3종(특수관계인
+    출자/채권매도, 동일인등출자계열회사와의 상품ㆍ용역거래)을 스캔해 접수일 최신순
+    목록으로 반환한다. 대규모기업집단현황공시ㆍ지급수단별지급기간별지급금액및
+    분쟁조정기구에관한사항은 범위에서 제외(사용자 요청)."""
+    now = datetime.now().timestamp()
+    if not force and _ftc_cache['data'] is not None and now - _ftc_cache['ts'] < FTC_CACHE_TTL:
+        return _ftc_cache['data']
+
+    corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
+    if not corp_code or not DART_API_KEY:
+        return []
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=365 * FTC_LOOKBACK_YEARS)).strftime('%Y%m%d')
+
+    all_items = []
+    page = 1
+    while True:
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": "J",
+                "page_no": page, "page_count": 100,
+            }, timeout=15)
+            data = r.json()
+        except Exception as e:
+            print(f"[DEBUG] 공정위 공시 목록 조회 중 예외(page={page}): {e}")
+            break
+        if data.get('status') != '000':
+            break
+        all_items.extend(data.get('list', []))
+        if page >= int(data.get('total_page', 1) or 1):
+            break
+        page += 1
+
+    results = []
+    for item in all_items:
+        report_nm = item.get('report_nm', '')
+        if report_nm.startswith('[기재정정]'):
+            continue  # 정정본은 기존 신고서의 오기재만 바로잡는 것이라 제외
+        kind = next((k for k, kw in FTC_REPORT_TYPES.items() if kw in report_nm), None)
+        if kind is None:
+            continue
+        rcept_no = item['rcept_no']
+        rcept_dt = item.get('rcept_dt', '')
+        text = fetch_dart_document_text(rcept_no)
+        if not text:
+            continue
+        soup = BeautifulSoup(text, 'html.parser')
+        parsed = _FTC_PARSERS[kind](soup)
+
+        if kind == 'goods_services':
+            ratio = parsed.get('max_quarterly_ratio')
+            amount_label = f"매출액대비 최대 {ratio:.2f}%" if ratio is not None else ''
+        else:
+            amt = parsed.get('amount')
+            amount_label = f"{amt:,}백만원" if amt is not None else ''
+
+        results.append({
+            "type_label": FTC_TYPE_LABELS[kind],
+            "counterparty": parsed.get('counterparty') or '',
+            "relation": parsed.get('relation') or '',
+            "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
+            "board_date": parsed.get('board_date') or '',  # 원문에 이미 "YYYY.MM.DD"로 기재됨
+            "amount_label": amount_label,
+            "rcept_no": rcept_no,
+            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}",
+        })
+
+    results.sort(key=lambda r: r['disclosure_date'], reverse=True)  # 최신순
+    meta = {"lookback_years": FTC_LOOKBACK_YEARS}
+    _ftc_cache.update(ts=now, data=results, meta=meta)
+    return results
+
+def check_ftc_disclosure(transaction_type: str, amount: int, capital_base: int, is_goods_services_target: bool = True):
+    """대규모내부거래 이사회 의결ㆍ공시 대상 여부를 판단한다(공정거래법 제26조,
+    시행령 제33조, 공정위 고시 기준).
+
+    - 공통 거래금액 기준: 거래금액이 100억원 이상이거나, 회사의 자본총계ㆍ자본금 중
+      큰 금액(capital_base)의 5% 이상(단, 그 5% 값이 5억원 미만이면 5억원을 기준으로
+      적용 — 즉 최소 5억원은 넘어야 공시대상).
+    - transaction_type: 'fund_securities_asset'(자금ㆍ유가증권ㆍ자산 거래) 또는
+      'goods_services'(상품ㆍ용역 거래).
+    - goods_services 거래는 위 금액기준을 충족하더라도, 거래상대방이 "동일인 및
+      동일인 친족이 발행주식총수의 20% 이상을 소유한 계열회사(또는 그 계열회사의
+      상법상 50% 초과 자회사)"인 경우에만 대상이다 — is_goods_services_target
+      (호출부에서 사용자가 체크)이 False면 상대방 요건 자체를 충족하지 못해
+      금액과 무관하게 대상이 아니다.
+    """
+    if amount is None or capital_base is None or capital_base <= 0:
+        return None
+    threshold = max(capital_base * 0.05, 500_000_000)
+    amount_triggered = amount >= 10_000_000_000 or amount >= threshold
+
+    if transaction_type == 'goods_services' and not is_goods_services_target:
+        return {
+            "is_disclosure_required": False,
+            "reason": "거래상대방이 \"동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 계열회사의 50% 초과 자회사)\"에 해당하지 않아, 금액과 무관하게 대규모내부거래 공시대상이 아닙니다.",
+            "threshold_amount": int(threshold),
+            "amount_triggered": amount_triggered,
+        }
+
+    return {
+        "is_disclosure_required": bool(amount_triggered),
+        "reason": (
+            "거래금액이 100억원 이상이거나 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 이상이라 이사회 의결 및 공시 대상입니다."
+            if amount_triggered else
+            "거래금액이 100억원 미만이고 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 미만이라 공시대상이 아닙니다."
+        ),
+        "threshold_amount": int(threshold),
+        "amount_triggered": amount_triggered,
+    }
+
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
 # "매매거래정지및정지해제"처럼 당일 안에 풀리는 일회성 조치가 섞여 있어서,
 # 여러 날 이어지는 실제 거래정지의 '진짜' 원인을 공시 제목만 보고 자동으로
@@ -2196,6 +2426,28 @@ def data_endpoint():
         force = request.args.get('refresh') == '1'
         records = fetch_large_holding_monitoring(force=force)
         return jsonify({"records": records, "meta": _large_holding_cache.get('meta') or {}})
+
+    if section == 'ftc':
+        force = request.args.get('refresh') == '1'
+        records = fetch_ftc_monitoring(force=force)
+        return jsonify({"records": records, "meta": _ftc_cache.get('meta') or {}})
+
+    if section == 'ftc_check':
+        transaction_type = request.args.get('transaction_type', '')
+        amount_raw = request.args.get('amount', '')
+        capital_raw = request.args.get('capital_base', '')
+        is_target_raw = request.args.get('is_goods_services_target', '1')
+        if transaction_type not in ('fund_securities_asset', 'goods_services'):
+            return jsonify({"error": "transaction_type은 fund_securities_asset 또는 goods_services 여야 합니다."}), 400
+        try:
+            amount = int(amount_raw)
+            capital_base = int(capital_raw)
+        except ValueError:
+            return jsonify({"error": "거래금액(amount)ㆍ자본총계·자본금 중 큰 금액(capital_base)은 원 단위 숫자로 입력해주세요."}), 400
+        result = check_ftc_disclosure(transaction_type, amount, capital_base, is_target_raw != '0')
+        if result is None:
+            return jsonify({"error": "판단할 수 없습니다 — 입력값을 확인해주세요."}), 400
+        return jsonify(result)
 
     if section == 'danpan_check':
         contract_date = request.args.get('contract_date', '')
