@@ -1739,8 +1739,11 @@ def _large_holding_parse_document(html_text: str) -> list:
       함)으로, 각 행에 성명(SPC_NM)ㆍ보유주식합계(STK_CNT)ㆍ비율(STK_RT)이 있다
       — 이게 실제 "누가 몇 주 들고 있는지"의 근거.
     보고자 자신의 구분은 표지의 FLT_CRP_RLT(발행회사와의 관계, 예: "최대주주")를
-    쓰고, 특별관계자는 위 개요 표에서 이름으로 찾은 자신의 FLT_CRP_RLT를 쓴다
-    (개요 표에 이름이 없으면 "특별관계자"로 대체)."""
+    쓴다. 특별관계자는 법인(이름이 "(주)"로 끝남)이면 위 개요 표에서 찾은 자신의
+    FLT_CRP_RLT(예: "주주")를 쓰고, 개인(자연인)이면 그 세부 텍스트 대신 관계
+    그 자체인 "특별관계자"로 단순 표기한다. 반환하는 각 행에는 이 문서의 관계="보고자"
+    행 이름(reporter_name, 연명보고의 대표 보고자)도 함께 붙는다 — 화면에서는 표를
+    순번이 아니라 이 보고자명으로 묶어서 보여준다."""
     soup = BeautifulSoup(html_text, 'html.parser')
 
     top_relation_tag = soup.find(attrs={'aunit': 'FLT_CRP_RLT'})
@@ -1774,8 +1777,13 @@ def _large_holding_parse_document(html_text: str) -> list:
                 continue
             if current_relation == '보고자':
                 classification = top_relation or '보고자'
-            else:
+            elif name.endswith('(주)'):
+                # 특별관계자 중 법인은 발행회사와의 관계 텍스트(예: "주주")를 그대로 쓴다.
                 classification = relation_by_name.get(name) or '특별관계자'
+            else:
+                # 특별관계자 중 개인(이름에 "(주)"가 없는 자연인)은 "임원(등기)" 같은
+                # 세부 텍스트 대신 관계 그 자체인 "특별관계자"로 표기한다.
+                classification = '특별관계자'
             entries.append({
                 'name': name,
                 'relation': current_relation,
@@ -1783,6 +1791,12 @@ def _large_holding_parse_document(html_text: str) -> list:
                 'qty': qty,
                 'ratio': _lh_parse_ratio(ratio_tag.get_text(strip=True)) if ratio_tag else None,
             })
+
+    # "보고자명"(연명보고의 대표 보고자) — 이 문서의 관계="보고자" 행 이름을 모든
+    # 행(보고자 본인 포함)에 함께 붙여준다. 화면에서는 순번 대신 이 값으로 묶어서 본다.
+    reporter_name = next((e['name'] for e in entries if e['relation'] == '보고자'), None)
+    for e in entries:
+        e['reporter_name'] = reporter_name
     return entries
 
 _large_holding_cache = {'ts': 0.0, 'data': None, 'meta': None}
@@ -1832,7 +1846,7 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
     ]
     targets.sort(key=lambda d: (d.get('rcept_dt', ''), d.get('rcept_no', '')))
 
-    by_entity = {}  # name -> {first_date, last_date, qty, ratio, classification, rcept_no}
+    by_entity = {}  # name -> {first_date, last_date, qty, ratio, classification, reporter_name, rcept_no}
     for item in targets:
         rcept_no = item['rcept_no']
         rcept_dt = item.get('rcept_dt', '')
@@ -1850,6 +1864,7 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
                     'qty': entry['qty'],
                     'ratio': entry['ratio'],
                     'classification': entry['classification'],
+                    'reporter_name': entry['reporter_name'],
                     'rcept_no': rcept_no,
                 }
             else:
@@ -1859,6 +1874,7 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
                     existing['qty'] = entry['qty']
                     existing['ratio'] = entry['ratio']
                     existing['classification'] = entry['classification']
+                    existing['reporter_name'] = entry['reporter_name']
                     existing['rcept_no'] = rcept_no
 
     results = []
@@ -1866,6 +1882,7 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
         if not v['qty']:
             continue  # 가장 최근 등장한 회차의 보유수량이 0(완전 처분ㆍ서식상 "-")이면 현재는 보유자가 아니므로 제외
         results.append({
+            "reporter_name": v['reporter_name'] or name,
             "holder_name": name,
             "role_label": v['classification'],
             "first_disclosure_date": _dots(v['first_date']),
@@ -1876,7 +1893,9 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={v['rcept_no']}",
         })
 
-    results.sort(key=lambda r: r['holder_name'])  # 가나다순
+    # 보고자명(연명보고 그룹) 가나다순으로 묶고, 같은 그룹 안에서는 보고자 본인이
+    # 먼저 오도록(신고자==보고자명), 그 다음 특별관계자를 가나다순으로 나열한다.
+    results.sort(key=lambda r: (r['reporter_name'], r['holder_name'] != r['reporter_name'], r['holder_name']))
     meta = {"lookback_years": LARGE_HOLDING_LOOKBACK_YEARS}
     _large_holding_cache.update(ts=now, data=results, meta=meta)
     return results

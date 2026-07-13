@@ -341,7 +341,8 @@ function renderLargeHolding(payload) {
   }
 
   tbody.innerHTML = '';
-  list.forEach((item, idx) => {
+  list.forEach((item) => {
+    const reporterName = item.reporter_name ?? '';
     const holderName = item.holder_name ?? '';
     const roleLabel = item.role_label ?? '';
     const qtyLabel = item.total_qty != null
@@ -349,7 +350,7 @@ function renderLargeHolding(payload) {
       : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="num">${idx + 1}</td>
+      <td title="${escapeAttr(reporterName)}">${reporterName}</td>
       <td title="${escapeAttr(holderName)}">${holderName}</td>
       <td>${roleLabel}</td>
       <td class="num">${item.first_disclosure_date ?? ''}</td>
