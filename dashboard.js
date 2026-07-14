@@ -835,13 +835,14 @@ function renderTable(tableId, list) {
     const isDown = changeRate.startsWith('-');
     const rateClass = isUp ? 'up' : isDown ? 'down' : '';
     const name = item.display_name ?? item.name ?? '';
+    const nxtBadge = b.source === 'NXT' ? ' <span class="nxt-badge" title="현재 넥스트레이드(NXT) 프리마켓ㆍ애프터마켓 시세">NXT</span>' : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="clickable-name" onclick="showInvestorModal('${item.ticker ?? ''}', '${name}')">${name}</span></td>
       <td class="num">${item.shares ?? ''}</td>
       <td class="num">${item.capital_billion ?? ''}</td>
       <td class="num">${item.price_prev_year ?? ''}</td>
-      <td class="num">${b.price ?? ''}</td>
+      <td class="num">${b.price ?? ''}${nxtBadge}</td>
       <td class="num">${item.marketcap_prev ?? ''}</td>
       <td class="num">${b.marketcap ?? ''}</td>
       <td class="num ${rateClass}">${changeRate}</td>

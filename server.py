@@ -92,6 +92,46 @@ def is_krx_open() -> bool:
         return False
     return dtime(9, 0) <= now.time() <= dtime(15, 30)
 
+def is_nxt_extended_hours() -> bool:
+    """넥스트레이드(NXT, 대체거래소)가 KRX 정규장 앞뒤로 별도 운영하는 시간대인지
+    — 프리마켓(08:00~09:00)ㆍ애프터마켓(15:30~20:00). 이 시간대엔 KRX가 쉬거나
+    이미 마감했어도 NXT에서 그 종목이 거래되고 있으면 가격이 계속 바뀔 수 있다.
+    공휴일은 고려하지 않는다(is_krx_open과 동일한 한계)."""
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return False
+    t = now.time()
+    return dtime(8, 0) <= t < dtime(9, 0) or dtime(15, 30) < t <= dtime(20, 0)
+
+def _parse_rate_info_block(soup, div_id: str):
+    """finance.naver.com/item/main.naver 페이지에는 KRX 탭용(id="rate_info_krx")과
+    NXT 탭용(id="rate_info_nxt") 시세 블록이 항상 둘 다 서버사이드에 렌더링돼
+    있고(탭 전환은 둘 중 하나를 보이기/숨기기만 하는 순수 클라이언트 동작), 접근성용
+    <dl class="blind"> 안에 "오늘의시세 N 포인트 / N 포인트 상승|하락|보합 / N%
+    플러스|마이너스" 형태로 항상 텍스트가 붙어있다 — 화면에 보이는 자릿수별
+    <span>을 일일이 세는 것보다 이 숨은 텍스트를 파싱하는 게 안정적이다. NXT
+    비대상 종목이거나 원문 구조가 바뀌면 None."""
+    div = soup.find('div', id=div_id)
+    if not div:
+        return None
+    dl = div.find('dl', class_='blind')
+    if not dl:
+        return None
+    dds = [dd.get_text(strip=True) for dd in dl.find_all('dd')]
+    if len(dds) < 3:
+        return None
+    price_m = re.search(r'([\d,]+)', dds[0])
+    diff_m = re.search(r'([\d,]+)', dds[1])
+    rate_m = re.search(r'([\d.]+)', dds[2])
+    if not price_m:
+        return None
+    price = int(price_m.group(1).replace(',', ''))
+    diff = int(diff_m.group(1).replace(',', '')) if diff_m else 0
+    rate = float(rate_m.group(1)) if rate_m else 0.0
+    if '하락' in dds[1] or '마이너스' in dds[2]:
+        diff, rate = -diff, -rate
+    return {'price': price, 'diff': diff, 'rate': rate}
+
 # ─────────────────────────────────────────────────────────────
 # 1. 지수 (KOSPI / KOSDAQ)
 # ─────────────────────────────────────────────────────────────
@@ -356,15 +396,17 @@ def fetch_stock(ticker: str) -> dict:
     except Exception as e:
         print(f"[DEBUG] {ticker} fchart 조회 중 예외: {e}")
 
-    # 3) 상장주식수 + 52주 최고/최저: main 페이지에서 함께 추출 (UTF-8)
+    # 3) 상장주식수 + 52주 최고/최저 + NXT 시세: main 페이지에서 함께 추출 (UTF-8)
     shares = 0
     high_52w = None
     low_52w  = None
+    nxt_quote = None
     try:
         main_url = f"https://finance.naver.com/item/main.naver?code={ticker}"
         mr = requests.get(main_url, headers=HEADERS, timeout=10)
         mr.encoding = 'utf-8'  # 핵심 수정: euc-kr -> utf-8
         msoup = BeautifulSoup(mr.text, 'html.parser')
+        nxt_quote = _parse_rate_info_block(msoup, 'rate_info_nxt')  # NXT 비대상 종목이면 None
 
         raw_val = extract_labeled_value(msoup, ['상장주식수'])
         if raw_val:
@@ -392,6 +434,18 @@ def fetch_stock(ticker: str) -> dict:
             low_52w = int(re.sub(r'[^\d]', '', low_raw) or 0) or None
     except Exception as e:
         print(f"[DEBUG] {ticker} 상장주식수/52주 고저 조회 중 예외: {e}")
+
+    # NXT(넥스트레이드) 프리마켓(08:00~09:00)ㆍ애프터마켓(15:30~20:00) 시간대에는
+    # KRX가 쉬거나 이미 마감했어도 이 시간대엔 NXT가 그 종목의 "지금" 가격을 갖고
+    # 있으므로, "현재기준"은 이 경우 NXT 시세로 덮어쓴다. "장마감기준"(price_close,
+    # 위에서 이미 계산됨)은 KRX 정규장 15:30 종가 기준을 그대로 유지 — NXT와는
+    # 무관한 값이라 여기서 건드리지 않는다.
+    current_source = "KRX"
+    if nxt_quote is not None and is_nxt_extended_hours():
+        price_current = nxt_quote['price']
+        diff = nxt_quote['diff']
+        rate = nxt_quote['rate']
+        current_source = "NXT"
 
     # 4) 시가총액(억원) / 등락율 — 현재기준·장마감기준 각각 계산
     def calc_marketcap(price):
@@ -421,6 +475,7 @@ def fetch_stock(ticker: str) -> dict:
             "price": f"{int(price_current):,}",
             "marketcap": f"{marketcap_current:,}",
             "change_rate": f"{change_rate_current:+.2f}%",
+            "source": current_source,  # "KRX" 또는 "NXT"(프리마켓ㆍ애프터마켓 시간대에 NXT 시세로 대체됐을 때)
         },
         "close": {
             "price": f"{int(price_close):,}",

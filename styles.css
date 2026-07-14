@@ -201,6 +201,19 @@ html, body {
 .up   { color: var(--up); }
 .down { color: var(--down); }
 
+/* NXT(넥스트레이드) 프리마켓ㆍ애프터마켓 시세로 대체됐을 때 표시하는 배지 */
+.nxt-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #eef2ff;
+  color: #4338ca;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
 /* ── Table Wrapper ───────────────────────────────────────────── */
 .table-wrap {
   border: 1px solid var(--border);
