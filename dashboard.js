@@ -11,7 +11,7 @@ const API_BASE = 'http://localhost:5000/data';
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null, goodsServicesTargets: null };
 
 // 포털형 공시현황 요약 — 지금은 동양(주) 하나만 실제로 연동돼 있어 계열사
 // 선택 없이 바로 보여준다. 카드를 눌러 유형별로 필터링하는 상태만 관리한다.
@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
         if (activeDisclosure === 'ftc' && !lastData.ftc) loadFtc();
         if (activeDisclosure === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
+        if (activeDisclosure === 'ftc' && !lastData.goodsServicesTargets) loadGoodsServicesTargets();
         if (activeDisclosure === 'equity') loadActiveEquitySub();
       }
     });
@@ -67,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
       if (kind === 'ftc' && !lastData.ftc) loadFtc();
       if (kind === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
+      if (kind === 'ftc' && !lastData.goodsServicesTargets) loadGoodsServicesTargets();
       if (kind === 'equity') loadActiveEquitySub();
     });
   });
@@ -113,16 +115,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const isGoods = e.target.value === 'goods_services';
     const label = document.getElementById('ftcCheckTargetLabel');
     const hint = document.getElementById('ftcCheckTargetHint');
+    const manualLabel = document.getElementById('ftcCheckTargetManualLabel');
+    const targetSelect = document.getElementById('ftcCheckTargetCompany');
     if (label) label.style.display = isGoods ? '' : 'none';
+    if (manualLabel) manualLabel.style.display = isGoods && !targetSelect?.value ? '' : 'none';
     if (hint) {
       hint.style.display = isGoods ? '' : 'none';
       if (isGoods) {
-        const known = lastData.ftc?.meta?.known_goods_services_counterparties ?? [];
-        hint.textContent = known.length
-          ? `참고: 동양(주)이 최근 10년간 이 규정으로 실제 신고한 거래상대방은 ${known.join(', ')}뿐입니다(그 외 계열회사와의 상품ㆍ용역거래는 이 신고 이력이 없다는 뜻 — 다만 앞으로 다른 계열회사가 새로 20% 이상 지분을 갖게 되면 대상이 될 수 있으니 참고용으로만 쓰세요). 판단이 애매하면 자금팀에 문의하세요.`
-          : '참고: "공정위공시" 탭을 한 번 열어야 실제 신고 이력 참고자료가 표시됩니다.';
+        const info = lastData.goodsServicesTargets;
+        hint.innerHTML = info?.companies?.length
+          ? `이 목록은 유진 기업집단 대표회사(유진기업㈜)가 매년 내는 "기업집단현황공시"의 "특수관계인 지분율이 높은 `
+            + `계열회사의 내부거래 현황"(자연인인 동일인 단독 또는 친족과 합하여 20% 이상 소유한 회사, 또는 그 회사의 `
+            + `50% 초과 자회사만 모아 신고하는 표)에서 그대로 가져온 실제 대상 회사 목록입니다(기준일 ${info.disclosure_date ?? ''}, `
+            + `<a href="${info.dart_url}" target="_blank" class="clickable-name">원문 보기</a>). 목록에 없는 회사와의 거래는 아래 `
+            + `체크박스로 직접 판단하세요 — 새로 20% 지분을 갖게 된 회사는 다음 개정판에 반영되기 전까지 여기 없을 수 있습니다.`
+          : '참고: "공정위공시" 탭을 한 번 열어야 대상 회사 목록을 불러옵니다.';
       }
     }
+  });
+  document.getElementById('ftcCheckTargetCompany')?.addEventListener('change', (e) => {
+    const manualLabel = document.getElementById('ftcCheckTargetManualLabel');
+    const checkbox = document.getElementById('ftcCheckTarget');
+    if (manualLabel) manualLabel.style.display = e.target.value ? 'none' : '';
+    if (checkbox && e.target.value) checkbox.checked = false; // 목록 선택 시엔 체크박스 무시하고 select 값을 기준으로 판단
   });
   attachCommaFormatting(document.getElementById('ftcCheckAmount'));
   attachCommaFormatting(document.getElementById('ftcCheckCapital'));
@@ -490,12 +505,40 @@ function renderSubsidiaryCapital(payload) {
   if (list.some(r => r.name === currentValue)) companySelect.value = currentValue;
 }
 
+// ── 상품ㆍ용역거래 특례 대상 회사 목록(20% 계열사 A / 그 50%초과 자회사 B) ──
+// 유진기업(대표회사)의 "기업집단현황공시"에 실제로 신고된 대상 회사 명단을
+// 그대로 드롭다운으로 제공한다 — 자금ㆍ유가증권ㆍ자산 거래(특수관계인 기준)와
+// 달리 상품ㆍ용역거래는 이 좁은 목록에 속하는 회사와의 거래만 대상이라서다.
+async function loadGoodsServicesTargets() {
+  try {
+    const data = await safeFetch(`${API_BASE}?section=goods_services_targets`);
+    lastData.goodsServicesTargets = data;
+    renderGoodsServicesTargets(data);
+  } catch (err) {
+    console.warn('20% 계열사 목록 조회 실패:', err.message);
+  }
+}
+
+function renderGoodsServicesTargets(payload) {
+  const targetSelect = document.getElementById('ftcCheckTargetCompany');
+  if (!targetSelect) return;
+  const companies = payload?.companies ?? [];
+  const currentValue = targetSelect.value;
+  targetSelect.innerHTML = '<option value="">목록에 없음 / 직접 판단</option>'
+    + companies.map(name => `<option value="${escapeAttr(name)}">${escapeAttr(name)}</option>`).join('');
+  if (companies.includes(currentValue)) targetSelect.value = currentValue;
+  // 거래유형이 이미 상품ㆍ용역거래로 선택돼 있는 상태에서 뒤늦게 목록이 도착한
+  // 경우에도 힌트 문구가 갱신되도록 change 이벤트를 한 번 더 흘려보낸다.
+  document.getElementById('ftcCheckType')?.dispatchEvent(new Event('change'));
+}
+
 // ── 공정위 공시(대규모내부거래) 대상여부 사전검증 ─────────────────
 async function runFtcCheck() {
   const typeSelect = document.getElementById('ftcCheckType');
   const amountInput = document.getElementById('ftcCheckAmount');
   const capitalInput = document.getElementById('ftcCheckCapital');
   const targetCheckbox = document.getElementById('ftcCheckTarget');
+  const targetCompanySelect = document.getElementById('ftcCheckTargetCompany');
   const result = document.getElementById('ftcCheckResult');
   if (!result) return;
 
@@ -509,7 +552,11 @@ async function runFtcCheck() {
 
   result.innerHTML = '<p class="info">판단하는 중…</p>';
   try {
-    const isTarget = transactionType === 'goods_services' ? (targetCheckbox?.checked ? '1' : '0') : '1';
+    // 상품ㆍ용역거래: 20% 계열사 실제 목록에서 상대방을 골랐으면 그 자체로
+    // 대상(target=true) — 목록에 없으면 사용자가 직접 판단한 체크박스를 따른다.
+    const isTarget = transactionType === 'goods_services'
+      ? (targetCompanySelect?.value ? '1' : (targetCheckbox?.checked ? '1' : '0'))
+      : '1';
     const resp = await fetch(`${API_BASE}?section=ftc_check&transaction_type=${encodeURIComponent(transactionType)}`
       + `&amount=${encodeURIComponent(amount)}&capital_base=${encodeURIComponent(capitalBase)}&is_goods_services_target=${isTarget}`);
     const data = await resp.json();

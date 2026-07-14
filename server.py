@@ -2493,6 +2493,84 @@ def fetch_subsidiary_capital_info(force: bool = False) -> list:
     _subsidiary_capital_cache.update(ts=now, data=results)
     return results
 
+# ─────────────────────────────────────────────────────────────
+# 3-3-7. 상품ㆍ용역거래 상대방 판단용 — "동일인 및 동일인 친족 20% 이상 출자
+# 계열회사(A)ㆍ그 50% 초과 자회사(B)" 실제 목록. 자금ㆍ유가증권ㆍ자산 거래는
+# 특수관계인이면 바로 대상이지만, 상품ㆍ용역거래는 이 좁은 범위의 회사만
+# 대상이라 "어디가 여기 해당하는지" 사용자가 판단하기 어렵다는 게 계속
+# 지적된 문제였다. 그룹 대표회사(유진기업㈜)가 매년 내는 "기업집단현황공시
+# (연1회-대표회사)"의 "(16) 특수관계인 지분율이 높은 계열회사의 내부거래
+# 현황"에 이 정의 그대로("동일인이 단독 또는 친족과 합하여 20% 이상 소유한
+# 회사 또는 그 회사의 50% 초과 자회사") 해당하는 회사만 모아 국내계열사매출
+# 표로 신고하므로, 이 표의 회사명 목록이 바로 실제 대상 목록이다.
+# ─────────────────────────────────────────────────────────────
+FTC_GROUP_REP_CORP_CODE = "00184667"  # 유진기업(주) — 유진 기업집단 대표회사
+GOODS_SERVICES_TARGETS_CACHE_TTL = 24 * 3600
+
+def _group_status_parse_goods_services_targets(html_text: str) -> list:
+    """"기업집단현황공시(연1회-대표회사)"의 "(16) 특수관계인 지분율이 높은
+    계열회사의 내부거래 현황" 표에서 회사명만 뽑는다(소계ㆍ합계 행 제외)."""
+    soup = BeautifulSoup(html_text, 'html.parser')
+    marker = soup.find(string=lambda s: s and '특수관계인 지분율이 높은 계열회사의 내부거래 현황' in s)
+    if not marker:
+        return []
+    for table in marker.find_all_next('table')[:5]:
+        rows = table.find_all('tr')
+        if len(rows) < 3:
+            continue
+        header = [c.get_text(strip=True) for c in rows[0].find_all(['td', 'th'])]
+        if not any('매출회사' in h for h in header):
+            continue
+        names = []
+        for row in rows[2:]:
+            cells = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
+            if len(cells) < 2:
+                continue
+            # 분류(비금융회사/금융회사) 첫 행만 라벨이 붙고, 그 다음 행부터는
+            # 회사명이 바로 첫 칸에 온다 — 소계/합계 행은 이름 위치에 그 글자만 있음.
+            name = cells[1] if cells[0] in ('비금융회사', '금융회사') else cells[0]
+            if name in ('소계', '합계') or not name:
+                continue
+            names.append(name)
+        return names
+    return []
+
+_goods_services_targets_cache = {'ts': 0.0, 'data': None}
+
+def fetch_goods_services_target_companies(force: bool = False) -> dict:
+    """유진 기업집단 대표회사(유진기업㈜)의 최신 "기업집단현황공시(연1회-대표
+    회사)"에서 상품ㆍ용역거래 특례 대상 회사 목록을 뽑는다. 매년 갱신되는
+    자료라 24시간 캐시."""
+    now = datetime.now().timestamp()
+    if not force and _goods_services_targets_cache['data'] is not None and now - _goods_services_targets_cache['ts'] < GOODS_SERVICES_TARGETS_CACHE_TTL:
+        return _goods_services_targets_cache['data']
+
+    result = {"companies": [], "rcept_no": None, "dart_url": None, "disclosure_date": None}
+    if not DART_API_KEY:
+        return result
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=400)).strftime('%Y%m%d')
+    items = [
+        d for d in fetch_dart_disclosures(FTC_GROUP_REP_CORP_CODE, bgn_de, end_de)
+        if '연1회' in d.get('report_nm', '') and '대표회사' in d.get('report_nm', '')
+    ]
+    if items:
+        latest = max(items, key=lambda d: d['rcept_dt'])
+        text = fetch_dart_document_text(latest['rcept_no'])
+        if text:
+            companies = _group_status_parse_goods_services_targets(text)
+            rcept_dt = latest['rcept_dt']
+            result = {
+                "companies": companies,
+                "rcept_no": latest['rcept_no'],
+                "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest['rcept_no']}",
+                "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
+            }
+
+    _goods_services_targets_cache.update(ts=now, data=result)
+    return result
+
 def check_ftc_disclosure(transaction_type: str, amount: int, capital_base: int, is_goods_services_target: bool = True):
     """대규모내부거래 이사회 의결ㆍ공시 대상 여부를 판단한다(공정거래법 제26조,
     시행령 제33조, 공정위 고시 기준).
@@ -2833,6 +2911,10 @@ def data_endpoint():
         force = request.args.get('refresh') == '1'
         records = fetch_subsidiary_capital_info(force=force)
         return jsonify({"records": records})
+
+    if section == 'goods_services_targets':
+        force = request.args.get('refresh') == '1'
+        return jsonify(fetch_goods_services_target_companies(force=force))
 
     if section == 'danpan_check':
         contract_date = request.args.get('contract_date', '')
