@@ -321,15 +321,17 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   border-radius: var(--radius);
   padding: 24px;
   width: 680px; max-width: 95%;
+  max-height: 85vh;
+  overflow-y: auto;
   position: relative;
 }
 #investorModalTable { table-layout: fixed; font-size: 12px; }
 #investorModalTable th, #investorModalTable td { padding: 7px 5px; }
 .modal-header {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
+  margin: -24px -24px 16px; padding: 24px 24px 8px;
   border-bottom: 1px solid var(--border);
+  position: sticky; top: -24px; background: var(--surface); z-index: 1;
 }
 .modal-title { font-size: 16px; font-weight: 700; color: var(--title); }
 .modal-close {
@@ -422,15 +424,21 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   white-space: pre-line; border-top: 1px solid var(--border); padding-top: 8px;
 }
 
-/* ── 포털형 공시현황 요약(계열사 선택 + 공시현황) ──────────────── */
-.portal-affiliate-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-.affiliate-pill {
-  padding: 7px 16px; font-size: 13px; font-weight: 600;
-  color: var(--text); background: var(--card); border: 1px solid var(--border);
-  border-radius: 999px; cursor: pointer; transition: background .15s, border-color .15s;
+/* ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ─────────── */
+.portal-summary-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 16px;
 }
-.affiliate-pill:hover { border-color: var(--accent); }
-.affiliate-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.portal-summary-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; text-align: left; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.portal-summary-card:hover { border-color: var(--accent); }
+.portal-summary-card.active { border-color: var(--accent); background: rgba(91, 106, 240, 0.14); }
+.portal-summary-card-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.portal-summary-card-count { font-size: 22px; font-weight: 700; color: var(--text); }
+.portal-summary-card-unit { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 3px; }
 .disclosure-type-badge {
   display: inline-block; padding: 2px 9px; font-size: 11px; font-weight: 700;
   border-radius: 999px; white-space: nowrap;
@@ -439,6 +447,16 @@ tr:hover td { background: rgba(255,255,255,0.025); }
 .disclosure-type-badge.type-ftc      { background: rgba(251, 146, 60, 0.18); color: #fdba74; }
 .disclosure-type-badge.type-equity   { background: rgba(52, 211, 153, 0.18); color: #6ee7b7; }
 .disclosure-type-badge.type-large_holding { background: rgba(244, 114, 182, 0.18); color: #f9a8d4; }
+
+/* ── 작성 가이드 모달 내부 서브탭(공정위공시 3유형 등) ──────────── */
+.guide-subtabs { display: flex; gap: 6px; margin: 4px 0 16px; flex-wrap: wrap; }
+.guide-subtab-btn {
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  color: var(--muted); background: var(--card); border: 1px solid var(--border);
+  border-radius: 999px; cursor: pointer;
+}
+.guide-subtab-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.guide-subtab-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
 
 /* ── 요청서류 체크리스트 ────────────────────────────────────────── */
 .doc-request-btn {

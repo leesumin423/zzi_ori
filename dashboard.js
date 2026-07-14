@@ -13,11 +13,9 @@ let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
 let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null };
 
-// 포털형 공시현황 요약 — 지금은 동양(주)만 공시 데이터가 실제로 연동돼 있다.
-// 다른 계열사 pill은 눌러볼 수 있게 남겨두되, 아직 데이터가 없다는 걸 명시한다.
-const PORTAL_DATA_AVAILABLE_CODE = '001520';
-let selectedAffiliateCode = PORTAL_DATA_AVAILABLE_CODE;
-let selectedAffiliateName = '동양';
+// 포털형 공시현황 요약 — 지금은 동양(주) 하나만 실제로 연동돼 있어 계열사
+// 선택 없이 바로 보여준다. 카드를 눌러 유형별로 필터링하는 상태만 관리한다.
+let portalFilterType = null; // null이면 전체
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
@@ -54,14 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeDisclosure === 'equity') loadActiveEquitySub();
         loadPortalOverview();
       }
-    });
-  });
-  document.querySelectorAll('#portalAffiliatePills .affiliate-pill').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#portalAffiliatePills .affiliate-pill').forEach(b => b.classList.toggle('active', b === btn));
-      selectedAffiliateCode = btn.dataset.affiliateCode;
-      selectedAffiliateName = btn.dataset.affiliateName;
-      renderPortalOverview();
     });
   });
   document.querySelectorAll('#disclosureTabs .tab-btn').forEach(btn => {
@@ -201,15 +191,18 @@ async function loadCommentary() {
   }
 }
 
-// ── 포털형 공시현황 요약(계열사 선택 + 현재 공시현황만) ───────────
+// ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ────────────
 // 뉴스ㆍ재무 카드는 빼고, 이미 서버가 갖고 있는 단판ㆍ공정위ㆍ지분(임원/대량보유)
-// 공시 데이터를 한 표로 합쳐서 최신순으로 보여준다 — 계열사 pill은 동양(주)
-// 외에는 아직 공시 데이터가 연동돼 있지 않아 안내 문구만 표시한다.
+// 공시 데이터를 유형별 건수 카드로 요약해서 보여준다. 카드를 누르면 그
+// 유형의 내역만 아래 표에 필터링돼서 나온다("전체" 카드를 누르면 모두 표시).
+const PORTAL_CATEGORIES = [
+  { key: 'danpan', label: '단판공시', typeClass: 'type-danpan' },
+  { key: 'ftc', label: '공정위공시', typeClass: 'type-ftc' },
+  { key: 'equity', label: '지분공시(임원)', typeClass: 'type-equity' },
+  { key: 'large_holding', label: '지분공시(대량보유)', typeClass: 'type-large_holding' },
+];
+
 async function loadPortalOverview() {
-  if (selectedAffiliateCode !== PORTAL_DATA_AVAILABLE_CODE) {
-    renderPortalOverview();
-    return;
-  }
   const note = document.getElementById('portalOverviewNote');
   if (note) note.textContent = '공시현황을 불러오는 중…';
   try {
@@ -224,51 +217,77 @@ async function loadPortalOverview() {
   }
 }
 
+function buildPortalOverviewRows() {
+  const rows = [];
+  (lastData.danpan?.sites ?? []).forEach(s => rows.push({
+    category: 'danpan', date: s.latest_disclosure_date,
+    title: s.site_name ?? '', sub: s.counterparty ?? '', url: s.dart_url,
+  }));
+  (lastData.ftc?.records ?? []).forEach(r => rows.push({
+    category: 'ftc', date: r.disclosure_date,
+    title: r.type_label ?? '', sub: r.counterparty ?? '', url: r.dart_url,
+  }));
+  (lastData.equity?.records ?? []).forEach(r => rows.push({
+    category: 'equity', date: r.latest_buy_date,
+    title: `${r.holder_name ?? ''} 소유상황보고`, sub: r.role_label ?? '', url: r.dart_url,
+  }));
+  (lastData.large_holding?.records ?? []).forEach(r => rows.push({
+    category: 'large_holding', date: r.latest_disclosure_date,
+    title: `${r.reporter_name ?? r.holder_name ?? ''} 대량보유상황보고`, sub: r.holder_name ?? '', url: r.dart_url,
+  }));
+  rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  return rows;
+}
+
+function renderPortalSummaryCards(rows) {
+  const container = document.getElementById('portalSummaryCards');
+  if (!container) return;
+
+  const countsByCategory = {};
+  PORTAL_CATEGORIES.forEach(c => { countsByCategory[c.key] = 0; });
+  rows.forEach(r => { countsByCategory[r.category] = (countsByCategory[r.category] ?? 0) + 1; });
+
+  const cards = [
+    { key: null, label: '전체', count: rows.length },
+    ...PORTAL_CATEGORIES.map(c => ({ key: c.key, label: c.label, count: countsByCategory[c.key] ?? 0 })),
+  ];
+
+  container.innerHTML = cards.map(c => `
+    <button type="button" class="portal-summary-card ${portalFilterType === c.key ? 'active' : ''}" data-filter-key="${c.key ?? ''}">
+      <div class="portal-summary-card-label">${c.label}</div>
+      <div class="portal-summary-card-count">${c.count}<span class="portal-summary-card-unit">건</span></div>
+    </button>`).join('');
+
+  container.querySelectorAll('.portal-summary-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      portalFilterType = btn.dataset.filterKey || null;
+      renderPortalOverview();
+    });
+  });
+}
+
 function renderPortalOverview() {
-  const titleEl = document.getElementById('portalOverviewTitle');
   const note = document.getElementById('portalOverviewNote');
   const tbody = document.querySelector('#portal-overview-table tbody');
   if (!tbody) return;
 
-  if (titleEl) titleEl.textContent = `공시현황 — ${selectedAffiliateName}${selectedAffiliateCode === PORTAL_DATA_AVAILABLE_CODE ? '(주)' : ''}`;
+  const rows = buildPortalOverviewRows();
+  renderPortalSummaryCards(rows);
 
-  if (selectedAffiliateCode !== PORTAL_DATA_AVAILABLE_CODE) {
-    if (note) note.textContent = '';
-    tbody.innerHTML = `<tr><td colspan="5">${selectedAffiliateName}의 공시현황은 아직 이 포털에 연동되지 않았습니다 (현재는 동양(주)만 지원).</td></tr>`;
-    return;
-  }
-
-  const rows = [];
-  (lastData.danpan?.sites ?? []).forEach(s => rows.push({
-    type: '단판공시', typeClass: 'type-danpan', date: s.latest_disclosure_date,
-    title: s.site_name ?? '', sub: s.counterparty ?? '', url: s.dart_url,
-  }));
-  (lastData.ftc?.records ?? []).forEach(r => rows.push({
-    type: r.type_label ?? '공정위공시', typeClass: 'type-ftc', date: r.disclosure_date,
-    title: r.type_label ?? '', sub: r.counterparty ?? '', url: r.dart_url,
-  }));
-  (lastData.equity?.records ?? []).forEach(r => rows.push({
-    type: '지분공시(임원)', typeClass: 'type-equity', date: r.latest_buy_date,
-    title: `${r.holder_name ?? ''} 소유상황보고`, sub: r.role_label ?? '', url: r.dart_url,
-  }));
-  (lastData.large_holding?.records ?? []).forEach(r => rows.push({
-    type: '지분공시(대량보유)', typeClass: 'type-large_holding', date: r.latest_disclosure_date,
-    title: `${r.reporter_name ?? r.holder_name ?? ''} 대량보유상황보고`, sub: r.holder_name ?? '', url: r.dart_url,
-  }));
-
-  rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-  const shown = rows.slice(0, 20);
+  const filtered = portalFilterType ? rows.filter(r => r.category === portalFilterType) : rows;
+  const activeLabel = portalFilterType ? (PORTAL_CATEGORIES.find(c => c.key === portalFilterType)?.label ?? '') : '전체';
 
   if (note) {
-    note.textContent = `최근 공시일 기준 상위 ${shown.length}건(전체 ${rows.length}건 중). 단판ㆍ공정위ㆍ지분공시를 한 표로 모았습니다 — `
-      + '각 유형의 전체 이력ㆍ상세 조건은 아래 탭에서 확인하세요.';
+    note.textContent = `${activeLabel} — ${filtered.length}건. 단판ㆍ공정위ㆍ지분공시를 유형별로 모았습니다 — `
+      + '카드를 눌러 유형을 바꿀 수 있고, 각 유형의 세부 조건은 아래 탭에서 확인하세요.';
   }
 
-  tbody.innerHTML = shown.length === 0 ? '<tr><td colspan="5">데이터 없음</td></tr>' : '';
-  shown.forEach(r => {
+  tbody.innerHTML = filtered.length === 0 ? '<tr><td colspan="5">데이터 없음</td></tr>' : '';
+  filtered.forEach(r => {
+    const category = PORTAL_CATEGORIES.find(c => c.key === r.category);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="disclosure-type-badge ${r.typeClass}">${r.type}</span></td>
+      <td><span class="disclosure-type-badge ${category?.typeClass ?? ''}">${category?.label ?? ''}</span></td>
       <td title="${escapeAttr(r.title)}">${r.title}</td>
       <td>${r.sub}</td>
       <td class="num">${r.date ?? ''}</td>
@@ -615,7 +634,17 @@ function renderEquityAccuracy(payload) {
   if (officerBox) {
     officerBox.innerHTML = officerIssues.length === 0
       ? '<p class="info">임원 선임일이 보고서마다 다르게 기재된 사례는 없습니다.</p>'
-      : `<ul class="guide-notes">${officerIssues.map((it, i) => `<li data-n="${i + 1}"><b>${escapeAttr(it.holder_name)}</b> — ${escapeAttr(it.detail)}</li>`).join('')}</ul>`;
+      : `<ul class="guide-notes">${officerIssues.map((it, i) => `
+          <li data-n="${i + 1}">
+            <b>${escapeAttr(it.holder_name)}</b> — 보고서마다 선임일이 다르게 기재됨
+            <ul class="doc-request-list" style="margin-top:6px;">
+              ${(it.variants ?? []).map(v => `
+                <li>
+                  선임일 <b>${escapeAttr(v.value)}</b>:
+                  ${(v.rcept_nos ?? []).map(no => `<a href="https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${no}" target="_blank" class="clickable-name">보기</a>`).join(' ')}
+                </li>`).join('')}
+            </ul>
+          </li>`).join('')}</ul>`;
   }
 
   if (shareCountBox) {
@@ -748,6 +777,20 @@ function showGuideModal(kind) {
   if (!guide) return;
   title.textContent = guide.label;
   body.innerHTML = guide.html();
+  body.scrollTop = 0;
+
+  // 모달 안에 유형별 서브탭이 있는 경우(예: 공정위공시 — 출자/채권매도/상품용역거래)
+  // 탭 버튼을 누르면 그 유형의 패널만 보이도록 전환한다.
+  body.querySelectorAll('.guide-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.ftcSubtab;
+      body.querySelectorAll('.guide-subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      body.querySelectorAll('.guide-subtab-panel').forEach(panel => {
+        panel.style.display = panel.dataset.ftcPanel === key ? '' : 'none';
+      });
+    });
+  });
+
   overlay.classList.add('show');
 }
 
@@ -955,80 +998,92 @@ function guideLargeHoldingHtml() {
 function guideFtcHtml() {
   return `
     <p class="info">공정거래위원회가 배포한 공식 매뉴얼 "대규모내부거래 등에 대한 이사회 의결 및 공시 업무 매뉴얼"
-    (2025. 4. 21.)의 서식 항목ㆍ기재상 유의사항ㆍ법규 원문을 그대로 옮겼습니다. 이 가이드가 다루는 3개 유형은
-    <b>특수관계인에대한출자</b>, <b>특수관계인에대한채권매도</b>, <b>동일인등출자계열회사와의상품ㆍ용역거래</b>
-    (최초/일괄/변경)입니다.</p>
+    (2025. 4. 21.)의 서식 항목ㆍ법규 원문을 그대로 옮겼습니다. 아래 탭에서 유형을 골라 서식을 확인하세요 —
+    <b>특수관계인에대한출자</b>ㆍ<b>특수관계인에대한채권매도</b>ㆍ<b>동일인등출자계열회사와의상품ㆍ용역거래</b>는
+    서식 항목이 서로 다릅니다.</p>
 
-    <h4>1. [특수관계인에대한출자] 서식 항목</h4>
-    <p class="info">작성대상: 특수관계인을 상대방으로 하거나 특수관계인을 위하여 자본총계 또는 자본금 중 큰 금액의
-    5% 이상(그 금액이 5억원 미만인 경우 5억원) 이거나 100억원 이상을 <b>출자</b>하는 회사</p>
-    ${guideFieldsHtml([
-      { label: '1. 거래상대방 / 회사와의 관계', note: '계열회사ㆍ동일인 등(동일인ㆍ배우자ㆍ혈족1촌)ㆍ동일인의 친족ㆍ기타친족ㆍ임원ㆍ비영리법인 등으로 구분 기재' },
-      { label: '2. 출자내역 — 가. 출자일자 / 나. 출자목적물', note: '' },
-      { label: '2. 출자내역 — 다. 출자금액 / 라. 출자상대방 총출자액', note: '"출자상대방 총출자액"은 이번 출자금액을 포함한 누계 총출자금액' },
-      { label: '3. 출자목적', note: '' },
-      { label: '4. 이사회 의결일 — 사외이사 참석여부 / 감사(감사위원) 참석여부', note: '' },
-      { label: '5. 기타 / ※ 관련공시일', note: '변경ㆍ정정공시인 경우 관련공시일에 최초 공시 연월일 기재' },
-    ])}
-
-    <h4>2. [특수관계인에대한채권매도] 서식 항목</h4>
-    <p class="info">작성대상: 특수관계인을 상대방으로 하거나 특수관계인을 위하여 위 금액기준 이상의 <b>채권을 매도</b>하는
-    회사 (채권매도의 직접 거래상대방 또는 발행자가 특수관계인인 경우)</p>
-    ${guideFieldsHtml([
-      { label: '1. 매도상대방 / 회사와의 관계', note: '' },
-      { label: '2. 매도일자 / 3. 거래금액', note: '' },
-      { label: '4. 거래상대방 잔액', note: '발행자를 기준으로 기재' },
-      { label: '5. 유통수익율(%)', note: '' },
-      { label: '6. 채권내역 — 가. 발행자/회사와의 관계 / 나. 종류', note: '종류에는 일반회사채ㆍ전환사채ㆍ신주인수권부사채ㆍ교환사채 등 구체적 명칭' },
-      { label: '6. 채권내역 — 다. 권면금액(원)ㆍ자본금 대비(%) / 라. 표면이율(%) / 마. 발행일 / 바. 만기일', note: '' },
-      { label: '7. 거래목적', note: '' },
-      { label: '8. 이사회 의결일 — 사외이사 참석여부 / 감사(감사위원) 참석여부', note: '' },
-      { label: '9. 기타 / ※ 관련공시일', note: '' },
-    ])}
-
-    <h4>3. [동일인등출자계열회사와의상품ㆍ용역거래] 서식 항목 — 【분기공시】</h4>
-    <p class="info">작성대상: 동일인 등 출자 계열회사와 분기에 이루어질 상품ㆍ용역거래금액의 합계액(매출액+매입액)이
-    자본총계 또는 자본금 중 큰 금액의 5% 이상(최소 5억원)이거나 100억원 이상인 경우</p>
-    ${guideFieldsHtml([
-      { label: '1. 당해회사의 직전사업연도매출액(A)', note: '' },
-      { label: '2. 거래기간 / 3. 이사회 의결일 — 사외이사ㆍ감사(감사위원) 참석여부', note: '거래기간에는 사업연도와 해당 분기를 기재' },
-      { label: '4. 거래상대방(동일인 등 출자계열회사) — 매출액(B) / 매입액(C) / 합계액(D=B+C) / 매출액대비(D/A,%)', note: '' },
-      { label: '5. 상품ㆍ용역 거래내역 — 계약명, 거래대상, 거래조건, 거래목적, 거래금액(매출/매입), 계약체결방식', note: '계약 건별로 기재. 거래조건에는 대금지급조건 등' },
-      { label: '6. 계약체결방식 유형별 일괄공시', note: '계약내용이 미확정이라 건별 공시가 어려운 경우, 경쟁입찰/제한경쟁입찰/지명경쟁입찰/수의계약 유형별로 매출ㆍ매입 주요거래대상ㆍ거래금액을 일괄 기재' },
-      { label: '7. 기타', note: '분기 전 예측하지 못해 미의결ㆍ미공시했다가 분기 중 대상이 된 경우, 그 구체적 사유 기재' },
-    ])}
-
-    <h4>4. [동일인등출자계열회사와의상품ㆍ용역거래(변경)] 서식 항목</h4>
-    <p class="info">작성대상: 기공시한 상품ㆍ용역거래의 거래금액이 <b>최초 대비 20% 이상 증가ㆍ감소</b>하는 등 주요내용을
-    변경하는 경우 (일괄공시로 공시했던 경우에는 기공시 거래금액보다 20% 이상 증가ㆍ감소한 분기의 변경내역 기재)</p>
-    ${guideFieldsHtml([
-      { label: '1~6. (분기공시 서식과 동일)', note: '직전사업연도매출액ㆍ거래기간ㆍ이사회 의결일ㆍ거래상대방별 매출액ㆍ매입액ㆍ합계액ㆍ매출액대비ㆍ상품용역거래내역ㆍ계약체결방식 일괄공시' },
-      { label: '7. 관련공시일', note: '변경내역과 관련하여 최초 공시한 연월일' },
-      { label: '8. 기타', note: '주요 변동내용 등' },
-    ])}
-
-    <h4>5. "동일인 등 출자 계열회사(20% 계열사)" 판단기준 — 매뉴얼 원문</h4>
-    <p class="info">상품ㆍ용역거래만 이 요건이 별도로 붙습니다. 자금ㆍ유가증권ㆍ자산 거래는 특수관계인이면 바로
-    대상이지만, 상품ㆍ용역거래는 거래상대방이 아래 A 또는 B에 해당해야만 대상입니다.</p>
-    <ul>
-      <li><b>A</b> = 자연인인 동일인이 단독으로 또는 동일인의 친족과 합하여 <b>발행주식총수의 20% 이상</b>을
-        소유하고 있는 계열회사 (동일인이 자연인이 아닌 기업집단 소속 회사 — 포스코ㆍ케이티ㆍ케이티엔지 등 — 는 제외)</li>
-      <li><b>B</b> = A의 「상법」 제342조의2에 따른 <b>50% 초과 자회사</b>인 계열회사</li>
-      <li>동일인 및 동일인 친족이 B의 발행주식을 20% 미만 소유한 경우, A와 B 간의 상품ㆍ용역거래 시 <b>A는 이사회
-        의결 및 공시의무가 없음</b>(다만 B는 이사회 의결 및 공시 필요) — 방향성이 대칭이 아님에 유의</li>
-    </ul>
-
-    <h4>6. 관련법규 (클릭하면 조문이 펼쳐집니다)</h4>
+    <h4>공통 판단기준 — 100억원 또는 자본총계ㆍ자본금 5% 이상 (3개 유형 공통)</h4>
     ${lawArticle('독점규제 및 공정거래에 관한 법률 제26조(대규모내부거래의 이사회 의결 및 공시) 제1항',
       '다음 각 호의 어느 하나에 해당하는 거래행위(이하 "대규모내부거래"라 한다)를 하려는 공시대상기업집단에 속하는 국내 회사는 특수관계인(국외 계열회사는 제외한다)을 상대방으로 하거나 특수관계인을 위하여 미리 이사회의 의결을 거친 후 이를 공시하여야 한다.\n1. 가지급금 또는 대여금 등의 자금을 제공 또는 거래하는 행위\n2. 주식 또는 회사채 등의 유가증권을 제공 또는 거래하는 행위\n3. 부동산 또는 무체재산권 등의 자산을 제공 또는 거래하는 행위\n4. 주주의 구성 등을 고려하여 대통령령으로 정하는 계열회사를 상대방으로 하거나 그 계열회사를 위하여 상품 또는 용역을 제공 또는 거래하는 행위')}
-    ${lawArticle('같은 법 시행령 제33조(대규모내부거래의 이사회 의결 및 공시) 제1항ㆍ제2항',
-      '① 법 제26조제1항 각 호에 따른 거래행위의 규모는 그 거래금액(같은 항 제4호의 경우에는 분기에 이루어질 거래금액의 합계액을 말한다)이 100억원 이상이거나 그 회사의 자본총계 또는 자본금 중 큰 금액의 100분의 5 이상인 것으로 한다.\n\n② 법 제26조제1항제4호에서 "대통령령으로 정하는 계열회사"란 자연인인 동일인이 단독으로 또는 동일인의 친족(제6조제1항에 따라 동일인관련자로부터 제외된 자는 제외한다)과 합하여 발행주식 총수의 100분의 20 이상을 소유하고 있는 계열회사 또는 그 계열회사의 「상법」 제342조의2에 따른 자회사인 계열회사를 말한다.')}
-    ${lawArticle('공정위 고시 "대규모내부거래 등에 대한 이사회 의결 및 공시에 관한 규정" 제2조(용어의 정의) 제4호',
-      '"동일인 및 동일인 친족 출자 계열회사"란 자연인인 동일인이 단독으로 또는 동일인의 친족(시행령 제6조제1항에 따라 동일인관련자로부터 제외된 자는 제외한다)과 합하여 발행주식총수의 100분의 20 이상을 소유하고 있는 계열회사 또는 그 계열회사의 「상법」 제342조의2에 따른 자회사인 계열회사를 말한다.')}
-    ${lawArticle('같은 고시 제9조의2(상품 또는 용역의 대규모 내부거래행위등에 대한 특례)',
-      '① 내부거래공시대상회사등이 상품 또는 용역의 대규모내부거래등을 하고자 하는 경우에는 거래금액에 대하여 이사회 의결을 1년 이내의 거래기간을 정하여 일괄하여 할 수 있다.\n② 상품 또는 용역의 실제 거래금액이 이사회에서 의결한 거래금액의 20% 이상 감소된 경우에는 이사회 의결을 거치지 아니하고 분기종료 후 45일 이내에 실제 거래금액을 공시해야 한다.\n③ 분기 전에 예측하지 못한 사유로 인해 이사회의 의결 및 공시를 하지 아니한 상품 또는 용역의 거래가 분기 중에 대규모내부거래등에 해당될 것이 예상되는 경우에는 미리 이사회의 의결을 거쳐 이를 공시해야 한다.\n④ 내부거래공시대상회사등은 계약 건별로 계약체결방식에 대하여 이사회 의결 및 공시를 하여야 한다. 다만, 이사회 의결 시점에 계약내용이 확정되지 않아 계약 건별로 이사회 의결 및 공시를 하기 어려운 경우에는 거래의 대상ㆍ금액 등 주요내용에 대하여 계약체결방식 유형별로 일괄하여 이사회 의결 및 공시를 할 수 있다.')}
+    ${lawArticle('같은 법 시행령 제33조(대규모내부거래의 이사회 의결 및 공시) 제1항',
+      '법 제26조제1항 각 호에 따른 거래행위의 규모는 그 거래금액(같은 항 제4호의 경우에는 분기에 이루어질 거래금액의 합계액을 말한다)이 100억원 이상이거나 그 회사의 자본총계 또는 자본금 중 큰 금액의 100분의 5 이상인 것으로 한다.')}
 
-    <h4>7. 공시시기 및 위반 시 제재</h4>
+    <div class="guide-subtabs" id="ftcGuideSubtabs">
+      <button type="button" class="guide-subtab-btn active" data-ftc-subtab="invest">특수관계인 출자</button>
+      <button type="button" class="guide-subtab-btn" data-ftc-subtab="bond">특수관계인 채권매도</button>
+      <button type="button" class="guide-subtab-btn" data-ftc-subtab="goods">상품ㆍ용역거래</button>
+    </div>
+
+    <div class="guide-subtab-panel" data-ftc-panel="invest">
+      <h4>서식 항목 — 특수관계인에대한출자</h4>
+      <p class="info">작성대상: 특수관계인을 상대방으로 하거나 특수관계인을 위하여 자본총계 또는 자본금 중 큰
+      금액의 5% 이상(그 금액이 5억원 미만인 경우 5억원) 이거나 100억원 이상을 <b>출자</b>하는 회사</p>
+      ${guideFieldsHtml([
+        { label: '1. 거래상대방 / 회사와의 관계', note: '계열회사ㆍ동일인 등(동일인ㆍ배우자ㆍ혈족1촌)ㆍ동일인의 친족ㆍ기타친족ㆍ임원ㆍ비영리법인 등으로 구분 기재' },
+        { label: '2. 출자내역 — 가. 출자일자 / 나. 출자목적물', note: '' },
+        { label: '2. 출자내역 — 다. 출자금액 / 라. 출자상대방 총출자액', note: '"출자상대방 총출자액"은 이번 출자금액을 포함한 누계 총출자금액' },
+        { label: '3. 출자목적', note: '' },
+        { label: '4. 이사회 의결일 — 사외이사 참석여부 / 감사(감사위원) 참석여부', note: '' },
+        { label: '5. 기타 / ※ 관련공시일', note: '변경ㆍ정정공시인 경우 관련공시일에 최초 공시 연월일 기재' },
+      ])}
+    </div>
+
+    <div class="guide-subtab-panel" data-ftc-panel="bond" style="display:none">
+      <h4>서식 항목 — 특수관계인에대한채권매도</h4>
+      <p class="info">작성대상: 특수관계인을 상대방으로 하거나 특수관계인을 위하여 위 금액기준 이상의 <b>채권을
+      매도</b>하는 회사 (채권매도의 직접 거래상대방 또는 발행자가 특수관계인인 경우)</p>
+      ${guideFieldsHtml([
+        { label: '1. 매도상대방 / 회사와의 관계', note: '' },
+        { label: '2. 매도일자 / 3. 거래금액', note: '' },
+        { label: '4. 거래상대방 잔액', note: '발행자를 기준으로 기재' },
+        { label: '5. 유통수익율(%)', note: '' },
+        { label: '6. 채권내역 — 가. 발행자/회사와의 관계 / 나. 종류', note: '종류에는 일반회사채ㆍ전환사채ㆍ신주인수권부사채ㆍ교환사채 등 구체적 명칭' },
+        { label: '6. 채권내역 — 다. 권면금액(원)ㆍ자본금 대비(%) / 라. 표면이율(%) / 마. 발행일 / 바. 만기일', note: '' },
+        { label: '7. 거래목적', note: '' },
+        { label: '8. 이사회 의결일 — 사외이사 참석여부 / 감사(감사위원) 참석여부', note: '' },
+        { label: '9. 기타 / ※ 관련공시일', note: '' },
+      ])}
+    </div>
+
+    <div class="guide-subtab-panel" data-ftc-panel="goods" style="display:none">
+      <h4>서식 항목 — 동일인등출자계열회사와의상품ㆍ용역거래 【분기공시】</h4>
+      <p class="info">작성대상: 동일인 등 출자 계열회사와 분기에 이루어질 상품ㆍ용역거래금액의 합계액(매출액+매입액)이
+      자본총계 또는 자본금 중 큰 금액의 5% 이상(최소 5억원)이거나 100억원 이상인 경우</p>
+      ${guideFieldsHtml([
+        { label: '1. 당해회사의 직전사업연도매출액(A)', note: '' },
+        { label: '2. 거래기간 / 3. 이사회 의결일 — 사외이사ㆍ감사(감사위원) 참석여부', note: '거래기간에는 사업연도와 해당 분기를 기재' },
+        { label: '4. 거래상대방(동일인 등 출자계열회사) — 매출액(B) / 매입액(C) / 합계액(D=B+C) / 매출액대비(D/A,%)', note: '' },
+        { label: '5. 상품ㆍ용역 거래내역 — 계약명, 거래대상, 거래조건, 거래목적, 거래금액(매출/매입), 계약체결방식', note: '계약 건별로 기재. 거래조건에는 대금지급조건 등' },
+        { label: '6. 계약체결방식 유형별 일괄공시', note: '계약내용이 미확정이라 건별 공시가 어려운 경우, 경쟁입찰/제한경쟁입찰/지명경쟁입찰/수의계약 유형별로 매출ㆍ매입 주요거래대상ㆍ거래금액을 일괄 기재' },
+        { label: '7. 기타', note: '분기 전 예측하지 못해 미의결ㆍ미공시했다가 분기 중 대상이 된 경우, 그 구체적 사유 기재' },
+      ])}
+
+      <h4>서식 항목 — 동일인등출자계열회사와의상품ㆍ용역거래(변경)</h4>
+      <p class="info">작성대상: 기공시한 상품ㆍ용역거래의 거래금액이 <b>최초 대비 20% 이상 증가ㆍ감소</b>하는 등
+      주요내용을 변경하는 경우 (일괄공시로 공시했던 경우에는 기공시 거래금액보다 20% 이상 증가ㆍ감소한 분기의
+      변경내역 기재)</p>
+      ${guideFieldsHtml([
+        { label: '1~6. (분기공시 서식과 동일)', note: '직전사업연도매출액ㆍ거래기간ㆍ이사회 의결일ㆍ거래상대방별 매출액ㆍ매입액ㆍ합계액ㆍ매출액대비ㆍ상품용역거래내역ㆍ계약체결방식 일괄공시' },
+        { label: '7. 관련공시일', note: '변경내역과 관련하여 최초 공시한 연월일' },
+        { label: '8. 기타', note: '주요 변동내용 등' },
+      ])}
+
+      <h4>"동일인 등 출자 계열회사(20% 계열사)" 판단기준 — 매뉴얼 원문</h4>
+      <p class="info">상품ㆍ용역거래만 이 요건이 별도로 붙습니다. 거래상대방이 아래 A 또는 B에 해당해야만 대상입니다.</p>
+      <ul>
+        <li><b>A</b> = 자연인인 동일인이 단독으로 또는 동일인의 친족과 합하여 <b>발행주식총수의 20% 이상</b>을
+          소유하고 있는 계열회사 (동일인이 자연인이 아닌 기업집단 소속 회사 — 포스코ㆍ케이티ㆍ케이티엔지 등 — 는 제외)</li>
+        <li><b>B</b> = A의 「상법」 제342조의2에 따른 <b>50% 초과 자회사</b>인 계열회사</li>
+        <li>동일인 및 동일인 친족이 B의 발행주식을 20% 미만 소유한 경우, A와 B 간의 상품ㆍ용역거래 시 <b>A는 이사회
+          의결 및 공시의무가 없음</b>(다만 B는 이사회 의결 및 공시 필요) — 방향성이 대칭이 아님에 유의</li>
+      </ul>
+      ${lawArticle('공정위 고시 "대규모내부거래 등에 대한 이사회 의결 및 공시에 관한 규정" 제2조(용어의 정의) 제4호',
+        '"동일인 및 동일인 친족 출자 계열회사"란 자연인인 동일인이 단독으로 또는 동일인의 친족(시행령 제6조제1항에 따라 동일인관련자로부터 제외된 자는 제외한다)과 합하여 발행주식총수의 100분의 20 이상을 소유하고 있는 계열회사 또는 그 계열회사의 「상법」 제342조의2에 따른 자회사인 계열회사를 말한다.')}
+      ${lawArticle('같은 고시 제9조의2(상품 또는 용역의 대규모 내부거래행위등에 대한 특례)',
+        '① 내부거래공시대상회사등이 상품 또는 용역의 대규모내부거래등을 하고자 하는 경우에는 거래금액에 대하여 이사회 의결을 1년 이내의 거래기간을 정하여 일괄하여 할 수 있다.\n② 상품 또는 용역의 실제 거래금액이 이사회에서 의결한 거래금액의 20% 이상 감소된 경우에는 이사회 의결을 거치지 아니하고 분기종료 후 45일 이내에 실제 거래금액을 공시해야 한다.\n③ 분기 전에 예측하지 못한 사유로 인해 이사회의 의결 및 공시를 하지 아니한 상품 또는 용역의 거래가 분기 중에 대규모내부거래등에 해당될 것이 예상되는 경우에는 미리 이사회의 의결을 거쳐 이를 공시해야 한다.\n④ 내부거래공시대상회사등은 계약 건별로 계약체결방식에 대하여 이사회 의결 및 공시를 하여야 한다. 다만, 이사회 의결 시점에 계약내용이 확정되지 않아 계약 건별로 이사회 의결 및 공시를 하기 어려운 경우에는 거래의 대상ㆍ금액 등 주요내용에 대하여 계약체결방식 유형별로 일괄하여 이사회 의결 및 공시를 할 수 있다.')}
+    </div>
+
+    <h4>공시시기 및 위반 시 제재 (3개 유형 공통)</h4>
     <ul>
       <li>이사회 의결 후 <b>상장법인 3영업일 이내</b>, 비상장법인ㆍ공익법인은 <b>7영업일 이내</b> 공시</li>
       <li>거래금액ㆍ거래단가ㆍ약정이자율 등이 최초 공시보다 <b>20% 이상</b> 증가ㆍ감소하면 주요내용 변경으로 보아
