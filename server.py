@@ -2495,52 +2495,145 @@ def fetch_subsidiary_capital_info(force: bool = False) -> list:
 
 # ─────────────────────────────────────────────────────────────
 # 3-3-7. 상품ㆍ용역거래 상대방 판단용 — "동일인 및 동일인 친족 20% 이상 출자
-# 계열회사(A)ㆍ그 50% 초과 자회사(B)" 실제 목록. 자금ㆍ유가증권ㆍ자산 거래는
+# 계열회사(A)ㆍ그 50% 초과 자회사(B, 상법 제342조의2에 따라 사슬로 이어지는
+# 손자회사ㆍ증손회사까지 포함)" 실제 목록. 자금ㆍ유가증권ㆍ자산 거래는
 # 특수관계인이면 바로 대상이지만, 상품ㆍ용역거래는 이 좁은 범위의 회사만
 # 대상이라 "어디가 여기 해당하는지" 사용자가 판단하기 어렵다는 게 계속
-# 지적된 문제였다. 그룹 대표회사(유진기업㈜)가 매년 내는 "기업집단현황공시
-# (연1회-대표회사)"의 "(16) 특수관계인 지분율이 높은 계열회사의 내부거래
-# 현황"에 이 정의 그대로("동일인이 단독 또는 친족과 합하여 20% 이상 소유한
-# 회사 또는 그 회사의 50% 초과 자회사") 해당하는 회사만 모아 국내계열사매출
-# 표로 신고하므로, 이 표의 회사명 목록이 바로 실제 대상 목록이다.
+# 지적된 문제였다.
+#
+# 처음엔 그룹 대표회사(유진기업㈜)가 매년 내는 "기업집단현황공시(연1회-대표
+# 회사)"의 "(16) 특수관계인 지분율이 높은 계열회사의 내부거래 현황"에 나온
+# 회사명만 모았는데(18개사), 이 표는 "실제 거래 실적이 있는 회사"만 신고하는
+# 표라 이 정의에 해당하지만 최근 3개년간 거래가 전혀 없었던 회사는 빠진다는
+# 걸 사용자가 실제 27개사 목록과 대조해 발견했다. 대신 같은 공시의
+# "(1) 소유지분현황" 표(회사마다 동일인ㆍ친족ㆍ계열회사 등 주주 구성을 그대로
+# 신고하는 표)에서 직접 계산하면 "거래 실적 유무와 무관하게" 정의 그대로
+# 판단할 수 있다:
+#   1) A = 동일인 지분율 + 친족 합계 지분율이 20% 이상인 회사
+#   2) B = A(또는 이미 B로 확정된 회사)가 50% 초과 보유한 계열회사 — 사슬로
+#      계속 확장(상법 제342조의2 제3항, 자회사의 자회사도 모회사의 자회사로
+#      본다는 조항)
+# 이 계산으로 실제 사용자가 제시한 27개사와 정확히 일치함을 검증했다(사모
+# 투자"합자회사"는 지분(주식)이 아니라 조합 지분이라 상법 342조의2의 "자회사"
+# 정의(발행주식 기준) 자체가 적용되지 않아 제외 — 실제로 유진더블유사모투자
+# 합자회사가 유진기업㈜ 지분 56.98%를 보유해 계산상 걸렸으나 사용자 목록에는
+# 없어 이 예외를 확인함).
 # ─────────────────────────────────────────────────────────────
 FTC_GROUP_REP_CORP_CODE = "00184667"  # 유진기업(주) — 유진 기업집단 대표회사
 GOODS_SERVICES_TARGETS_CACHE_TTL = 24 * 3600
+FUND_ENTITY_MARKERS = ('합자회사', '투자조합', '사모투자전문회사')  # 주식이 아닌 지분(조합원권)이라 상법 342조의2 자회사 정의 대상이 아님
 
-def _group_status_parse_goods_services_targets(html_text: str) -> list:
-    """"기업집단현황공시(연1회-대표회사)"의 "(16) 특수관계인 지분율이 높은
-    계열회사의 내부거래 현황" 표에서 회사명만 뽑는다(소계ㆍ합계 행 제외)."""
+def _parse_pct_float(text: str) -> float:
+    text = (text or '').strip()
+    if not text or text == '-':
+        return 0.0
+    try:
+        return float(text.replace(',', ''))
+    except ValueError:
+        return 0.0
+
+def _expand_rowspan_grid(trs) -> list:
+    """DART 소유지분현황 표처럼 ROWSPAN이 수백 행까지 이어지는 표를, bs4가
+    자동으로 채워주지 않는 생략된 셀까지 채워서 행렬(list of dict) 형태로
+    편다 — 표를 눈으로 보는 것과 동일한 완전한 행을 얻기 위함."""
+    pending = {}  # col_idx -> [남은 행 수, 텍스트]
+    grid = []
+    for tr in trs:
+        cells = tr.find_all(['td', 'th'])
+        row_vals = {}
+        col = 0
+        ci = 0
+        while True:
+            if col in pending and pending[col][0] > 0:
+                row_vals[col] = pending[col][1]
+                pending[col][0] -= 1
+                if pending[col][0] == 0:
+                    del pending[col]
+                col += 1
+                continue
+            if ci >= len(cells):
+                break
+            cell = cells[ci]
+            text = cell.get_text(strip=True)
+            rowspan = int(cell.get('rowspan', 1) or 1)
+            colspan = int(cell.get('colspan', 1) or 1)
+            for k in range(colspan):
+                row_vals[col + k] = text
+                if rowspan > 1:
+                    pending[col + k] = [rowspan - 1, text]
+            col += colspan
+            ci += 1
+        grid.append(row_vals)
+    return grid
+
+def _group_status_parse_ownership(html_text: str) -> dict:
+    """"기업집단현황공시"의 "(1) 소유지분현황" 표에서 회사별 동일인 지분율ㆍ
+    친족 합계 지분율ㆍ계열회사 보유자별 지분율을 뽑는다.
+    반환: {회사명: {"owner_pct": float, "family_pct": float, "affiliates": [(보유계열사명, 지분율), ...]}}"""
     soup = BeautifulSoup(html_text, 'html.parser')
-    marker = soup.find(string=lambda s: s and '특수관계인 지분율이 높은 계열회사의 내부거래 현황' in s)
+    marker = soup.find(string=lambda s: s and '소유지분현황' in s)
     if not marker:
-        return []
-    for table in marker.find_all_next('table')[:5]:
-        rows = table.find_all('tr')
-        if len(rows) < 3:
+        return {}
+    table = None
+    for t in marker.find_all_next('table')[:4]:
+        if len(t.find_all('tr')) > 5:
+            table = t
+            break
+    if table is None:
+        return {}
+
+    grid = _expand_rowspan_grid(table.find_all('tr')[2:])  # 헤더 2줄 제외
+    if not grid:
+        return {}
+    ncols = max(max(r.keys()) for r in grid) + 1
+    rows = [[r.get(i, '') for i in range(ncols)] for r in grid]
+
+    companies = {}
+    for row in rows:
+        if len(row) < 6 or not row[1]:
             continue
-        header = [c.get_text(strip=True) for c in rows[0].find_all(['td', 'th'])]
-        if not any('매출회사' in h for h in header):
-            continue
-        names = []
-        for row in rows[2:]:
-            cells = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
-            if len(cells) < 2:
+        name = row[1]
+        c = companies.setdefault(name, {"owner_pct": 0.0, "family_pct": 0.0, "affiliates": []})
+        if row[2] == '동일인측' and row[3] == '동일인':
+            c["owner_pct"] = _parse_pct_float(row[-1])
+        if row[3] == '친족' and '친족 합계' in row[4]:
+            c["family_pct"] = _parse_pct_float(row[-1])
+        if row[3] == '계열회사(국내+해외)':
+            owner, pct = row[5], _parse_pct_float(row[-1])
+            if owner and owner != '-':
+                c["affiliates"].append((owner, pct))
+    return companies
+
+def _compute_goods_services_targets(companies: dict) -> list:
+    """소유지분 데이터로 "동일인 등 출자 계열회사(A)ㆍ그 50% 초과 자회사(B)"를
+    계산한다 — 사슬로 이어지는 손자회사까지 반복 확장(고정점에 도달할 때까지)."""
+    norm = lambda n: _lh_normalize_name(n.replace('㈜', '(주)'))
+    normalized = {norm(name): data for name, data in companies.items()}
+
+    target = {name for name, c in normalized.items() if c["owner_pct"] + c["family_pct"] >= 20.0}
+    changed = True
+    while changed:
+        changed = False
+        for name, c in normalized.items():
+            if name in target:
                 continue
-            # 분류(비금융회사/금융회사) 첫 행만 라벨이 붙고, 그 다음 행부터는
-            # 회사명이 바로 첫 칸에 온다 — 소계/합계 행은 이름 위치에 그 글자만 있음.
-            name = cells[1] if cells[0] in ('비금융회사', '금융회사') else cells[0]
-            if name in ('소계', '합계') or not name:
-                continue
-            names.append(name)
-        return names
-    return []
+            for owner, pct in c["affiliates"]:
+                if norm(owner) in target and pct > 50.0:
+                    target.add(name)
+                    changed = True
+                    break
+
+    # 합자회사 등 지분(조합원권) 기반 법인은 상법 342조의2의 "발행주식" 기준
+    # 자회사 정의 대상이 아니므로 결과에서 제외한다.
+    target = {name for name in target if not any(marker in name for marker in FUND_ENTITY_MARKERS)}
+    return sorted(target)
 
 _goods_services_targets_cache = {'ts': 0.0, 'data': None}
 
 def fetch_goods_services_target_companies(force: bool = False) -> dict:
     """유진 기업집단 대표회사(유진기업㈜)의 최신 "기업집단현황공시(연1회-대표
-    회사)"에서 상품ㆍ용역거래 특례 대상 회사 목록을 뽑는다. 매년 갱신되는
-    자료라 24시간 캐시."""
+    회사)"의 소유지분현황 데이터로 상품ㆍ용역거래 특례 대상 회사 목록을
+    계산한다. 매년 갱신되는 자료라 24시간 캐시."""
     now = datetime.now().timestamp()
     if not force and _goods_services_targets_cache['data'] is not None and now - _goods_services_targets_cache['ts'] < GOODS_SERVICES_TARGETS_CACHE_TTL:
         return _goods_services_targets_cache['data']
@@ -2559,7 +2652,8 @@ def fetch_goods_services_target_companies(force: bool = False) -> dict:
         latest = max(items, key=lambda d: d['rcept_dt'])
         text = fetch_dart_document_text(latest['rcept_no'])
         if text:
-            companies = _group_status_parse_goods_services_targets(text)
+            ownership = _group_status_parse_ownership(text)
+            companies = _compute_goods_services_targets(ownership) if ownership else []
             rcept_dt = latest['rcept_dt']
             result = {
                 "companies": companies,
