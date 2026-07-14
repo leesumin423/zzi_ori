@@ -90,8 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('guideModalOverlay')?.addEventListener('click', (e) => {
     if (e.target.id === 'guideModalOverlay') closeGuideModal();
   });
+  document.getElementById('docRequestModalClose')?.addEventListener('click', closeDocRequestModal);
+  document.getElementById('docRequestModalOverlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'docRequestModalOverlay') closeDocRequestModal();
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeRuleModal(); closeGuideModal(); }
+    if (e.key === 'Escape') { closeRuleModal(); closeGuideModal(); closeDocRequestModal(); }
   });
   document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
   attachCommaFormatting(document.getElementById('checkAmount'));
@@ -425,7 +429,7 @@ function renderEquity(payload) {
   const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
 
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
     if (note) note.textContent = '';
     return;
   }
@@ -451,7 +455,14 @@ function renderEquity(payload) {
       <td class="num">${item.latest_buy_date ?? ''}</td>
       <td class="num">${fmtWon(item.total_qty)}</td>
       <td class="num">${fmtWon(item.avg_price)}</td>
-      <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
+      <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>
+      <td><button type="button" class="doc-request-btn">${item.latest_report_type || '변동'} 서류</button></td>`;
+    const docBtn = tr.querySelector('.doc-request-btn');
+    if (docBtn) {
+      docBtn.addEventListener('click', () => showDocRequestModal(
+        holderName, item.latest_rcept_no ?? item.rcept_no, item.latest_report_type ?? '변동', item.required_documents ?? [],
+      ));
+    }
     tbody.appendChild(tr);
   });
 }
@@ -651,6 +662,50 @@ function showGuideModal(kind) {
 
 function closeGuideModal() {
   document.getElementById('guideModalOverlay')?.classList.remove('show');
+}
+
+// ── 요청서류 체크리스트(신규 임원 vs 변동 임원별 필요 증빙) ─────────
+// 서버 DB가 따로 없는 소규모 내부툴이라, "요청함ㆍ받음" 체크 상태는 브라우저
+// localStorage에 rcept_no+문서명 단위로 저장한다(팀 공유 PC 기준 — 개인 브라우저마다
+// 별도로 관리됨).
+function docRequestStorageKey(rcptNo, docName) {
+  return `docreq_${rcptNo}_${docName}`;
+}
+
+function showDocRequestModal(holderName, rcptNo, reportType, docs) {
+  const overlay = document.getElementById('docRequestModalOverlay');
+  const title = document.getElementById('docRequestModalTitle');
+  const body = document.getElementById('docRequestModalBody');
+  if (!overlay || !body) return;
+
+  const typeLabel = reportType === '신규' ? '신규 임원 최초 소유상황보고' : '기존 임원 변동보고';
+  title.textContent = `요청서류 — ${holderName} (${typeLabel})`;
+  body.innerHTML = `
+    <p class="info">이 보고서(${rcptNo})를 준비ㆍ검증하려면 아래 서류를 임원 본인에게
+    요청해 받아둬야 합니다. 체크 상태는 이 브라우저에 저장됩니다.</p>
+    <ul class="doc-request-list">
+      ${docs.map(docName => {
+        const key = docRequestStorageKey(rcptNo, docName);
+        const checked = localStorage.getItem(key) === '1';
+        return `<li>
+          <label>
+            <input type="checkbox" data-doc-key="${escapeAttr(key)}" ${checked ? 'checked' : ''}>
+            ${escapeAttr(docName)}
+          </label>
+        </li>`;
+      }).join('')}
+    </ul>`;
+  body.querySelectorAll('input[data-doc-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) localStorage.setItem(cb.dataset.docKey, '1');
+      else localStorage.removeItem(cb.dataset.docKey);
+    });
+  });
+  overlay.classList.add('show');
+}
+
+function closeDocRequestModal() {
+  document.getElementById('docRequestModalOverlay')?.classList.remove('show');
 }
 
 // 법규 조문을 <details>로 접어두고 클릭하면 펼쳐지는 블록을 만든다.

@@ -205,18 +205,19 @@
               <table id="equity-table">
                 <colgroup>
                   <col style="width:4%">  <!-- 순번 -->
-                  <col style="width:15%"><!-- 이름 -->
-                  <col style="width:10%"><!-- 구분 -->
-                  <col style="width:12%"><!-- 최초 매수일 -->
-                  <col style="width:15%"><!-- 최근 매수일(공시일) -->
-                  <col style="width:14%"><!-- 누적 주식수 -->
-                  <col style="width:13%"><!-- 평균단가 -->
-                  <col style="width:17%"><!-- 원문 -->
+                  <col style="width:13%"><!-- 이름 -->
+                  <col style="width:9%"><!-- 구분 -->
+                  <col style="width:11%"><!-- 최초 매수일 -->
+                  <col style="width:13%"><!-- 최근 매수일(공시일) -->
+                  <col style="width:12%"><!-- 누적 주식수 -->
+                  <col style="width:11%"><!-- 평균단가 -->
+                  <col style="width:13%"><!-- 원문 -->
+                  <col style="width:14%"><!-- 요청서류 -->
                 </colgroup>
                 <thead>
                   <tr>
                     <th>순번</th><th>이름</th><th>구분</th><th>최초 매수일</th><th>최근 매수일<br>(공시일)</th>
-                    <th>누적 주식수</th><th>평균단가<br>(원)</th><th>원문<br>(최근 공시문)</th>
+                    <th>누적 주식수</th><th>평균단가<br>(원)</th><th>원문<br>(최근 공시문)</th><th>요청서류</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -389,6 +390,16 @@
         <button class="modal-close" id="guideModalClose" aria-label="닫기">&times;</button>
       </div>
       <div id="guideModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="docRequestModalOverlay">
+    <div class="modal-content" style="width:520px;">
+      <div class="modal-header">
+        <span class="modal-title" id="docRequestModalTitle">요청서류</span>
+        <button class="modal-close" id="docRequestModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="docRequestModalBody" class="rule-modal-body"></div>
     </div>
   </div>
 

@@ -422,6 +422,19 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   white-space: pre-line; border-top: 1px solid var(--border); padding-top: 8px;
 }
 
+/* ── 요청서류 체크리스트 ────────────────────────────────────────── */
+.doc-request-btn {
+  padding: 3px 10px; font-size: 11px; font-weight: 600;
+  color: var(--title); background: rgba(125, 211, 252, 0.1);
+  border: 1px solid var(--title); border-radius: 999px; cursor: pointer;
+}
+.doc-request-btn:hover { background: rgba(125, 211, 252, 0.2); }
+.doc-request-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.doc-request-list li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.doc-request-list li:last-child { border-bottom: none; }
+.doc-request-list label { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+.doc-request-list input[type="checkbox"] { width: 16px; height: 16px; }
+
 /* ── 단판공시 대상여부 사전검증 계산기 ──────────────────────────── */
 .check-form {
   display: flex;

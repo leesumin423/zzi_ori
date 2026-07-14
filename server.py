@@ -1563,6 +1563,7 @@ def _equity_parse_document(html_text: str) -> dict:
     #      맞아야 하고, 이 보고서의 AFR이 다음 보고서의 BFR과 이어져야 함
     apt_dt_tag = soup.find(attrs={'aunit': 'STF_APT_DT'})
     flt_sum_tag = soup.find(attrs={'acode': 'FLT_SUM'})
+    report_type_tag = soup.find(attrs={'aunit': 'RPT_DST'})  # 보고구분: 신규/변동 — 요청서류 판단에 씀
     bfr_cnt_tag = soup.find(attrs={'acode': 'BFR_PS_CPT_CNT'})
     afr_cnt_tag = soup.find(attrs={'acode': 'AFR_PS_CPT_CNT'})
     mdf_cnt_tag = soup.find(attrs={'acode': 'MDF_PS_CPT_CNT'})
@@ -1631,7 +1632,14 @@ def _equity_parse_document(html_text: str) -> dict:
         'bfr_qty': _equity_parse_num(bfr_cnt_tag.get_text(strip=True)) if bfr_cnt_tag else None,
         'afr_qty': _equity_parse_num(afr_cnt_tag.get_text(strip=True)) if afr_cnt_tag else None,
         'mdf_qty': _equity_parse_num(mdf_cnt_tag.get_text(strip=True)) if mdf_cnt_tag else None,
+        'report_type': report_type_tag.get_text(strip=True) if report_type_tag else '',
     }
+
+# 지분공시 준비에 필요한 증빙서류 — 보고구분(report_type)별로 다르다.
+EQUITY_REQUIRED_DOCS = {
+    '신규': ['임원 선임서(임원 명령서)', '매매거래내역증빙', '잔고증명서'],
+    '변동': ['매매거래내역서', '잔고증명서'],
+}
 
 def _equity_parse_post_base_date_officer_changes(soup):
     """"임원 현황" 본표는 정기보고서 "작성기준일" 시점의 스냅샷이라, 그 이후 실제로
@@ -1914,6 +1922,11 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         # "유진기업 주식회사" 같은 "OO 주식회사" 표기를 팀에서 익숙한 "OO(주)"로 정리
         display_name = name[:-5] + '(주)' if name.endswith(' 주식회사') else name
 
+        # 요청서류 — 이 사람의 가장 최근 공시 건(전체 중 최신, 매수 공시가 아니어도 됨)이
+        # "신규"(첫 소유상황보고)인지 "변동"(그 이후 보고)인지에 따라 요청할 증빙이 다르다.
+        latest_report_type = docs[-1]['parsed'].get('report_type') or ''
+        required_documents = EQUITY_REQUIRED_DOCS.get(latest_report_type, EQUITY_REQUIRED_DOCS['변동'])
+
         results.append({
             "holder_name": display_name,
             "role_label": role_label,
@@ -1927,6 +1940,9 @@ def fetch_equity_monitoring(force: bool = False) -> list:
             "disclosure_count": len(docs),
             "rcept_no": latest_doc['rcept_no'],
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest_doc['rcept_no']}",
+            "latest_report_type": latest_report_type,
+            "latest_rcept_no": docs[-1]['rcept_no'],
+            "required_documents": required_documents,
         })
 
     results.sort(key=lambda r: r['holder_name'])  # 가나다순
