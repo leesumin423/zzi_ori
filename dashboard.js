@@ -811,13 +811,14 @@ function renderThemes(data) {
   if (!grid) return;
   grid.innerHTML = '';
   if (!Array.isArray(data)) return;
-  data.forEach(({ name, change }) => {
+  data.forEach((item) => {
+    const change = (item[basis] ?? item.current) ?? '';
     const isUp = String(change).includes('↑');
     const isDown = String(change).includes('↓');
     const cls = isUp ? 'up' : isDown ? 'down' : '';
     const card = document.createElement('div');
     card.className = 'card theme-card';
-    card.innerHTML = `<div class="theme-name">${name}</div><div class="theme-change ${cls}">${change}</div>`;
+    card.innerHTML = `<div class="theme-name">${item.name}</div><div class="theme-change ${cls}">${change}</div>`;
     grid.appendChild(card);
   });
 }

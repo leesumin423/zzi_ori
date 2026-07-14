@@ -283,21 +283,70 @@ def investor_summary(investors: dict) -> str:
 # ─────────────────────────────────────────────────────────────
 # 2. 테마별 시세
 # ─────────────────────────────────────────────────────────────
-def fetch_theme_change(no: int) -> str:
-    """테마 그룹 페이지에서 전일대비 등락률 반환"""
+def fetch_theme_rate(no: int):
+    """테마 그룹 페이지에서 전일대비 등락률(%)을 float로 반환. 조회 실패 시 None."""
     url = f"https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no={no}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         raw = r.content.decode('utf-8', errors='replace')
         soup = BeautifulSoup(raw, 'html.parser')
         first_num = soup.select_one('td.number span')
-        if first_num:
-            txt = first_num.get_text(strip=True)
-            arrow = '\u2191' if txt.startswith('+') else '\u2193'
-            return f"{txt} {arrow}"
-        return 'N/A'
+        if not first_num:
+            return None
+        return float(first_num.get_text(strip=True).replace('%', '').replace('+', ''))
     except Exception as e:
-        return f'N/A ({e})'
+        print(f"[DEBUG] \ud14c\ub9c8(no={no}) \ub4f1\ub77d\ub960 \uc870\ud68c \uc911 \uc608\uc678: {e}")
+        return None
+
+def _fmt_theme_rate(rate) -> str:
+    if rate is None:
+        return 'N/A'
+    arrow = '\u2191' if rate > 0 else '\u2193' if rate < 0 else '-'
+    sign = '+' if rate > 0 else ''
+    return f"{sign}{rate:.2f}% {arrow}"
+
+def _theme_market_closed_now() -> bool:
+    """\uc774 \uc2dc\uc810\uc5d0 \uc870\ud68c\ud55c \ud14c\ub9c8 \ub4f1\ub77d\ub960\uc774 "\uadf8\ub0a0\uc758 \ud655\uc815\uce58"\ub85c \ucde8\uae09\ud574\ub3c4 \ub418\ub294 \uc2dc\uac04\ub300\uc778\uc9c0 \u2014
+    KRX \uc815\uaddc\uc7a5 \ub9c8\uac10(15:30) \uc774\ud6c4, \ub610\ub294 \uc8fc\ub9d0(\uc9c1\uc804 \ud3c9\uc77c \ub9c8\uac10\uce58\uac00 \uadf8\ub300\ub85c \uc720\uc9c0 \uc911)."""
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return True
+    return now.time() > dtime(15, 30)
+
+_theme_daily_cache = {}  # no -> {"date": "YYYY-MM-DD", "rate": float}
+
+def fetch_theme_change(no: int) -> dict:
+    """\ud14c\ub9c8\uc758 \ud604\uc7ac\uae30\uc900(\uc624\ub298 \uc2e4\uc2dc\uac04 \ub4f1\ub77d\ub960)\u318d\uc7a5\ub9c8\uac10\uae30\uc900(\uc9c1\uc804 \ud655\uc815 \uac70\ub798\uc77c\uc758 \ucd5c\uc885
+    \ub4f1\ub77d\ub960 \u2014 \uc7a5\uc774 \uc5f4\ub824\uc788\ub294 \ub3d9\uc548\uc740 \uc5b4\uc81c\uc790 \uac12, \ub9c8\uac10 \ud6c4\uc5d4 \uc624\ub298 \uac12\uacfc \ub3d9\uc77c) \ub4f1\ub77d\ub960\uc744
+    \ud568\uaed8 \ubc18\ud658\ud55c\ub2e4.
+
+    \ub124\uc774\ubc84 \ud14c\ub9c8 \uadf8\ub8f9 \ud398\uc774\uc9c0 \uc790\uccb4\uc5d4 \uac1c\ubcc4 \uc885\ubaa9\ucc98\ub7fc "\uc624\ub298/\uc804\uc77c" \ub450 \uac12\uc744 \ud568\uaed8 \uc8fc\ub294
+    \uad6c\uc870\uac00 \uc5c6\uace0 \uadf8 \uc21c\uac04\uc758 \ub4f1\ub77d\ub960 \ud558\ub098\ub9cc \ub178\ucd9c\ud55c\ub2e4(\uacfc\uac70 \uc774\ub825\uc744 \ub418\uc9da\uc744 \uc218 \uc788\ub294
+    \ud14c\ub9c8 \uc804\uc6a9 API\ub3c4 \ubabb \ucc3e\uc74c). \uadf8\ub798\uc11c \uc7a5\ub9c8\uac10\uae30\uc900\uc740 \uc774 \uc11c\ubc84\uac00 "\ub9c8\uac10 \uc774\ud6c4 \ucc98\uc74c
+    \uc870\ud68c\ud55c \uac12"\uc744 \uadf8\ub0a0\uc758 \ud655\uc815\uce58\ub85c \uba54\ubaa8\ub9ac\uc5d0 \uce90\uc2dc\ud574\ub480\ub2e4\uac00, \ub2e4\uc74c\ub0a0 \uc7a5\uc911\uc5d0 \uadf8 \uac12\uc744
+    \uc7a5\ub9c8\uac10\uae30\uc900\uc73c\ub85c \uc7ac\uc0ac\uc6a9\ud558\ub294 \ubc29\uc2dd\uc73c\ub85c \ub9cc\ub4e0\ub2e4 \u2014 \uc11c\ubc84\uac00 \uc7ac\uc2dc\uc791\ub418\uba74 \uce90\uc2dc\uac00
+    \ube44\uc5b4 \uccab \uc870\ud68c \uc2dc\uc5d4 \uc7a5\ub9c8\uac10\uae30\uc900\uc774 \ud604\uc7ac\uac12\uacfc \uac19\uac8c \ub098\uc628\ub2e4(\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ub2e4\ub978
+    \uc778\uba54\ubaa8\ub9ac \uce90\uc2dc\ub4e4\ub3c4 \uc7ac\uc2dc\uc791 \uc2dc \ucd08\uae30\ud654\ub418\ub294 \uac83\uacfc \ub3d9\uc77c\ud55c \ud55c\uacc4)."""
+    now = datetime.now()
+    today_str = now.strftime('%Y-%m-%d')
+    rate = fetch_theme_rate(no)
+
+    if _theme_market_closed_now():
+        # \ub9c8\uac10 \ud6c4(\uc8fc\ub9d0 \ud3ec\ud568)\uc5d4 \uc9c0\uae08 \uac12\uc774 \uace7 "\uadf8\ub0a0\uc758 \ud655\uc815\uce58" \u2014 \uce90\uc2dc\ub97c \uac31\uc2e0
+        if rate is not None:
+            _theme_daily_cache[no] = {"date": today_str, "rate": rate}
+        close_rate = rate
+    else:
+        entry = _theme_daily_cache.get(no)
+        # \uce90\uc2dc\uac00 "\uc624\ub298 \ub0a0\uc9dc"\ub85c \ucc0d\ud600 \uc788\uc73c\uba74 \uc548 \ub428(\uadf8\ub7ec\uba74 \uc815\uc0c1\uc801\uc73c\ub85c\ub294 \ub9c8\uac10 \ud6c4\uc5d0\ub9cc
+        # \uc0dd\uae30\ub294 \uc0c1\ud0dc\ub77c \uc55e\ub4a4\uac00 \uc548 \ub9de\ub294 \uac83) \u2014 \uc774\ub7f0 \uacbd\uc6b0\uc640 \uce90\uc2dc\uac00 \uc544\uc608 \uc5c6\ub294 \uacbd\uc6b0\uc5d4
+        # \ud3f4\ubc31\uc73c\ub85c \ud604\uc7ac\uac12\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4(\uacfc\uac70 \ub3d9\uc791\uacfc \ub3d9\uc77c, \ucd5c\uc18c\ud55c \ud1f4\ubcf4\ub294 \uc544\ub2d8).
+        close_rate = entry["rate"] if entry and entry["date"] != today_str else rate
+
+    return {
+        "current": _fmt_theme_rate(rate),
+        "close": _fmt_theme_rate(close_rate),
+    }
 
 # ─────────────────────────────────────────────────────────────
 # 3. 개별 종목 데이터
@@ -2427,7 +2476,7 @@ def data_endpoint():
             ("증권", 151),
             ("미디어(방송/신문)", 232),
         ]
-        result = [{"name": name, "change": fetch_theme_change(no)} for name, no in THEMES]
+        result = [{"name": name, **fetch_theme_change(no)} for name, no in THEMES]
         return jsonify(result)
 
     if section == 'companies':
