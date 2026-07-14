@@ -1556,6 +1556,23 @@ def _equity_parse_document(html_text: str) -> dict:
     position_tag = soup.find(attrs={'acode': 'STF_PSM'})     # 직위명
     mainsh_tag = soup.find(attrs={'aunit': 'MAIN_SH'})       # 주요주주 여부 (값이 있으면 "-"가 아님)
 
+    # 정확성 추적 대상 3개 필드 — 매 보고서마다 실려 있어 문서 간 대조가 가능하다.
+    #   1) 임원 선임일(STF_APT_DT): 같은 사람이면 어느 보고서를 봐도 같은 값이어야 함
+    #   2) 발행주식총수(FLT_SUM): 회사 전체 값이라 비슷한 시기 보고서끼리 같아야 함
+    #   3) 주식 수(BFR/AFR/MDF_PS_CPT_CNT): "직전보고서"+"증감"="이번보고서" 산식이
+    #      맞아야 하고, 이 보고서의 AFR이 다음 보고서의 BFR과 이어져야 함
+    apt_dt_tag = soup.find(attrs={'aunit': 'STF_APT_DT'})
+    flt_sum_tag = soup.find(attrs={'acode': 'FLT_SUM'})
+    bfr_cnt_tag = soup.find(attrs={'acode': 'BFR_PS_CPT_CNT'})
+    afr_cnt_tag = soup.find(attrs={'acode': 'AFR_PS_CPT_CNT'})
+    mdf_cnt_tag = soup.find(attrs={'acode': 'MDF_PS_CPT_CNT'})
+
+    def _apt_date(tag):
+        val = tag.attrs.get('aunitvalue') if tag else None
+        if not val or val == '-' or len(val) != 8:
+            return None
+        return f"{val[:4]}-{val[4:6]}-{val[6:8]}"
+
     # "다. 세부변동내역" 표: 행마다 RPT_RSN(보고사유, 예: 장내매수(+)/시간외매매(+)/
     # 제3자배정유상증자(+)/주식병합 등)이 있다. 두 가지를 걸러야 한다:
     # - 증권종류(STR_KND)가 보통주(코드 "1")가 아닌 행은 건너뛴다. 유진기업처럼
@@ -1609,6 +1626,11 @@ def _equity_parse_document(html_text: str) -> dict:
         'is_major_shareholder': bool(mainsh_tag and mainsh_tag.get_text(strip=True) not in ('', '-')),
         'transactions': transactions,
         'final_holding': final_holding,
+        'appointment_date': _apt_date(apt_dt_tag),
+        'issued_shares_total': _equity_parse_num(flt_sum_tag.get_text(strip=True)) if flt_sum_tag else None,
+        'bfr_qty': _equity_parse_num(bfr_cnt_tag.get_text(strip=True)) if bfr_cnt_tag else None,
+        'afr_qty': _equity_parse_num(afr_cnt_tag.get_text(strip=True)) if afr_cnt_tag else None,
+        'mdf_qty': _equity_parse_num(mdf_cnt_tag.get_text(strip=True)) if mdf_cnt_tag else None,
     }
 
 def _equity_parse_post_base_date_officer_changes(soup):
@@ -1695,6 +1717,85 @@ def _equity_fetch_officer_roster(corp_code: str):
         roster.pop(name, None)
     roster.update(new_hires)  # 신규 선임자가 본표에 없던 이름이면 추가, 있었으면 최신 정보로 덮어씀
     return roster
+
+def _equity_fmt8(d: str) -> str:
+    return f"{d[:4]}.{d[4:6]}.{d[6:8]}" if d and len(d) == 8 else (d or '')
+
+def _equity_compute_accuracy(by_person: dict) -> dict:
+    """지분공시에서 실제로 오기재가 잦다고 알려진 3개 필드 — 임원 선임일ㆍ
+    발행주식총수ㆍ주식 수 — 를 보고서 간에 대조해 불일치 후보를 찾는다. 자동으로
+    고치는 게 아니라 사람이 다시 확인해야 할 목록을 추려주는 용도(오탐 가능성이
+    있으므로 "이상 없음"이 아니라 "확인 필요"로 취급할 것)."""
+    officer_issues = []
+    share_count_issues = []
+    issued_shares_points = []  # (rcept_dt, rcept_no, holder_name, value)
+
+    for name, docs in by_person.items():
+        docs = sorted(docs, key=lambda d: (d['rcept_dt'], d['rcept_no']))
+
+        # 1) 임원 선임일 — 같은 사람의 모든 보고서에 적힌 값이 하나여야 함
+        apt_dates = {}
+        for d in docs:
+            v = d['parsed'].get('appointment_date')
+            if v:
+                apt_dates.setdefault(v, []).append(d['rcept_no'])
+        if len(apt_dates) > 1:
+            officer_issues.append({
+                "holder_name": name,
+                "detail": f"보고서마다 선임일이 다르게 기재됨: {', '.join(apt_dates.keys())}",
+                "variants": [{"value": v, "rcept_nos": nos} for v, nos in apt_dates.items()],
+            })
+
+        # 2) 주식 수 — 문서 내 "직전+증감=이번" 산식, 그리고 이 보고서의 "이번보고서"
+        #    수량이 다음 보고서의 "직전보고서" 수량과 이어져야 함
+        prev_afr, prev_rcept = None, None
+        for d in docs:
+            p = d['parsed']
+            bfr, afr, mdf = p.get('bfr_qty'), p.get('afr_qty'), p.get('mdf_qty')
+            if bfr is not None and afr is not None and mdf is not None:
+                if bfr + mdf != afr and bfr - mdf != afr:
+                    share_count_issues.append({
+                        "holder_name": name,
+                        "detail": f"{d['rcept_no']}: 직전보고서({bfr:,})+증감({mdf:,})이 이번보고서({afr:,})와 맞지 않음",
+                        "rcept_no": d['rcept_no'],
+                    })
+            if prev_afr is not None and bfr is not None and bfr != prev_afr:
+                share_count_issues.append({
+                    "holder_name": name,
+                    "detail": f"{prev_rcept}의 이번보고서 수량({prev_afr:,})과 {d['rcept_no']}의 직전보고서 수량({bfr:,})이 이어지지 않음",
+                    "rcept_no": d['rcept_no'],
+                })
+            if afr is not None:
+                prev_afr, prev_rcept = afr, d['rcept_no']
+
+        # 3) 발행주식총수 — 회사 전체 공통값이라 시점별로 하나여야 함(타임라인으로 노출)
+        for d in docs:
+            v = d['parsed'].get('issued_shares_total')
+            if v is not None:
+                issued_shares_points.append((d['rcept_dt'], d['rcept_no'], name, v))
+
+    issued_shares_points.sort(key=lambda t: (t[0], t[1]))
+    timeline = []
+    by_date = {}
+    for rcept_dt, rcept_no, name, v in issued_shares_points:
+        by_date.setdefault(rcept_dt, set()).add(v)
+        if not timeline or timeline[-1]['value'] != v:
+            timeline.append({"date": _equity_fmt8(rcept_dt), "value": v, "rcept_no": rcept_no})
+    same_day_conflicts = [
+        {"date": _equity_fmt8(rcept_dt), "values": sorted(values)}
+        for rcept_dt, values in by_date.items() if len(values) > 1
+    ]
+    current_value = issued_shares_points[-1][3] if issued_shares_points else None
+
+    return {
+        "issued_shares_total": {
+            "current_value": current_value,
+            "timeline": timeline,
+            "same_day_conflicts": same_day_conflicts,
+        },
+        "officer_appointment_issues": officer_issues,
+        "share_count_issues": share_count_issues,
+    }
 
 _equity_cache = {'ts': 0.0, 'data': None, 'meta': None}
 
@@ -1833,7 +1934,8 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         "officer_roster_available": roster is not None,
         "lookback_years": EQUITY_LOOKBACK_YEARS,
     }
-    _equity_cache.update(ts=now, data=results, meta=meta)
+    accuracy = _equity_compute_accuracy(by_person)
+    _equity_cache.update(ts=now, data=results, meta=meta, accuracy=accuracy)
     return results
 
 # ─────────────────────────────────────────────────────────────
@@ -2558,6 +2660,15 @@ def data_endpoint():
         force = request.args.get('refresh') == '1'
         records = fetch_equity_monitoring(force=force)
         return jsonify({"records": records, "meta": _equity_cache.get('meta') or {}})
+
+    if section == 'equity_accuracy':
+        force = request.args.get('refresh') == '1'
+        fetch_equity_monitoring(force=force)  # 캐시를 채워야 accuracy도 함께 채워짐
+        return jsonify(_equity_cache.get('accuracy') or {
+            "issued_shares_total": {"current_value": None, "timeline": [], "same_day_conflicts": []},
+            "officer_appointment_issues": [],
+            "share_count_issues": [],
+        })
 
     if section == 'large_holding':
         force = request.args.get('refresh') == '1'

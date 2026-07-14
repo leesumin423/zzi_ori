@@ -391,6 +391,7 @@ function renderFtcCheckResult(r) {
 function loadActiveEquitySub() {
   const sub = document.querySelector('#equitySubTabs .tab-btn.active')?.dataset.equitySub ?? 'officer';
   if (sub === 'officer' && !lastData.equity) loadEquity();
+  if (sub === 'officer' && !lastData.equityAccuracy) loadEquityAccuracy();
   if (sub === 'large_holding' && !lastData.large_holding) loadLargeHolding();
 }
 
@@ -453,6 +454,73 @@ function renderEquity(payload) {
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
     tbody.appendChild(tr);
   });
+}
+
+// ── 지분공시 정확성 점검(임원 선임일ㆍ발행주식총수ㆍ주식 수) ──────
+async function loadEquityAccuracy() {
+  const note = document.getElementById('equityAccuracyNote');
+  if (note) note.textContent = '대조하는 중…';
+  try {
+    const data = await safeFetch(`${API_BASE}?section=equity_accuracy`);
+    lastData.equityAccuracy = data;
+    renderEquityAccuracy(data);
+  } catch (err) {
+    if (note) note.textContent = `조회 실패: ${err.message}`;
+  }
+}
+
+function renderEquityAccuracy(payload) {
+  const note = document.getElementById('equityAccuracyNote');
+  const sharesTbody = document.querySelector('#equity-accuracy-shares-table tbody');
+  const conflictsBox = document.getElementById('equity-accuracy-shares-conflicts');
+  const officerBox = document.getElementById('equity-accuracy-officer-issues');
+  const shareCountBox = document.getElementById('equity-accuracy-share-count-issues');
+  if (!payload) return;
+
+  const shares = payload.issued_shares_total ?? {};
+  const officerIssues = payload.officer_appointment_issues ?? [];
+  const shareCountIssues = payload.share_count_issues ?? [];
+
+  if (note) {
+    note.textContent = '지분공시 보고서 원문 안에서, 보고서 간 대조로 잡아낼 수 있는 불일치만 추려서 보여줍니다 — '
+      + '자동 판정은 아니므로 아래 항목은 반드시 사람이 다시 확인해야 합니다.';
+  }
+
+  if (sharesTbody) {
+    sharesTbody.innerHTML = '';
+    const timeline = shares.timeline ?? [];
+    if (timeline.length === 0) {
+      sharesTbody.innerHTML = '<tr><td colspan="3">데이터 없음</td></tr>';
+    } else {
+      timeline.forEach(pt => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="num">${pt.date ?? ''}</td>
+          <td class="num">${fmtWon(pt.value)}</td>
+          <td><a href="https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${pt.rcept_no}" target="_blank" class="clickable-name">보기</a></td>`;
+        sharesTbody.appendChild(tr);
+      });
+    }
+  }
+
+  if (conflictsBox) {
+    const conflicts = shares.same_day_conflicts ?? [];
+    conflictsBox.innerHTML = conflicts.length === 0
+      ? '<p class="info">같은 날짜에 서로 다른 발행주식총수가 보고된 경우는 없습니다.</p>'
+      : `<ul class="guide-notes">${conflicts.map((c, i) => `<li data-n="${i + 1}">${c.date}에 서로 다른 값이 보고됨: ${c.values.map(v => fmtWon(v)).join(' / ')}</li>`).join('')}</ul>`;
+  }
+
+  if (officerBox) {
+    officerBox.innerHTML = officerIssues.length === 0
+      ? '<p class="info">임원 선임일이 보고서마다 다르게 기재된 사례는 없습니다.</p>'
+      : `<ul class="guide-notes">${officerIssues.map((it, i) => `<li data-n="${i + 1}"><b>${escapeAttr(it.holder_name)}</b> — ${escapeAttr(it.detail)}</li>`).join('')}</ul>`;
+  }
+
+  if (shareCountBox) {
+    shareCountBox.innerHTML = shareCountIssues.length === 0
+      ? '<p class="info">주식 수 산식(직전+증감=이번) 및 보고서 간 연결에 어긋난 사례는 없습니다.</p>'
+      : `<ul class="guide-notes">${shareCountIssues.map((it, i) => `<li data-n="${i + 1}"><b>${escapeAttr(it.holder_name)}</b> — ${escapeAttr(it.detail)}</li>`).join('')}</ul>`;
+  }
 }
 
 // ── 지분공시(주식등의 대량보유상황보고서, "5% Rule") 이력 ──────────
