@@ -46,11 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const stockOnly = document.getElementById('stockOnlySidebar');
       if (stockOnly) stockOnly.style.display = page === 'stock' ? '' : 'none';
       if (page === 'disclosures') {
-        const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'danpan';
+        const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'summary';
+        if (activeDisclosure === 'summary') loadPortalOverview();
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
         if (activeDisclosure === 'ftc' && !lastData.ftc) loadFtc();
+        if (activeDisclosure === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
         if (activeDisclosure === 'equity') loadActiveEquitySub();
-        loadPortalOverview();
       }
     });
   });
@@ -58,9 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#disclosureTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       const kind = btn.dataset.disclosure;
+      document.getElementById('disclosure-summary').style.display = kind === 'summary' ? '' : 'none';
       document.getElementById('disclosure-danpan').style.display = kind === 'danpan' ? '' : 'none';
       document.getElementById('disclosure-ftc').style.display = kind === 'ftc' ? '' : 'none';
       document.getElementById('disclosure-equity').style.display = kind === 'equity' ? '' : 'none';
+      if (kind === 'summary') loadPortalOverview();
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
       if (kind === 'ftc' && !lastData.ftc) loadFtc();
       if (kind === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
@@ -125,10 +128,23 @@ document.addEventListener('DOMContentLoaded', () => {
   attachCommaFormatting(document.getElementById('ftcCheckCapital'));
   document.getElementById('ftcCheckCompany')?.addEventListener('change', (e) => {
     const capitalInput = document.getElementById('ftcCheckCapital');
-    if (!capitalInput) return;
+    const infoBox = document.getElementById('ftcCheckCompanyInfo');
     const rec = (lastData.subsidiaryCapital?.records ?? []).find(r => r.name === e.target.value);
-    if (rec && rec.capital_base != null) {
+    if (!rec) {
+      if (infoBox) infoBox.textContent = '계열사를 선택하면 자본금ㆍ자본총계와 기준금액이 여기 표시됩니다.';
+      return;
+    }
+    if (capitalInput && rec.capital_base != null) {
       capitalInput.value = Math.round(rec.capital_base).toLocaleString('ko-KR');
+    }
+    if (infoBox) {
+      const capitalTotalNote = (rec.capital_total ?? 0) < 0 ? '(자본잠식)' : '';
+      const largeCoNote = rec.is_large_unlisted_co
+        ? ' 자산총계가 1,000억원 이상이라 외부감사법상 대형비상장주식회사(주요사항보고서 제출대상)에도 해당할 수 있습니다.'
+        : '';
+      infoBox.innerHTML = `${escapeAttr(rec.name)} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
+        + `자본총계 ${fmtWon(rec.capital_total)}원${capitalTotalNote} → 자본금ㆍ자본총계 중 큰 금액 <b>${fmtWon(rec.capital_base)}원</b>.`
+        + `${largeCoNote} (<a href="${rec.dart_url}" target="_blank" class="clickable-name">원문 보기</a>)`;
     }
   });
   loadAllData();
@@ -451,62 +467,27 @@ function renderFtc(payload) {
   });
 }
 
-// ── 계열사별 자본금ㆍ자본총계 참고자료(비상장 자회사 — 공정위 사전검증용) ──
+// ── 계열사별 자본금ㆍ자본총계(비상장 자회사 — 공정위 사전검증 계산기 드롭다운용) ──
+// 별도 참고표 대신, 계산기에서 계열사를 선택하면 바로 값이 보이도록
+// 드롭다운만 채우고 실제 표시는 ftcCheckCompany의 change 핸들러가 담당한다.
 async function loadSubsidiaryCapital() {
-  const note = document.getElementById('subsidiaryCapitalNote');
-  if (note) note.textContent = '조회하는 중…';
   try {
     const data = await safeFetch(`${API_BASE}?section=subsidiary_capital`);
     lastData.subsidiaryCapital = data;
     renderSubsidiaryCapital(data);
   } catch (err) {
-    if (note) note.textContent = `조회 실패: ${err.message}`;
+    console.warn('계열사 자본금 조회 실패:', err.message);
   }
 }
 
 function renderSubsidiaryCapital(payload) {
-  const note = document.getElementById('subsidiaryCapitalNote');
-  const tbody = document.querySelector('#subsidiary-capital-table tbody');
   const companySelect = document.getElementById('ftcCheckCompany');
+  if (!companySelect) return;
   const list = payload?.records ?? [];
-  if (!tbody) return;
-
-  if (note) {
-    note.textContent = list.length === 0
-      ? '조회된 자료가 없습니다.'
-      : `비상장 계열사는 사업보고서를 내지 않아 자본금ㆍ자본총계를 재무제표 API로 바로 조회할 수 없습니다 — 대신 이 회사들도 매년 내는 `
-        + `"기업집단현황공시(연1회-개별회사용)"의 개별 재무상태표 기준 값을 가져왔습니다. 자본금ㆍ자본총계 중 큰 금액이 `
-        + `공정위 대규모내부거래 기준(100억원 또는 그 5%, 최소 5억원) 판단에 쓰는 값입니다. 또한 "수시공시(주요사항보고서)" 열은 `
-        + `외부감사법상 대형비상장주식회사(공시대상기업집단 소속회사는 자산총액 1,000억원 이상이면 해당) 여부를 표시합니다 — `
-        + `해당하면 상장 여부와 무관하게 부도ㆍ영업정지ㆍ회생절차ㆍ해산ㆍ유상증자ㆍ합병ㆍ중요 영업/자산 양수도 등 발생 시 `
-        + `다음날까지 주요사항보고서를 제출해야 합니다(수시공시 자체가 없는 게 아니라, 일반 KRX 수시공시가 아니라 이 경로로 있다는 뜻).`;
-  }
-
-  tbody.innerHTML = list.length === 0 ? '<tr><td colspan="8">데이터 없음</td></tr>' : '';
-  list.forEach(r => {
-    const capitalTotalClass = (r.capital_total ?? 0) < 0 ? 'down' : '';
-    const largeCoBadge = r.is_large_unlisted_co
-      ? '<span class="disclosure-type-badge type-ftc">대형비상장주식회사 — 대상</span>'
-      : '<span class="rule-cite">해당없음(자산 1,000억 미만)</span>';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${r.name ?? ''}</td>
-      <td>${r.biz_reg_no ?? ''}</td>
-      <td class="num">${fmtWon(r.total_assets)}</td>
-      <td class="num">${fmtWon(r.capital)}</td>
-      <td class="num ${capitalTotalClass}">${fmtWon(r.capital_total)}${(r.capital_total ?? 0) < 0 ? ' (자본잠식)' : ''}</td>
-      <td>${largeCoBadge}</td>
-      <td class="num">${r.disclosure_date ?? ''}</td>
-      <td>${r.dart_url ? `<a href="${r.dart_url}" target="_blank" class="clickable-name">보기</a>` : ''}</td>`;
-    tbody.appendChild(tr);
-  });
-
-  if (companySelect) {
-    const currentValue = companySelect.value;
-    companySelect.innerHTML = '<option value="">직접 입력</option>'
-      + list.map(r => `<option value="${escapeAttr(r.name)}">${escapeAttr(r.name)} (자본금ㆍ자본총계 중 큰 금액 ${fmtWon(r.capital_base)}원)</option>`).join('');
-    if (list.some(r => r.name === currentValue)) companySelect.value = currentValue;
-  }
+  const currentValue = companySelect.value;
+  companySelect.innerHTML = '<option value="">직접 입력</option>'
+    + list.map(r => `<option value="${escapeAttr(r.name)}">${escapeAttr(r.name)}</option>`).join('');
+  if (list.some(r => r.name === currentValue)) companySelect.value = currentValue;
 }
 
 // ── 공정위 공시(대규모내부거래) 대상여부 사전검증 ─────────────────
