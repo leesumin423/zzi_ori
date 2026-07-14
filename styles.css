@@ -394,6 +394,34 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   font-size: 18px; color: var(--muted); padding: 0 2px;
 }
 
+/* ── 공시 작성 가이드(서식ㆍ기재상 유의사항ㆍ관련법규) ────────────── */
+.guide-fields { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin: 8px 0 16px; }
+.guide-field { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.guide-field:last-child { border-bottom: none; }
+.guide-field:nth-child(odd) { background: var(--card); }
+.guide-field-label { font-weight: 700; font-size: 12.5px; color: var(--text); }
+.guide-field-note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.guide-notes { margin: 4px 0 16px 0; padding-left: 0; list-style: none; }
+.guide-notes li { margin-bottom: 8px; padding-left: 22px; position: relative; }
+.guide-notes li::before {
+  content: attr(data-n); position: absolute; left: 0; top: 0;
+  font-size: 10px; font-weight: 700; color: var(--title);
+  border: 1px solid var(--title); border-radius: 999px;
+  width: 16px; height: 16px; line-height: 14px; text-align: center;
+}
+.law-article { border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); margin-bottom: 8px; }
+.law-article summary {
+  cursor: pointer; padding: 8px 12px; font-size: 12.5px; font-weight: 700;
+  color: var(--text); list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.law-article summary::-webkit-details-marker { display: none; }
+.law-article summary::before { content: '▸'; color: var(--muted); font-size: 11px; transition: transform .15s; }
+.law-article[open] summary::before { transform: rotate(90deg); }
+.law-article-text {
+  padding: 0 12px 12px; font-size: 12.5px; line-height: 1.7; color: var(--text);
+  white-space: pre-line; border-top: 1px solid var(--border); padding-top: 8px;
+}
+
 /* ── 단판공시 대상여부 사전검증 계산기 ──────────────────────────── */
 .check-form {
   display: flex;

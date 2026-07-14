@@ -144,7 +144,7 @@
       <!-- ── 단판공시 모니터링 ── -->
       <div id="disclosure-danpan">
         <section class="section" id="danpan-section">
-          <h2>단일판매ㆍ공급계약 진행 현장 <button class="rule-btn" data-rule="danpan">규정 보기</button></h2>
+          <h2>단일판매ㆍ공급계약 진행 현장 <button class="rule-btn" data-rule="danpan">규정 보기</button> <button class="rule-btn" data-guide="danpan">작성 가이드</button></h2>
           <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
           <div class="table-wrap">
             <table id="danpan-table">
@@ -199,7 +199,7 @@
 
         <div id="equity-sub-officer">
           <section class="section" id="equity-section">
-            <h2>임원ㆍ주요주주 지분공시 이력 <button class="rule-btn" data-rule="equity">규정 보기</button></h2>
+            <h2>임원ㆍ주요주주 지분공시 이력 <button class="rule-btn" data-rule="equity">규정 보기</button> <button class="rule-btn" data-guide="equity">작성 가이드</button></h2>
             <p class="info" id="equityNote" style="margin-bottom:12px;">불러오는 중…</p>
             <div class="table-wrap">
               <table id="equity-table">
@@ -227,7 +227,7 @@
 
         <div id="equity-sub-large-holding" style="display:none;">
           <section class="section" id="large-holding-section">
-            <h2>대량보유상황보고서(5% Rule) 이력 <button class="rule-btn" data-rule="large_holding">규정 보기</button></h2>
+            <h2>대량보유상황보고서(5% Rule) 이력 <button class="rule-btn" data-rule="large_holding">규정 보기</button> <button class="rule-btn" data-guide="large_holding">작성 가이드</button></h2>
             <p class="info" id="largeHoldingNote" style="margin-bottom:12px;">불러오는 중…</p>
             <div class="table-wrap">
               <table id="large-holding-table">
@@ -256,7 +256,7 @@
       <!-- ── 공정위공시(계열회사간 거래) 모니터링 ── -->
       <div id="disclosure-ftc" style="display:none;">
         <section class="section" id="ftc-section">
-          <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button></h2>
+          <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button> <button class="rule-btn" data-guide="ftc">작성 가이드</button></h2>
           <div class="tab-group" id="ftcRangeTabs" style="max-width:260px; margin-bottom:12px;">
             <button class="tab-btn active" data-ftc-range="recent">최근 1년</button>
             <button class="tab-btn" data-ftc-range="all">전체 이력(최근 10년)</button>
@@ -358,6 +358,17 @@
         <button class="modal-close" id="ruleModalClose" aria-label="닫기">&times;</button>
       </div>
       <div id="ruleModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ── 공시 작성 가이드 모달 (서식ㆍ기재상 유의사항ㆍ관련법규, 기본 숨김) ── -->
+  <div class="modal-overlay" id="guideModalOverlay">
+    <div class="modal-content" style="width:760px;">
+      <div class="modal-header">
+        <span class="modal-title" id="guideModalTitle">공시 작성 가이드</span>
+        <button class="modal-close" id="guideModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="guideModalBody" class="rule-modal-body"></div>
     </div>
   </div>
 
