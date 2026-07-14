@@ -13,6 +13,12 @@ let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
 let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null };
 
+// 포털형 공시현황 요약 — 지금은 동양(주)만 공시 데이터가 실제로 연동돼 있다.
+// 다른 계열사 pill은 눌러볼 수 있게 남겨두되, 아직 데이터가 없다는 걸 명시한다.
+const PORTAL_DATA_AVAILABLE_CODE = '001520';
+let selectedAffiliateCode = PORTAL_DATA_AVAILABLE_CODE;
+let selectedAffiliateName = '동양';
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
   document.getElementById('pdfBtn')?.addEventListener('click', () => window.print());
@@ -46,7 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
         if (activeDisclosure === 'ftc' && !lastData.ftc) loadFtc();
         if (activeDisclosure === 'equity') loadActiveEquitySub();
+        loadPortalOverview();
       }
+    });
+  });
+  document.querySelectorAll('#portalAffiliatePills .affiliate-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#portalAffiliatePills .affiliate-pill').forEach(b => b.classList.toggle('active', b === btn));
+      selectedAffiliateCode = btn.dataset.affiliateCode;
+      selectedAffiliateName = btn.dataset.affiliateName;
+      renderPortalOverview();
     });
   });
   document.querySelectorAll('#disclosureTabs .tab-btn').forEach(btn => {
@@ -184,6 +199,82 @@ async function loadCommentary() {
   } catch (err) {
     list.innerHTML = `<li>코멘트 로드 실패: ${err.message}</li>`;
   }
+}
+
+// ── 포털형 공시현황 요약(계열사 선택 + 현재 공시현황만) ───────────
+// 뉴스ㆍ재무 카드는 빼고, 이미 서버가 갖고 있는 단판ㆍ공정위ㆍ지분(임원/대량보유)
+// 공시 데이터를 한 표로 합쳐서 최신순으로 보여준다 — 계열사 pill은 동양(주)
+// 외에는 아직 공시 데이터가 연동돼 있지 않아 안내 문구만 표시한다.
+async function loadPortalOverview() {
+  if (selectedAffiliateCode !== PORTAL_DATA_AVAILABLE_CODE) {
+    renderPortalOverview();
+    return;
+  }
+  const note = document.getElementById('portalOverviewNote');
+  if (note) note.textContent = '공시현황을 불러오는 중…';
+  try {
+    await Promise.all([
+      lastData.danpan ? null : loadDanpan(),
+      lastData.ftc ? null : loadFtc(),
+      lastData.equity ? null : loadEquity(),
+      lastData.large_holding ? null : loadLargeHolding(),
+    ]);
+  } finally {
+    renderPortalOverview();
+  }
+}
+
+function renderPortalOverview() {
+  const titleEl = document.getElementById('portalOverviewTitle');
+  const note = document.getElementById('portalOverviewNote');
+  const tbody = document.querySelector('#portal-overview-table tbody');
+  if (!tbody) return;
+
+  if (titleEl) titleEl.textContent = `공시현황 — ${selectedAffiliateName}${selectedAffiliateCode === PORTAL_DATA_AVAILABLE_CODE ? '(주)' : ''}`;
+
+  if (selectedAffiliateCode !== PORTAL_DATA_AVAILABLE_CODE) {
+    if (note) note.textContent = '';
+    tbody.innerHTML = `<tr><td colspan="5">${selectedAffiliateName}의 공시현황은 아직 이 포털에 연동되지 않았습니다 (현재는 동양(주)만 지원).</td></tr>`;
+    return;
+  }
+
+  const rows = [];
+  (lastData.danpan?.sites ?? []).forEach(s => rows.push({
+    type: '단판공시', typeClass: 'type-danpan', date: s.latest_disclosure_date,
+    title: s.site_name ?? '', sub: s.counterparty ?? '', url: s.dart_url,
+  }));
+  (lastData.ftc?.records ?? []).forEach(r => rows.push({
+    type: r.type_label ?? '공정위공시', typeClass: 'type-ftc', date: r.disclosure_date,
+    title: r.type_label ?? '', sub: r.counterparty ?? '', url: r.dart_url,
+  }));
+  (lastData.equity?.records ?? []).forEach(r => rows.push({
+    type: '지분공시(임원)', typeClass: 'type-equity', date: r.latest_buy_date,
+    title: `${r.holder_name ?? ''} 소유상황보고`, sub: r.role_label ?? '', url: r.dart_url,
+  }));
+  (lastData.large_holding?.records ?? []).forEach(r => rows.push({
+    type: '지분공시(대량보유)', typeClass: 'type-large_holding', date: r.latest_disclosure_date,
+    title: `${r.reporter_name ?? r.holder_name ?? ''} 대량보유상황보고`, sub: r.holder_name ?? '', url: r.dart_url,
+  }));
+
+  rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  const shown = rows.slice(0, 20);
+
+  if (note) {
+    note.textContent = `최근 공시일 기준 상위 ${shown.length}건(전체 ${rows.length}건 중). 단판ㆍ공정위ㆍ지분공시를 한 표로 모았습니다 — `
+      + '각 유형의 전체 이력ㆍ상세 조건은 아래 탭에서 확인하세요.';
+  }
+
+  tbody.innerHTML = shown.length === 0 ? '<tr><td colspan="5">데이터 없음</td></tr>' : '';
+  shown.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="disclosure-type-badge ${r.typeClass}">${r.type}</span></td>
+      <td title="${escapeAttr(r.title)}">${r.title}</td>
+      <td>${r.sub}</td>
+      <td class="num">${r.date ?? ''}</td>
+      <td>${r.url ? `<a href="${r.url}" target="_blank" class="clickable-name">보기</a>` : ''}</td>`;
+    tbody.appendChild(tr);
+  });
 }
 
 // ── 단판공시(단일판매ㆍ공급계약체결) 모니터링 ──────────────────
