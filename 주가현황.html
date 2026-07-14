@@ -331,23 +331,51 @@
           </div>
         </section>
 
+        <section class="section" id="ftc-subsidiary-check-section">
+          <h2>비상장 자회사 공정위 공시 사전검토 <span class="rule-cite" style="font-weight:normal;">(금왕에프원ㆍ유진한일합섬ㆍ유진홈센터ㆍ디씨아이티와이부천ㆍ디씨아이티와이인천)</span></h2>
+          <p class="info" style="margin-bottom:12px;">이 5개사는 비상장이라 재무제표를 직접 조회할 수 없어, 매년 내는
+            "기업집단현황공시"의 개별 재무상태표 기준 값을 대신 가져옵니다. 자금ㆍ유가증권ㆍ자산 거래는 계열사를 고르면
+            자본금ㆍ자본총계가 자동입력되지만, 상품ㆍ용역 거래는 이 5개사가 상대방 요건(20% 계열사)에 해당하는 경우가
+            달라 자본총계ㆍ자본금을 직접 입력해서 확인하세요.</p>
+          <div class="check-form">
+            <label>거래유형
+              <select id="ftcSubCheckType">
+                <option value="fund_securities_asset">자금ㆍ유가증권ㆍ자산 거래</option>
+                <option value="goods_services">상품ㆍ용역 거래</option>
+              </select>
+            </label>
+            <label>계열사 선택
+              <select id="ftcSubCheckCompany">
+                <option value="">계열사를 선택하세요</option>
+              </select>
+            </label>
+            <label>거래금액(원)
+              <input type="text" inputmode="numeric" id="ftcSubCheckAmount" placeholder="예: 12,000,000,000">
+            </label>
+            <label>자본총계ㆍ자본금 중 큰 금액(원) <span class="rule-cite" id="ftcSubCheckCapitalNote" style="font-weight:normal;"></span>
+              <input type="text" inputmode="numeric" id="ftcSubCheckCapital" placeholder="예: 300,000,000,000">
+            </label>
+            <label id="ftcSubCheckTargetLabel" style="display:none;">
+              <input type="checkbox" id="ftcSubCheckTarget" style="width:auto; margin-right:6px;">
+              거래상대방이 "동일인·동일인 친족 20%이상 출자 계열회사(또는 그 50%초과 자회사)"에 해당함
+              <button type="button" class="rule-btn" data-show-target-list="1">20% 계열사 목록 보기</button>
+            </label>
+            <button id="ftcSubCheckSubmitBtn" class="btn" style="width:auto;">판단하기</button>
+          </div>
+          <p class="info" id="ftcSubCheckCompanyInfo">계열사를 선택하면 자본금ㆍ자본총계가 여기 표시됩니다.</p>
+          <div id="ftcSubCheckResult"></div>
+        </section>
+
         <section class="section" id="ftc-check-section">
-          <h2>공정위 공시(대규모내부거래) 대상여부 사전검증</h2>
-          <p class="info" style="margin-bottom:12px;">공정거래법 제26조ㆍ시행령 제33조 기준입니다. 계열사를 선택하면(비상장
-            자회사는 재무제표를 직접 조회할 수 없어 매년 내는 "기업집단현황공시"의 개별 재무상태표 기준 값을 가져옵니다)
-            자본금ㆍ자본총계가 자동입력되고, 거래유형과 거래금액만 넣으면 이사회 의결ㆍ공시 대상 여부를 바로 판단합니다 —
-            상품ㆍ용역 거래는 거래상대방이 "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 50% 초과 자회사)"인
-            경우에만 대상이라는 점이 다릅니다.</p>
+          <h2>공정위 공시(대규모내부거래) 대상여부 사전검증 <span class="rule-cite" style="font-weight:normal;">(동양(주) 등 상장 계열사 — 직접 입력)</span></h2>
+          <p class="info" style="margin-bottom:12px;">공정거래법 제26조ㆍ시행령 제33조 기준입니다. 거래금액과 자본총계·자본금
+            중 큰 금액을 직접 넣으면 이사회 의결ㆍ공시 대상 여부를 바로 판단합니다 — 상품ㆍ용역 거래는 거래상대방이
+            "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 50% 초과 자회사)"인 경우에만 대상이라는 점이 다릅니다.</p>
           <div class="check-form">
             <label>거래유형
               <select id="ftcCheckType">
                 <option value="fund_securities_asset">자금ㆍ유가증권ㆍ자산 거래</option>
                 <option value="goods_services">상품ㆍ용역 거래</option>
-              </select>
-            </label>
-            <label>공시대상 계열사 선택 <span class="rule-cite" style="font-weight:normal;">(자본금ㆍ자본총계 자동입력용 — 비상장 자회사)</span>
-              <select id="ftcCheckCompany">
-                <option value="">직접 입력</option>
               </select>
             </label>
             <label>거래금액(원)
@@ -356,19 +384,13 @@
             <label>자본총계ㆍ자본금 중 큰 금액(원)
               <input type="text" inputmode="numeric" id="ftcCheckCapital" placeholder="예: 300,000,000,000">
             </label>
-            <label id="ftcCheckTargetLabel" style="display:none;">거래상대방(계열사) <span class="rule-cite" style="font-weight:normal;">(20% 계열사 실제 목록에서 선택)</span>
-              <select id="ftcCheckTargetCompany">
-                <option value="">목록에 없음 / 직접 판단</option>
-              </select>
-            </label>
-            <label id="ftcCheckTargetManualLabel" style="display:none;">
+            <label id="ftcCheckTargetLabel" style="display:none;">
               <input type="checkbox" id="ftcCheckTarget" style="width:auto; margin-right:6px;">
-              그래도 "동일인·동일인 친족 20%이상 출자 계열회사(또는 그 50%초과 자회사)"에 해당함(직접 판단)
+              거래상대방이 "동일인·동일인 친족 20%이상 출자 계열회사(또는 그 50%초과 자회사)"에 해당함
+              <button type="button" class="rule-btn" data-show-target-list="1">20% 계열사 목록 보기</button>
             </label>
-            <p class="info" id="ftcCheckTargetHint" style="display:none; margin:-8px 0 0;"></p>
             <button id="ftcCheckSubmitBtn" class="btn" style="width:auto;">판단하기</button>
           </div>
-          <p class="info" id="ftcCheckCompanyInfo">계열사를 선택하면 자본금ㆍ자본총계와 기준금액이 여기 표시됩니다.</p>
           <div id="ftcCheckResult"></div>
         </section>
       </div>
@@ -438,6 +460,16 @@
         <button class="modal-close" id="docRequestModalClose" aria-label="닫기">&times;</button>
       </div>
       <div id="docRequestModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="targetListModalOverlay">
+    <div class="modal-content" style="width:560px;">
+      <div class="modal-header">
+        <span class="modal-title">상품ㆍ용역거래 상대방 요건 — 20% 계열사 목록</span>
+        <button class="modal-close" id="targetListModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="targetListModalBody" class="rule-modal-body"></div>
     </div>
   </div>
 

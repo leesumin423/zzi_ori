@@ -106,64 +106,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.id === 'docRequestModalOverlay') closeDocRequestModal();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeRuleModal(); closeGuideModal(); closeDocRequestModal(); }
+    if (e.key === 'Escape') { closeRuleModal(); closeGuideModal(); closeDocRequestModal(); closeTargetListModal(); }
   });
   document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
   attachCommaFormatting(document.getElementById('checkAmount'));
+
+  // ── 일반 공정위 사전검증(동양(주) 등 상장 계열사 — 직접 입력) ──────
   document.getElementById('ftcCheckSubmitBtn')?.addEventListener('click', runFtcCheck);
   document.getElementById('ftcCheckType')?.addEventListener('change', (e) => {
-    const isGoods = e.target.value === 'goods_services';
     const label = document.getElementById('ftcCheckTargetLabel');
-    const hint = document.getElementById('ftcCheckTargetHint');
-    const manualLabel = document.getElementById('ftcCheckTargetManualLabel');
-    const targetSelect = document.getElementById('ftcCheckTargetCompany');
-    if (label) label.style.display = isGoods ? '' : 'none';
-    if (manualLabel) manualLabel.style.display = isGoods && !targetSelect?.value ? '' : 'none';
-    if (hint) {
-      hint.style.display = isGoods ? '' : 'none';
-      if (isGoods) {
-        const info = lastData.goodsServicesTargets;
-        hint.innerHTML = info?.companies?.length
-          ? `이 목록은 유진 기업집단 대표회사(유진기업㈜)가 매년 내는 "기업집단현황공시"의 "(1) 소유지분현황" 표(회사마다 `
-            + `동일인ㆍ친족ㆍ계열회사 주주구성을 신고하는 표)를 근거로 직접 계산한 것입니다 — 동일인 지분+친족 합계 `
-            + `지분이 20% 이상인 회사(A), 그리고 A(또는 이미 확정된 자회사)가 50% 초과 보유한 계열회사를 사슬로 계속 `
-            + `확장(상법 제342조의2)해서 구합니다. "실제 거래 실적이 있는 회사"만 모으는 표에서 뽑을 때보다 정확한데, `
-            + `최근 3개년간 거래가 아예 없었던 회사도 소유구조상 대상이면 빠지지 않기 때문입니다(기준일 ${info.disclosure_date ?? ''}, `
-            + `<a href="${info.dart_url}" target="_blank" class="clickable-name">원문 보기</a>). 목록에 없는 회사와의 거래는 아래 `
-            + `체크박스로 직접 판단하세요 — 다음 연도 지정 전까지 지분 변동이 반영되지 않을 수 있습니다.`
-          : '참고: "공정위공시" 탭을 한 번 열어야 대상 회사 목록을 불러옵니다.';
-      }
-    }
-  });
-  document.getElementById('ftcCheckTargetCompany')?.addEventListener('change', (e) => {
-    const manualLabel = document.getElementById('ftcCheckTargetManualLabel');
-    const checkbox = document.getElementById('ftcCheckTarget');
-    if (manualLabel) manualLabel.style.display = e.target.value ? 'none' : '';
-    if (checkbox && e.target.value) checkbox.checked = false; // 목록 선택 시엔 체크박스 무시하고 select 값을 기준으로 판단
+    if (label) label.style.display = e.target.value === 'goods_services' ? '' : 'none';
   });
   attachCommaFormatting(document.getElementById('ftcCheckAmount'));
   attachCommaFormatting(document.getElementById('ftcCheckCapital'));
-  document.getElementById('ftcCheckCompany')?.addEventListener('change', (e) => {
-    const capitalInput = document.getElementById('ftcCheckCapital');
-    const infoBox = document.getElementById('ftcCheckCompanyInfo');
-    const rec = (lastData.subsidiaryCapital?.records ?? []).find(r => r.name === e.target.value);
-    if (!rec) {
-      if (infoBox) infoBox.textContent = '계열사를 선택하면 자본금ㆍ자본총계와 기준금액이 여기 표시됩니다.';
-      return;
-    }
-    if (capitalInput && rec.capital_base != null) {
-      capitalInput.value = Math.round(rec.capital_base).toLocaleString('ko-KR');
-    }
-    if (infoBox) {
-      const capitalTotalNote = (rec.capital_total ?? 0) < 0 ? '(자본잠식)' : '';
-      const largeCoNote = rec.is_large_unlisted_co
-        ? ' 자산총계가 1,000억원 이상이라 외부감사법상 대형비상장주식회사(주요사항보고서 제출대상)에도 해당할 수 있습니다.'
-        : '';
-      infoBox.innerHTML = `${escapeAttr(rec.name)} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
-        + `자본총계 ${fmtWon(rec.capital_total)}원${capitalTotalNote} → 자본금ㆍ자본총계 중 큰 금액 <b>${fmtWon(rec.capital_base)}원</b>.`
-        + `${largeCoNote} (<a href="${rec.dart_url}" target="_blank" class="clickable-name">원문 보기</a>)`;
-    }
+
+  // ── 비상장 자회사 공정위 사전검토(5개사 — 계열사 선택 기반) ────────
+  document.getElementById('ftcSubCheckSubmitBtn')?.addEventListener('click', runFtcSubsidiaryCheck);
+  document.getElementById('ftcSubCheckType')?.addEventListener('change', (e) => {
+    const isGoods = e.target.value === 'goods_services';
+    const label = document.getElementById('ftcSubCheckTargetLabel');
+    if (label) label.style.display = isGoods ? '' : 'none';
+    applySubsidiaryCapitalAutofill(); // 거래유형 전환 시 자금/유가/자산이면 자동입력, 상품/용역이면 직접입력으로 전환
   });
+  document.getElementById('ftcSubCheckCompany')?.addEventListener('change', applySubsidiaryCapitalAutofill);
+  attachCommaFormatting(document.getElementById('ftcSubCheckAmount'));
+  attachCommaFormatting(document.getElementById('ftcSubCheckCapital'));
+
+  // ── "20% 계열사 목록 보기" 버튼(양쪽 계산기 공용) ──────────────────
+  document.querySelectorAll('[data-show-target-list]').forEach(btn => {
+    btn.addEventListener('click', showTargetListModal);
+  });
+  document.getElementById('targetListModalClose')?.addEventListener('click', closeTargetListModal);
+  document.getElementById('targetListModalOverlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'targetListModalOverlay') closeTargetListModal();
+  });
+
   loadAllData();
 });
 
@@ -498,49 +475,107 @@ async function loadSubsidiaryCapital() {
 }
 
 function renderSubsidiaryCapital(payload) {
-  const companySelect = document.getElementById('ftcCheckCompany');
+  const companySelect = document.getElementById('ftcSubCheckCompany');
   if (!companySelect) return;
   const list = payload?.records ?? [];
   const currentValue = companySelect.value;
-  companySelect.innerHTML = '<option value="">직접 입력</option>'
+  companySelect.innerHTML = '<option value="">계열사를 선택하세요</option>'
     + list.map(r => `<option value="${escapeAttr(r.name)}">${escapeAttr(r.name)}</option>`).join('');
   if (list.some(r => r.name === currentValue)) companySelect.value = currentValue;
 }
 
+// 거래유형에 따라 "자본총계ㆍ자본금 중 큰 금액" 입력을 자동입력/직접입력으로
+// 전환한다 — 자금ㆍ유가증권ㆍ자산 거래는 선택한 계열사의 값을 그대로 쓰면
+// 되지만, 상품ㆍ용역거래는 이 5개사가 상대방 요건에 해당하는지가 개별
+// 거래 상황에 따라 달라 자동입력하지 않고 직접 입력하게 한다.
+function applySubsidiaryCapitalAutofill() {
+  const typeSelect = document.getElementById('ftcSubCheckType');
+  const companySelect = document.getElementById('ftcSubCheckCompany');
+  const capitalInput = document.getElementById('ftcSubCheckCapital');
+  const capitalNote = document.getElementById('ftcSubCheckCapitalNote');
+  const infoBox = document.getElementById('ftcSubCheckCompanyInfo');
+  if (!typeSelect || !companySelect || !capitalInput) return;
+
+  const isGoods = typeSelect.value === 'goods_services';
+  const rec = (lastData.subsidiaryCapital?.records ?? []).find(r => r.name === companySelect.value);
+
+  if (isGoods) {
+    // 상품ㆍ용역거래: 자동입력하지 않고 사용자가 직접 입력하도록 비워둔다
+    // (이미 값이 있으면 사용자가 입력한 것일 수 있으니 그대로 둔다).
+    capitalInput.readOnly = false;
+    if (capitalNote) capitalNote.textContent = '(상품ㆍ용역거래는 직접 입력)';
+    if (infoBox) {
+      infoBox.textContent = rec
+        ? `${rec.name}을 선택했지만, 상품ㆍ용역거래는 자본총계ㆍ자본금 중 큰 금액을 직접 입력해서 확인하세요.`
+        : '계열사를 선택하면 자본금ㆍ자본총계가 여기 표시됩니다.';
+    }
+    return;
+  }
+
+  capitalInput.readOnly = false;
+  if (capitalNote) capitalNote.textContent = '(자금ㆍ유가증권ㆍ자산 거래는 자동입력)';
+  if (!rec) {
+    if (infoBox) infoBox.textContent = '계열사를 선택하면 자본금ㆍ자본총계가 여기 표시됩니다.';
+    return;
+  }
+  if (rec.capital_base != null) {
+    capitalInput.value = Math.round(rec.capital_base).toLocaleString('ko-KR');
+  }
+  if (infoBox) {
+    const capitalTotalNote = (rec.capital_total ?? 0) < 0 ? '(자본잠식)' : '';
+    const largeCoNote = rec.is_large_unlisted_co
+      ? ' 자산총계가 1,000억원 이상이라 외부감사법상 대형비상장주식회사(주요사항보고서 제출대상)에도 해당할 수 있습니다.'
+      : '';
+    infoBox.innerHTML = `${escapeAttr(rec.name)} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
+      + `자본총계 ${fmtWon(rec.capital_total)}원${capitalTotalNote} → 자본금ㆍ자본총계 중 큰 금액 <b>${fmtWon(rec.capital_base)}원</b>.`
+      + `${largeCoNote} (<a href="${rec.dart_url}" target="_blank" class="clickable-name">원문 보기</a>)`;
+  }
+}
+
 // ── 상품ㆍ용역거래 특례 대상 회사 목록(20% 계열사 A / 그 50%초과 자회사 B) ──
-// 유진기업(대표회사)의 "기업집단현황공시"에 실제로 신고된 대상 회사 명단을
-// 그대로 드롭다운으로 제공한다 — 자금ㆍ유가증권ㆍ자산 거래(특수관계인 기준)와
-// 달리 상품ㆍ용역거래는 이 좁은 목록에 속하는 회사와의 거래만 대상이라서다.
+// 유진 기업집단 대표회사(유진기업㈜)의 "기업집단현황공시" 소유지분현황을
+// 근거로 계산한 실제 대상 회사 27개 — 계산기에 드롭다운으로 끼워넣는 대신
+// "20% 계열사 목록 보기" 버튼을 누르면 모달로 확인할 수 있게 한다(자금ㆍ
+// 유가증권ㆍ자산 거래의 "특수관계인" 기준과 다른 별도 개념이라 뒤섞이지
+// 않도록 분리).
 async function loadGoodsServicesTargets() {
   try {
     const data = await safeFetch(`${API_BASE}?section=goods_services_targets`);
     lastData.goodsServicesTargets = data;
-    renderGoodsServicesTargets(data);
   } catch (err) {
     console.warn('20% 계열사 목록 조회 실패:', err.message);
   }
 }
 
-function renderGoodsServicesTargets(payload) {
-  const targetSelect = document.getElementById('ftcCheckTargetCompany');
-  if (!targetSelect) return;
-  const companies = payload?.companies ?? [];
-  const currentValue = targetSelect.value;
-  targetSelect.innerHTML = '<option value="">목록에 없음 / 직접 판단</option>'
-    + companies.map(name => `<option value="${escapeAttr(name)}">${escapeAttr(name)}</option>`).join('');
-  if (companies.includes(currentValue)) targetSelect.value = currentValue;
-  // 거래유형이 이미 상품ㆍ용역거래로 선택돼 있는 상태에서 뒤늦게 목록이 도착한
-  // 경우에도 힌트 문구가 갱신되도록 change 이벤트를 한 번 더 흘려보낸다.
-  document.getElementById('ftcCheckType')?.dispatchEvent(new Event('change'));
+function showTargetListModal() {
+  const overlay = document.getElementById('targetListModalOverlay');
+  const body = document.getElementById('targetListModalBody');
+  if (!overlay || !body) return;
+  const info = lastData.goodsServicesTargets;
+  const companies = info?.companies ?? [];
+
+  body.innerHTML = companies.length === 0
+    ? '<p class="info">아직 목록을 불러오지 못했습니다 — "공정위공시" 탭을 한 번 열어보세요.</p>'
+    : `<p class="info">유진 기업집단 대표회사(유진기업㈜)가 매년 내는 "기업집단현황공시"의 "(1) 소유지분현황"
+        표를 근거로 계산한 실제 대상 회사입니다 — 동일인 지분+친족 합계 지분이 20% 이상인 회사(A), 그리고
+        A(또는 이미 확정된 자회사)가 50% 초과 보유한 계열회사를 상법 제342조의2에 따라 손자회사까지 사슬로
+        확장(B)해서 구했습니다(기준일 ${info.disclosure_date ?? ''},
+        <a href="${info.dart_url}" target="_blank" class="clickable-name">원문 보기</a>).</p>
+      <ul class="doc-request-list">${companies.map(name => `<li>${escapeAttr(name)}</li>`).join('')}</ul>
+      <p class="rule-cite">총 ${companies.length}개사. 목록에 없는 회사와의 거래는 체크박스로 직접 판단하세요.</p>`;
+  overlay.classList.add('show');
 }
 
-// ── 공정위 공시(대규모내부거래) 대상여부 사전검증 ─────────────────
+function closeTargetListModal() {
+  document.getElementById('targetListModalOverlay')?.classList.remove('show');
+}
+
+// ── 공정위 공시(대규모내부거래) 대상여부 사전검증 — 동양(주) 등 상장 계열사 ──
 async function runFtcCheck() {
   const typeSelect = document.getElementById('ftcCheckType');
   const amountInput = document.getElementById('ftcCheckAmount');
   const capitalInput = document.getElementById('ftcCheckCapital');
   const targetCheckbox = document.getElementById('ftcCheckTarget');
-  const targetCompanySelect = document.getElementById('ftcCheckTargetCompany');
   const result = document.getElementById('ftcCheckResult');
   if (!result) return;
 
@@ -554,11 +589,46 @@ async function runFtcCheck() {
 
   result.innerHTML = '<p class="info">판단하는 중…</p>';
   try {
-    // 상품ㆍ용역거래: 20% 계열사 실제 목록에서 상대방을 골랐으면 그 자체로
-    // 대상(target=true) — 목록에 없으면 사용자가 직접 판단한 체크박스를 따른다.
-    const isTarget = transactionType === 'goods_services'
-      ? (targetCompanySelect?.value ? '1' : (targetCheckbox?.checked ? '1' : '0'))
-      : '1';
+    const isTarget = transactionType === 'goods_services' ? (targetCheckbox?.checked ? '1' : '0') : '1';
+    const resp = await fetch(`${API_BASE}?section=ftc_check&transaction_type=${encodeURIComponent(transactionType)}`
+      + `&amount=${encodeURIComponent(amount)}&capital_base=${encodeURIComponent(capitalBase)}&is_goods_services_target=${isTarget}`);
+    const data = await resp.json();
+    if (!resp.ok) {
+      result.innerHTML = `<p class="check-error">${escapeAttr(data.error ?? `조회 실패 (HTTP ${resp.status})`)}</p>`;
+      return;
+    }
+    result.innerHTML = renderFtcCheckResult(data);
+  } catch (err) {
+    result.innerHTML = `<p class="check-error">조회 실패: ${escapeAttr(err.message)}</p>`;
+  }
+}
+
+// ── 비상장 자회사 공정위 사전검토 — 계열사 선택 기반(5개사) ────────
+async function runFtcSubsidiaryCheck() {
+  const typeSelect = document.getElementById('ftcSubCheckType');
+  const companySelect = document.getElementById('ftcSubCheckCompany');
+  const amountInput = document.getElementById('ftcSubCheckAmount');
+  const capitalInput = document.getElementById('ftcSubCheckCapital');
+  const targetCheckbox = document.getElementById('ftcSubCheckTarget');
+  const result = document.getElementById('ftcSubCheckResult');
+  if (!result) return;
+
+  if (!companySelect?.value) {
+    result.innerHTML = '<p class="check-error">계열사를 선택해주세요.</p>';
+    return;
+  }
+
+  const transactionType = typeSelect?.value;
+  const amount = amountInput?.value?.replace(/,/g, '');
+  const capitalBase = capitalInput?.value?.replace(/,/g, '');
+  if (!amount || !capitalBase) {
+    result.innerHTML = '<p class="check-error">거래금액과 자본총계ㆍ자본금 중 큰 금액을 모두 입력해주세요.</p>';
+    return;
+  }
+
+  result.innerHTML = '<p class="info">판단하는 중…</p>';
+  try {
+    const isTarget = transactionType === 'goods_services' ? (targetCheckbox?.checked ? '1' : '0') : '1';
     const resp = await fetch(`${API_BASE}?section=ftc_check&transaction_type=${encodeURIComponent(transactionType)}`
       + `&amount=${encodeURIComponent(amount)}&capital_base=${encodeURIComponent(capitalBase)}&is_goods_services_target=${isTarget}`);
     const data = await resp.json();
