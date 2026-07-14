@@ -328,6 +328,19 @@
           </div>
         </section>
 
+        <section class="section" id="subsidiary-capital-section">
+          <h2>계열사별 자본금ㆍ자본총계 참고자료 <span class="rule-cite" style="font-weight:normal;">(비상장 계열사 — 공정위 공시 기준금액 판단용)</span></h2>
+          <p class="info" id="subsidiaryCapitalNote">불러오는 중…</p>
+          <div class="table-wrap">
+            <table id="subsidiary-capital-table">
+              <thead>
+                <tr><th>계열사</th><th>사업자등록번호</th><th>자산총계</th><th>자본금</th><th>자본총계</th><th>수시공시(주요사항보고서)</th><th>기준일자(공시일)</th><th>원문</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="section" id="ftc-check-section">
           <h2>공정위 공시(대규모내부거래) 대상여부 사전검증</h2>
           <p class="info" style="margin-bottom:12px;">공정거래법 제26조ㆍ시행령 제33조 기준입니다. 거래유형을 고르고 거래금액과
@@ -338,6 +351,11 @@
               <select id="ftcCheckType">
                 <option value="fund_securities_asset">자금ㆍ유가증권ㆍ자산 거래</option>
                 <option value="goods_services">상품ㆍ용역 거래</option>
+              </select>
+            </label>
+            <label>계열사 선택 <span class="rule-cite" style="font-weight:normal;">(선택 시 자본금ㆍ자본총계 자동입력)</span>
+              <select id="ftcCheckCompany">
+                <option value="">직접 입력</option>
               </select>
             </label>
             <label>거래금액(원)
