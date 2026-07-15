@@ -308,22 +308,30 @@
             <button class="tab-btn" data-ftc-range="all">전체 이력(최근 10년)</button>
           </div>
           <p class="info" id="ftcNote" style="margin-bottom:12px;">불러오는 중…</p>
+          <p class="info">공시 정확성 점검 — <b>공시기한</b>은 이사회 의결일로부터 실제 공시일까지 영업일수를 계산해
+            상장법인 기준(동양(주)) <b>3영업일 이내</b>인지 확인합니다(공휴일은 반영하지 못하는 근사치입니다).
+            <b>공시대상 재확인</b>은 원문의 거래금액과 동양(주)의 <b>현재</b> 자본총계ㆍ자본금으로 다시 판단해본
+            결과입니다 — 신고 당시가 아닌 현재 자본 기준이라 참고용이며, "미달"이어도 오류가 아니라 그 사이
+            자본 규모가 달라졌을 수 있습니다.</p>
           <div class="table-wrap">
             <table id="ftc-table">
               <colgroup>
                 <col style="width:4%">  <!-- 순번 -->
-                <col style="width:16%"><!-- 유형 -->
-                <col style="width:18%"><!-- 거래상대방 -->
-                <col style="width:10%"><!-- 관계 -->
-                <col style="width:11%"><!-- 공시일자 -->
-                <col style="width:11%"><!-- 이사회의결일 -->
-                <col style="width:16%"><!-- 금액/비율 -->
-                <col style="width:6%"> <!-- 원문 -->
+                <col style="width:13%"><!-- 유형 -->
+                <col style="width:14%"><!-- 거래상대방 -->
+                <col style="width:8%"> <!-- 관계 -->
+                <col style="width:9%"> <!-- 공시일자 -->
+                <col style="width:9%"> <!-- 이사회의결일 -->
+                <col style="width:9%"> <!-- 공시기한 -->
+                <col style="width:11%"><!-- 공시대상 재확인 -->
+                <col style="width:13%"><!-- 금액/비율 -->
+                <col style="width:5%"> <!-- 원문 -->
               </colgroup>
               <thead>
                 <tr>
                   <th>순번</th><th>유형</th><th>거래상대방</th><th>관계</th><th>공시일자</th>
-                  <th>이사회의결일</th><th>거래금액<br>(매출액대비)</th><th>원문</th>
+                  <th>이사회의결일</th><th>공시기한<br>(3영업일)</th><th>공시대상<br>재확인</th>
+                  <th>거래금액<br>(매출액대비)</th><th>원문</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -338,7 +346,9 @@
             가져옵니다) 자본총계ㆍ자본금이 자동입력되고, 그 외 회사는 직접 입력하면 됩니다. 거래금액과 함께 100억원
             이상이거나 자본총계·자본금 중 큰 금액의 5%(최소 5억원) 이상인지로 판단합니다 — 상품ㆍ용역 거래는 거래상대방이
             "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 50% 초과 자회사)"인 경우에만 대상이라, 회사명을
-            20% 계열사 실제 목록과 자동으로 대조합니다.</p>
+            20% 계열사 실제 목록과 자동으로 대조합니다.
+            <b>공시대상이면 이사회 의결일로부터 상장법인은 3영업일 이내, 비상장법인ㆍ공익법인은 7영업일 이내에
+            공시해야 합니다.</b></p>
           <div class="check-form">
             <label>거래유형
               <select id="ftcCheckType">

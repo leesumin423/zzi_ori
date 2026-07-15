@@ -431,7 +431,7 @@ function renderFtc(payload) {
   const isRecent = meta.range !== 'all';
 
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">공정위 공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10">공정위 공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
     if (note) {
       note.textContent = isRecent && meta.total_count_all_years > 0
         ? `최근 1년간은 해당 이력이 없습니다(전체 ${meta.lookback_years ?? 10}년간 ${meta.total_count_all_years}건 있음 — "전체 이력" 탭에서 확인).`
@@ -460,10 +460,31 @@ function renderFtc(payload) {
       <td>${item.relation ?? ''}</td>
       <td class="num">${item.disclosure_date ?? ''}</td>
       <td class="num">${item.board_date ?? ''}</td>
+      <td>${ftcTimelinessBadge(item)}</td>
+      <td>${ftcReverifyBadge(item)}</td>
       <td class="num">${item.amount_label ?? ''}</td>
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
     tbody.appendChild(tr);
   });
+}
+
+// "공시기한"ㆍ"공시대상 재확인" 배지 — 자동 판정이 아니라 확인 필요 후보를
+// 색으로 눈에 띄게 표시하는 용도(초록=정상/충족, 빨강=지연/미달, 회색=확인불가).
+function ftcTimelinessBadge(item) {
+  const days = item.filing_business_days;
+  if (item.filing_timeliness === 'on_time') {
+    return `<span class="up">✓ 준수(${days}영업일)</span>`;
+  }
+  if (item.filing_timeliness === 'late') {
+    return `<span class="down">⚠ 지연 의심(${days}영업일)</span>`;
+  }
+  return '<span class="rule-cite">확인불가</span>';
+}
+
+function ftcReverifyBadge(item) {
+  if (item.reverify_is_required === true) return '<span class="up">✓ 충족</span>';
+  if (item.reverify_is_required === false) return `<span class="down" title="${escapeAttr(item.reverify_note ?? '')}">⚠ 미달(참고)</span>`;
+  return '<span class="rule-cite">확인불가</span>';
 }
 
 // ── 계열사별 자본금ㆍ자본총계(비상장 자회사 — 공정위 사전검증 계산기 드롭다운용) ──
@@ -645,7 +666,7 @@ async function runFtcCheck() {
 
 function renderFtcCheckResult(r) {
   const verdictClass = r.is_disclosure_required ? 'required' : 'not-required';
-  const verdictText = r.is_disclosure_required ? '이사회 의결 및 공시 대상입니다' : '공시대상이 아닙니다';
+  const verdictText = r.is_disclosure_required ? '공시 대상입니다' : '공시대상이 아닙니다';
   const checkMark = (ok) => ok ? '<span class="up">✓ 충족</span>' : '<span class="down">✗ 미충족</span>';
   const typeLabel = r.transaction_type === 'goods_services' ? '상품ㆍ용역 거래' : '자금ㆍ유가증권ㆍ자산 거래';
 
@@ -656,6 +677,11 @@ function renderFtcCheckResult(r) {
     targetRow = `<li>거래상대방 요건("동일인·동일인 친족 20%이상 출자 계열회사 또는 그 50%초과 자회사"): ${checkMark(!failedTarget)}</li>`;
   }
 
+  const deadlineNote = r.is_disclosure_required
+    ? `<p class="check-reason" style="border-left-color: #f87171;">이사회 의결일로부터 <b>상장법인은 3영업일 이내</b>,
+        <b>비상장법인ㆍ공익법인은 7영업일 이내</b>에 공시해야 합니다 — 기한을 넘기면 그 자체로 별도의 공시위반입니다.</p>`
+    : '';
+
   return `
     <div class="check-verdict ${verdictClass}">${verdictText}</div>
     <p class="info">거래유형: <b>${typeLabel}</b></p>
@@ -664,8 +690,9 @@ function renderFtcCheckResult(r) {
       <li>자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 이상: ${checkMark(r.amount_ge_capital_pct)}</li>
       ${targetRow}
     </ul>
-    <p class="info">${escapeAttr(r.reason)}</p>
-    <p class="info">기준금액(자본총계ㆍ자본금 중 큰 금액의 5%, 최소 5억원): <b>${fmtWon(r.threshold_amount)}원</b></p>`;
+    <p class="check-reason">판단근거: ${escapeAttr(r.reason)}</p>
+    <p class="info">기준금액(자본총계ㆍ자본금 중 큰 금액의 5%, 최소 5억원): <b>${fmtWon(r.threshold_amount)}원</b></p>
+    ${deadlineNote}`;
 }
 
 // 지분공시 탭 안에는 임원ㆍ주요주주(officer) / 대량보유상황보고서(large_holding)
@@ -1188,8 +1215,7 @@ function guideFtcHtml() {
       금액의 5% 이상(그 금액이 5억원 미만인 경우 5억원) 이거나 100억원 이상을 <b>출자</b>하는 회사</p>
       ${guideFieldsHtml([
         { label: '1. 거래상대방 / 회사와의 관계', note: '계열회사ㆍ동일인 등(동일인ㆍ배우자ㆍ혈족1촌)ㆍ동일인의 친족ㆍ기타친족ㆍ임원ㆍ비영리법인 등으로 구분 기재' },
-        { label: '2. 출자내역 — 가. 출자일자 / 나. 출자목적물', note: '' },
-        { label: '2. 출자내역 — 다. 출자금액 / 라. 출자상대방 총출자액', note: '"출자상대방 총출자액"은 이번 출자금액을 포함한 누계 총출자금액' },
+        { label: '2. 출자내역 — 가. 출자일자 / 나. 출자목적물 / 다. 출자금액 / 라. 출자상대방 총출자액', note: '"출자상대방 총출자액"은 이번 출자금액을 포함한 누계 총출자금액' },
         { label: '3. 출자목적', note: '' },
         { label: '4. 이사회 의결일 — 사외이사 참석여부 / 감사(감사위원) 참석여부', note: '' },
         { label: '5. 기타 / ※ 관련공시일', note: '변경ㆍ정정공시인 경우 관련공시일에 최초 공시 연월일 기재' },

@@ -358,17 +358,18 @@ tr:hover td { background: rgba(255,255,255,0.025); }
 }
 .rule-btn:hover { background: rgba(125, 211, 252, 0.2); }
 
-.rule-modal-body { font-size: 13px; line-height: 1.7; }
+.rule-modal-body { font-size: 13.5px; line-height: 1.75; }
 .rule-modal-body h4 {
-  font-size: 13px; color: var(--title); margin: 18px 0 8px;
+  font-size: 13px; font-weight: 800; color: #0a0a0f; background: var(--title);
+  display: inline-block; padding: 3px 10px; border-radius: 4px; margin: 18px 0 10px;
 }
 .rule-modal-body h4:first-child { margin-top: 0; }
-.rule-modal-body p { margin-bottom: 8px; color: var(--text); }
+.rule-modal-body p { margin-bottom: 8px; color: #f4f4fa; }
 .rule-modal-body .rule-cite {
   font-size: 11px; color: var(--muted); margin-top: 4px;
 }
 .rule-modal-body ul { margin: 4px 0 8px 18px; }
-.rule-modal-body li { margin-bottom: 4px; }
+.rule-modal-body li { margin-bottom: 4px; color: #f4f4fa; }
 
 /* 도식 흐름: [매출액] → [× 비율] → [기준금액] 같은 박스+화살표 다이어그램 */
 .rule-flow {
@@ -411,17 +412,18 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   border: 1px solid var(--title); border-radius: 999px;
   width: 16px; height: 16px; line-height: 14px; text-align: center;
 }
-.law-article { border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); margin-bottom: 8px; }
+.law-article { border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); margin-bottom: 8px; background: var(--card); }
 .law-article summary {
-  cursor: pointer; padding: 8px 12px; font-size: 12.5px; font-weight: 700;
-  color: var(--text); list-style: none; display: flex; align-items: center; gap: 6px;
+  cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 700;
+  color: #f4f4fa; list-style: none; display: flex; align-items: center; gap: 6px;
 }
 .law-article summary::-webkit-details-marker { display: none; }
-.law-article summary::before { content: '▸'; color: var(--muted); font-size: 11px; transition: transform .15s; }
+.law-article summary::before { content: '▸'; color: var(--title); font-size: 12px; transition: transform .15s; }
 .law-article[open] summary::before { transform: rotate(90deg); }
 .law-article-text {
-  padding: 0 12px 12px; font-size: 12.5px; line-height: 1.7; color: var(--text);
-  white-space: pre-line; border-top: 1px solid var(--border); padding-top: 8px;
+  padding: 10px 14px 14px; font-size: 12.5px; line-height: 1.8; color: #f4f4fa;
+  white-space: pre-line; border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 /* ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ─────────── */
@@ -504,36 +506,53 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   border-color: var(--accent);
 }
 
-#checkResult { margin-top: 16px; }
-#checkResult .check-verdict {
+#checkResult, #ftcCheckResult { margin-top: 16px; }
+.check-verdict {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 18px 20px;
   border-radius: var(--radius);
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   margin-bottom: 12px;
+  letter-spacing: -0.2px;
 }
-#checkResult .check-verdict.required {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid var(--up);
-  color: var(--up);
+/* "공시 대상입니다" = 조치가 필요하다는 경고 → 강한 경고색(주황/빨강 계열).
+   "공시대상이 아닙니다" = 안전 → 초록 계열. up/down(등락 색상)과 의미가
+   반대라 전용 색상 변수를 쓴다 — 등락색을 재사용하면 "상승=공시필요"처럼
+   잘못 읽힐 수 있다. */
+.check-verdict.required {
+  background: rgba(248, 113, 113, 0.18);
+  border: 2px solid #f87171;
+  color: #fca5a5;
 }
-#checkResult .check-verdict.not-required {
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid var(--down);
-  color: var(--down);
+.check-verdict.not-required {
+  background: rgba(74, 222, 128, 0.16);
+  border: 2px solid #4ade80;
+  color: #86efac;
 }
-#checkResult .check-detail {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.7;
-}
-#checkResult .check-detail b { color: var(--text); }
-#checkResult .check-error {
-  color: var(--up);
+.check-detail {
   font-size: 13px;
+  color: var(--text);
+  line-height: 1.8;
+}
+.check-detail b { color: var(--title); }
+.check-reason {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--card);
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin: 10px 0;
+  line-height: 1.6;
+}
+.check-error {
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* ── Print ───────────────────────────────────────────────────── */

@@ -2350,20 +2350,28 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
         soup = BeautifulSoup(text, 'html.parser')
         parsed = _FTC_PARSERS[kind](soup)
 
+        amount_won = None
         if kind == 'goods_services':
             ratio = parsed.get('max_quarterly_ratio')
+            prior_revenue = parsed.get('prior_revenue')
             amount_label = f"매출액대비 최대 {ratio:.2f}%" if ratio is not None else ''
+            if ratio is not None and prior_revenue is not None:
+                amount_won = round(prior_revenue * ratio / 100) * 1_000_000  # 백만원 → 원
         else:
             amt = parsed.get('amount')
             amount_label = f"{amt:,}백만원" if amt is not None else ''
+            if amt is not None:
+                amount_won = amt * 1_000_000
 
         results.append({
             "type_label": FTC_TYPE_LABELS[kind],
+            "kind": kind,
             "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or ''),
             "relation": parsed.get('relation') or '',
             "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
             "board_date": parsed.get('board_date') or '',  # 원문에 이미 "YYYY.MM.DD"로 기재됨
             "amount_label": amount_label,
+            "amount_won": amount_won,
             "rcept_no": rcept_no,
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}",
         })
@@ -2380,12 +2388,84 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
         if r['type_label'] == FTC_TYPE_LABELS['goods_services'] and r['counterparty']
     })
 
+    _ftc_apply_accuracy_check(results)
+
     meta = {
         "lookback_years": FTC_LOOKBACK_YEARS,
         "known_goods_services_counterparties": known_counterparties,
     }
     _ftc_cache.update(ts=now, data=results, meta=meta)
     return results
+
+def _normalize_dot_date(raw: str):
+    """"2025.04.25"뿐 아니라 "2025. 4. 25."처럼 공백ㆍ트레일링 점이 섞인 원문
+    표기도 파싱한다("-"처럼 날짜가 아예 없는 경우는 None)."""
+    if not raw:
+        return None
+    cleaned = raw.replace(' ', '').strip('.')
+    parts = cleaned.split('.')
+    if len(parts) != 3:
+        return None
+    try:
+        return date(int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+def _business_days_between(start_dot: str, end_dot: str):
+    """두 날짜 사이의 영업일 수(토ㆍ일만 제외, 공휴일은 반영 못함 — 근사치)를
+    센다. 시작일 당일은 세지 않고(이사회 의결 당일은 포함하지 않음) 종료일까지
+    며칠째인지를 반환한다. 파싱 실패ㆍ날짜 역전 시 None(=확인불가)."""
+    d1, d2 = _normalize_dot_date(start_dot), _normalize_dot_date(end_dot)
+    if d1 is None or d2 is None or d2 < d1:
+        return None
+    days = 0
+    cur = d1
+    while cur < d2:
+        cur += timedelta(days=1)
+        if cur.weekday() < 5:  # 월~금
+            days += 1
+    return days
+
+FTC_FILING_DEADLINE_BUSINESS_DAYS = 3  # 동양(주)은 상장법인 — 이사회 의결 후 3영업일 이내 공시
+
+def _ftc_apply_accuracy_check(results: list) -> None:
+    """이미 제출된 공정위 공시 건들을 대상으로 "정확성 점검"을 덧붙인다(자동
+    판정이 아니라 확인 필요 후보를 추려주는 용도):
+    1) 공시기한 준수 — 이사회 의결일로부터 실제 공시일까지 영업일수를 계산해
+       3영업일(동양(주)은 상장법인) 초과 여부를 표시.
+    2) 공시대상 재확인 — 원문에서 뽑은 거래금액(amount_won)과 동양(주)의 "현재"
+       자본총계·자본금 중 큰 금액으로 check_ftc_disclosure()를 다시 돌려본다.
+       이미 신고된 건이니 거의 항상 "대상"으로 나와야 정상 — False가 나오면
+       자본금이 신고 당시와 달라졌거나 원문 파싱이 어긋났을 수 있어 확인이
+       필요하다는 신호로 취급한다(과거 시점 자본금이 아니라 현재 값을 쓰는
+       근사치라는 한계를 화면에도 명시해야 함)."""
+    dongyang = next((r for r in fetch_all_group_capital_info() if r['name'] == '동양(주)'), None)
+    capital_base = dongyang.get('capital_base') if dongyang else None
+
+    for r in results:
+        business_days = _business_days_between(r.get('board_date') or '', r.get('disclosure_date') or '')
+        r['filing_business_days'] = business_days
+        # 'on_time'/'late'/'unknown' — bool 대신 3단계로 둬서 "확인불가"가
+        # "지연"으로 잘못 읽히지 않게 한다(예: 1년 일괄의결 특례라 이사회
+        # 의결일이 "-"로 비어 있는 상품ㆍ용역거래 분기 공시 등).
+        r['filing_timeliness'] = (
+            'unknown' if business_days is None
+            else 'on_time' if business_days <= FTC_FILING_DEADLINE_BUSINESS_DAYS
+            else 'late'
+        )
+
+        reverify = None
+        if r.get('amount_won') is not None and capital_base:
+            transaction_type = 'goods_services' if r.get('kind') == 'goods_services' else 'fund_securities_asset'
+            reverify = check_ftc_disclosure(transaction_type, r['amount_won'], capital_base, is_goods_services_target=True)
+        r['reverify_is_required'] = reverify['is_disclosure_required'] if reverify else None
+        r['reverify_note'] = (
+            "원문 금액ㆍ현재 자본 기준으로도 공시대상 요건을 충족합니다(참고: 자본금은 신고 당시가 아닌 현재 값)."
+            if reverify and reverify['is_disclosure_required']
+            else "원문 금액ㆍ현재 자본 기준으로는 공시대상 요건에 못 미칩니다 — 신고 당시 자본금이 지금과 달랐거나 확인이 필요할 수 있습니다."
+            if reverify
+            else "거래금액 또는 자본금 데이터가 부족해 재확인할 수 없습니다."
+        )
 
 # ─────────────────────────────────────────────────────────────
 # 3-3-6. 비상장 계열사 자본금ㆍ자본총계 — 공정위 대규모내부거래 사전검증용.
@@ -2703,6 +2783,7 @@ def check_ftc_disclosure(transaction_type: str, amount: int, capital_base: int, 
     amount_ge_100eok = amount >= 10_000_000_000
     amount_ge_capital_pct = amount >= threshold
     amount_triggered = amount_ge_100eok or amount_ge_capital_pct
+    is_goods = transaction_type == 'goods_services'
 
     base = {
         "transaction_type": transaction_type,
@@ -2712,22 +2793,25 @@ def check_ftc_disclosure(transaction_type: str, amount: int, capital_base: int, 
         "threshold_amount": int(threshold),
     }
 
-    if transaction_type == 'goods_services' and not is_goods_services_target:
-        return {
-            **base,
-            "is_disclosure_required": False,
-            "reason": "거래상대방이 \"동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 계열회사의 50% 초과 자회사)\"에 해당하지 않아, 금액과 무관하게 대규모내부거래 공시대상이 아닙니다.",
-        }
+    # 판단근거 문장 — 어떤 조건이 실제로 충족을 갈랐는지 그대로 짚어준다
+    # (100억 기준인지, 100억은 안 되지만 5% 기준으로 걸렸는지, 상품ㆍ용역거래는
+    # 거래상대방 요건이 먼저인지 등).
+    if is_goods and not is_goods_services_target:
+        reason = "거래상대방이 상품ㆍ용역거래 특례 대상 계열회사(20% 계열사)에 해당하지 않아, 금액과 무관하게 공시대상이 아닙니다."
+        return {**base, "is_disclosure_required": False, "reason": reason}
 
-    return {
-        **base,
-        "is_disclosure_required": bool(amount_triggered),
-        "reason": (
-            "거래금액이 100억원 이상이거나 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 이상이라 이사회 의결 및 공시 대상입니다."
-            if amount_triggered else
-            "거래금액이 100억원 미만이고 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 미만이라 공시대상이 아닙니다."
-        ),
-    }
+    if amount_ge_100eok and amount_ge_capital_pct:
+        amount_reason = "거래금액이 100억원 이상이고 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 기준도 충족해 공시대상입니다."
+    elif amount_ge_100eok:
+        amount_reason = "거래금액이 100억원 이상이므로 공시대상입니다."
+    elif amount_ge_capital_pct:
+        amount_reason = "거래금액은 100억원 미만이지만, 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 기준을 충족해 공시대상입니다."
+    else:
+        amount_reason = "거래금액이 100억원 미만이고 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 기준도 충족하지 않아 공시대상이 아닙니다."
+
+    reason = f"거래상대방이 상품ㆍ용역거래 특례 대상 계열회사(20% 계열사)에 해당하며, {amount_reason}" if is_goods else amount_reason
+
+    return {**base, "is_disclosure_required": bool(amount_triggered), "reason": reason}
 
 # 종목 공시 게시판에는 "단기과열종목 지정"처럼 반복적으로 계속 연장되는 조치와
 # "매매거래정지및정지해제"처럼 당일 안에 풀리는 일회성 조치가 섞여 있어서,
