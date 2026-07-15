@@ -1,0 +1,7010 @@
+{
+  "snapshots": {
+    "2021-12-31": {
+      "base_date": "2021-12-31",
+      "label": "2021년 12월말 (기말)",
+      "total_amount": 27815061127,
+      "weighted_yield": 0.021218358774189577,
+      "expected_interest": 590189946,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 26316750320,
+          "ratio": 0.9461331111170705,
+          "yield": 0.02118106930154209,
+          "interest": 557416912
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 1498310807,
+          "ratio": 0.053866888882929474,
+          "yield": 0.021873321507317942,
+          "interest": 32773034
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 0,
+          "ratio": 0.0,
+          "yield": 0.0,
+          "interest": 0
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 9903415695,
+          "ratio": 0.35604508110847843
+        },
+        {
+          "institution": "산업은행",
+          "amount": 5826806912,
+          "ratio": 0.20948387944917854
+        },
+        {
+          "institution": "우리은행",
+          "amount": 5595884692,
+          "ratio": 0.20118182255469108
+        },
+        {
+          "institution": "기업은행",
+          "amount": 3077832698,
+          "ratio": 0.1106534579933875
+        },
+        {
+          "institution": "국민은행",
+          "amount": 2832081378,
+          "ratio": 0.10181826906901552
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 578926279,
+          "ratio": 0.02081341027282654
+        },
+        {
+          "institution": "현대해상",
+          "amount": 113473,
+          "ratio": 4.079552422405144e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 27514460563,
+          "ratio": 0.9891928850119187
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 300575000,
+          "ratio": 0.010806195917658174
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 25564,
+          "ratio": 9.190704231523366e-07
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0213,
+          "start": "2010-05-28",
+          "new_date": "2021-12-10",
+          "end": "2022-12-10",
+          "amount": 959439974
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0213,
+          "start": null,
+          "new_date": "2021-12-29",
+          "end": "2022-12-29",
+          "amount": 4482584584
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "롯데 손보 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0216,
+          "start": null,
+          "new_date": "2021-01-09",
+          "end": "2022-01-09",
+          "amount": 1118022982
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "프로미(DB) 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0216,
+          "start": null,
+          "new_date": "2021-12-02",
+          "end": "2022-12-02",
+          "amount": 2341693136
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "푸른현대생명 이율보증보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.022,
+          "start": null,
+          "new_date": "2021-12-01",
+          "end": "2022-12-01",
+          "amount": 1001675019
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "프로미(DB) 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0197,
+          "start": "2008-05-26",
+          "new_date": "2021-12-31",
+          "end": "2022-12-31",
+          "amount": 3338564084
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "프로미(DB) 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0216,
+          "start": null,
+          "new_date": "2021-12-01",
+          "end": "2022-12-01",
+          "amount": 701189534
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "삼성화재 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.019,
+          "start": null,
+          "new_date": "2021-12-24",
+          "end": "2022-12-24",
+          "amount": 935035253
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "삼성화재 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.019,
+          "start": null,
+          "new_date": "2021-12-30",
+          "end": "2022-12-30",
+          "amount": 172272704
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "삼성화재 이율보증형보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.019,
+          "start": null,
+          "new_date": "2021-12-31",
+          "end": "2022-12-31",
+          "amount": 205602316
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "교보DB GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0226,
+          "start": null,
+          "new_date": "2021-12-10",
+          "end": "2022-12-10",
+          "amount": 474123748
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "미운용자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0075,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 19273
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "교보DB GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0226,
+          "start": "2015-07-02",
+          "new_date": "2021-12-10",
+          "end": "2023-12-10",
+          "amount": 508501499
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "롯데 손보 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.023,
+          "start": null,
+          "new_date": "2021-12-02",
+          "end": "2022-12-02",
+          "amount": 730633904
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "롯데 손보 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.023,
+          "start": null,
+          "new_date": "2021-12-31",
+          "end": "2022-12-31",
+          "amount": 3756730482
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "롯데 손보 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.023,
+          "start": null,
+          "new_date": "2021-12-01",
+          "end": "2022-12-01",
+          "amount": 600018807
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0222,
+          "start": "2015-07-07",
+          "new_date": "2021-12-05",
+          "end": "2022-12-05",
+          "amount": 522753669
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0215,
+          "start": null,
+          "new_date": "2022-01-03",
+          "end": "2023-01-03",
+          "amount": 686593864
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "동양생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0218,
+          "start": null,
+          "new_date": "2021-12-03",
+          "end": "2022-12-03",
+          "amount": 1261177581
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "동양생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0218,
+          "start": null,
+          "new_date": "2021-12-11",
+          "end": "2022-12-11",
+          "amount": 306726334
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "IBK 저축은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.023,
+          "start": null,
+          "new_date": "2021-12-01",
+          "end": "2022-12-01",
+          "amount": 300575000
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 6250
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0222,
+          "start": "2017-12-26",
+          "new_date": "2021-12-11",
+          "end": "2022-12-11",
+          "amount": 304159818
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0222,
+          "start": null,
+          "new_date": "2021-12-14",
+          "end": "2022-12-14",
+          "amount": 1054372
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0222,
+          "start": null,
+          "new_date": "2021-12-29",
+          "end": "2022-12-29",
+          "amount": 974749185
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0215,
+          "start": null,
+          "new_date": "2022-01-04",
+          "end": "2023-01-04",
+          "amount": 303215444
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0222,
+          "start": null,
+          "new_date": "2021-12-02",
+          "end": "2022-12-02",
+          "amount": 948894184
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0222,
+          "start": null,
+          "new_date": "2021-12-01",
+          "end": "2022-12-01",
+          "amount": 300008375
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.02,
+          "start": "2016-12-29",
+          "new_date": "2022-12-29",
+          "end": "2022-12-29",
+          "amount": 113473
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "롯데 손보 무배당 퇴직연금보험\n(이율보증1년)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.023,
+          "start": null,
+          "new_date": "2020-12-11",
+          "end": "2022-12-11",
+          "amount": 100324322
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "롯데 손보 무배당 퇴직연금보험\n(이율보증1년)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": "2021-12-11",
+          "end": "2022-12-01",
+          "amount": 100187075
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "롯데 손보 무배당 퇴직연금보험\n(이율보증1년)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": "2021-12-03",
+          "end": "2022-12-03",
+          "amount": 378414841
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 고유대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 41
+        }
+      ]
+    },
+    "2022-12-31": {
+      "base_date": "2022-12-31",
+      "label": "2022년 12월말 (기말)",
+      "total_amount": 34963360497,
+      "weighted_yield": 0.05387535589503549,
+      "expected_interest": 1883663490,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 9072292040,
+          "ratio": 0.2594799787846034,
+          "yield": 0.06232977968177267,
+          "interest": 565473964
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 11823192428,
+          "ratio": 0.33815949782671717,
+          "yield": 0.050505943097664,
+          "interest": 597141484
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 14067876029,
+          "ratio": 0.40236052338867945,
+          "yield": 0.05125493290619756,
+          "interest": 721048042
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 13269666286,
+          "ratio": 0.37953063142024324
+        },
+        {
+          "institution": "우리은행",
+          "amount": 7812472030,
+          "ratio": 0.22344740090616697
+        },
+        {
+          "institution": "산업은행",
+          "amount": 6438052147,
+          "ratio": 0.18413710969094094
+        },
+        {
+          "institution": "기업은행",
+          "amount": 3314604379,
+          "ratio": 0.09480222529766287
+        },
+        {
+          "institution": "국민은행",
+          "amount": 3236014695,
+          "ratio": 0.09255445268991416
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 892445380,
+          "ratio": 0.02552516026245748
+        },
+        {
+          "institution": "현대해상",
+          "amount": 105580,
+          "ratio": 3.0197326143480742e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 11571609949,
+          "ratio": 0.33096389433140705
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 19272305248,
+          "ratio": 0.55121432762888
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 3000961499,
+          "ratio": 0.08583160932878563
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 500000000,
+          "ratio": 0.014300684856734582
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 618483801,
+          "ratio": 0.01768948385419269
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "푸른현대생명 이율보증보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2023-12-01",
+          "amount": 1027583899
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-29",
+          "amount": 5169858070
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "우체국 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.052,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-09",
+          "amount": 3566902820
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 금융투자 ELB 1년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0662,
+          "start": null,
+          "new_date": null,
+          "end": "2023-12-30",
+          "amount": 1500361499
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진투자증권 ELB 1년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.073,
+          "start": null,
+          "new_date": null,
+          "end": "2023-12-30",
+          "amount": 1500600000
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 500000000
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "농협현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0248,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 4359998
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0507,
+          "start": "2008-06-30",
+          "new_date": "2022-12-14",
+          "end": "2024-12-14",
+          "amount": 718019279
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0507,
+          "start": null,
+          "new_date": "2022-12-15",
+          "end": "2024-12-15",
+          "amount": 316747880
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2025-12-19",
+          "amount": 1001816438
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-30",
+          "end": "2025-12-30",
+          "amount": 3411566067
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-27",
+          "end": "2024-12-27",
+          "amount": 953401311
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-30",
+          "end": "2024-12-30",
+          "amount": 36324423
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0325,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 176749
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": "2015-07-02",
+          "new_date": "2022-12-30",
+          "end": "2024-12-30",
+          "amount": 3844141066
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2024-12-19",
+          "amount": 38880495
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": "2022-12-13",
+          "end": "2024-12-13",
+          "amount": 1239171456
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": "2022-12-13",
+          "end": "2024-12-12",
+          "amount": 185788041
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2025-12-19",
+          "amount": 2504318493
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 172479
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "IBK 저축은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.058,
+          "start": "2015-07-07",
+          "new_date": "2022-12-01",
+          "end": "2023-12-01",
+          "amount": 57271312
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": null,
+          "new_date": "2022-12-20",
+          "end": "2023-12-05",
+          "amount": 535958205
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "한국투자 저축은행 1년",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.057,
+          "start": null,
+          "new_date": "2023-01-05",
+          "end": "2024-01-05",
+          "amount": 613731659
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "동양생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0595,
+          "start": null,
+          "new_date": "2020-12-03",
+          "end": "2023-12-03",
+          "amount": 1292757954
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "동양생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0595,
+          "start": null,
+          "new_date": "2020-12-11",
+          "end": "2023-12-11",
+          "amount": 314035798
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "우리은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0491,
+          "start": null,
+          "new_date": "2022-12-20",
+          "end": "2025-01-05",
+          "amount": 500807123
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "미운용자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0309,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 42328
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": "2017-12-26",
+          "new_date": "2022-12-01",
+          "end": "2023-12-01",
+          "amount": 53265020
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": null,
+          "new_date": "2022-12-02",
+          "end": "2023-12-02",
+          "amount": 975002926
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": null,
+          "new_date": "2022-12-15",
+          "end": "2023-12-15",
+          "amount": 311951715
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": null,
+          "new_date": "2022-12-16",
+          "end": "2023-12-16",
+          "amount": 1081257
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.066,
+          "start": null,
+          "new_date": "2022-12-31",
+          "end": "2023-12-31",
+          "amount": 997564733
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "신한저축은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.052,
+          "start": null,
+          "new_date": "2023-01-04",
+          "end": "2024-01-06",
+          "amount": 310083998
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": "2022-12-09",
+          "end": "2025-12-09",
+          "amount": 587065046
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0585,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": "2023-12-29",
+          "amount": 105580
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 692104677
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 200340115
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 고유대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 588
+        }
+      ]
+    },
+    "2023-12-31": {
+      "base_date": "2023-12-31",
+      "label": "2023년 12월말 (기말)",
+      "total_amount": 39085384896,
+      "weighted_yield": 0.04687315682335248,
+      "expected_interest": 1832055376,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 18906996612,
+          "ratio": 0.4837357150840017,
+          "yield": 0.04486673844456073,
+          "interest": 848295272
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 14641262918,
+          "ratio": 0.3745968718731586,
+          "yield": 0.051113671760962216,
+          "interest": 748368707
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 5537125366,
+          "ratio": 0.1416674130428397,
+          "yield": 0.04251148049803791,
+          "interest": 235391397
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 14894179232,
+          "ratio": 0.3810677385327289
+        },
+        {
+          "institution": "우리은행",
+          "amount": 8690097136,
+          "ratio": 0.22233623025903335
+        },
+        {
+          "institution": "산업은행",
+          "amount": 6806224256,
+          "ratio": 0.1741373220222925
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4319604484,
+          "ratio": 0.11051712796212143
+        },
+        {
+          "institution": "국민은행",
+          "amount": 3335378304,
+          "ratio": 0.0853356903833725
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1039795904,
+          "ratio": 0.02660318957499668
+        },
+        {
+          "institution": "현대해상",
+          "amount": 105580,
+          "ratio": 2.701265454617669e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 16126114504,
+          "ratio": 0.41258681593923224
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 22309431548,
+          "ratio": 0.5707870501304222
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 100000000,
+          "ratio": 0.002558501093595064
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 543026444,
+          "ratio": 0.013893337508250388
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 6812400,
+          "ratio": 0.00017429532850007015
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "푸른현대생명 이율보증보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2024-12-01",
+          "amount": 969667812
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 5443858510
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "우체국 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.052,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-14",
+          "amount": 3123619154
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0401,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-29",
+          "amount": 1500322304
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "우리은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0392,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-29",
+          "amount": 2513596792
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 543026444
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "우리은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0392,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-29",
+          "amount": 800000000
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "농협현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 88216
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0507,
+          "start": "2008-06-30",
+          "new_date": "2022-12-14",
+          "end": "2024-12-14",
+          "amount": 754332065
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0507,
+          "start": null,
+          "new_date": "2022-12-15",
+          "end": "2024-12-15",
+          "amount": 332769166
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2025-12-19",
+          "amount": 1052816438
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-30",
+          "end": "2025-12-30",
+          "amount": 3576983061
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-27",
+          "end": "2024-12-27",
+          "amount": 745257609
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-30",
+          "end": "2024-12-30",
+          "amount": 38085690
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "우리은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0392,
+          "start": null,
+          "new_date": "2023-12-28",
+          "end": "2024-12-28",
+          "amount": 300128876
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.035,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 5851351
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": "2015-07-02",
+          "new_date": "2022-12-13",
+          "end": "2024-12-13",
+          "amount": 1186982492
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2024-12-19",
+          "amount": 40782320
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": "2022-12-30",
+          "end": "2024-12-30",
+          "amount": 4032453418
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2025-12-19",
+          "amount": 2625568493
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0401,
+          "start": null,
+          "new_date": "2023-12-27",
+          "end": "2024-12-27",
+          "amount": 804294918
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 15495
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": "2023-12-06",
+          "end": "2026-12-05",
+          "amount": 62586960
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2023-12-05",
+          "end": "2024-12-05",
+          "amount": 565261300
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.057,
+          "start": null,
+          "new_date": "2023-01-05",
+          "end": "2024-01-05",
+          "amount": 649498272
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-06",
+          "end": "2026-12-06",
+          "amount": 1367173356
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-28",
+          "end": "2026-12-13",
+          "amount": 332368765
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "우리은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0491,
+          "start": null,
+          "new_date": "2022-12-20",
+          "end": "2025-12-20",
+          "amount": 342381693
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-28",
+          "end": "2026-12-28",
+          "amount": 1000334138
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": "2017-12-26",
+          "new_date": "2025-12-01",
+          "end": "2026-12-01",
+          "amount": 56671586
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2024-12-31",
+          "end": "2025-12-31",
+          "amount": 1063404005
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2024-12-15",
+          "end": "2025-12-15",
+          "amount": 332200145
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2024-12-16",
+          "end": "2025-12-16",
+          "amount": 1151514
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2024-12-31",
+          "end": "2025-12-31",
+          "amount": 1037425667
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "신한저축은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.052,
+          "start": null,
+          "new_date": "2024-01-06",
+          "end": "2025-01-06",
+          "amount": 326513392
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 851106
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": "2025-12-09",
+          "end": "2028-12-09",
+          "amount": 517160889
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0585,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": "2023-12-29",
+          "amount": 105580
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 727830814
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 211958858
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 100000000
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 고유대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 6232
+        }
+      ]
+    },
+    "2024-09-30": {
+      "base_date": "2024-09-30",
+      "label": "2024년 9월말 (3분기)",
+      "total_amount": 41025323435,
+      "weighted_yield": 0.04275478341427973,
+      "expected_interest": 1754028818,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 22595800258,
+          "ratio": 0.5507768950024367,
+          "yield": 0.037360568073738186,
+          "interest": 844191934
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 14796741626,
+          "ratio": 0.3606733692043591,
+          "yield": 0.05134706711723453,
+          "interest": 759769285
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 3632781551,
+          "ratio": 0.08854973579320423,
+          "yield": 0.04130928236427834,
+          "interest": 150067599
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 14440531959,
+          "ratio": 0.35199069135626426
+        },
+        {
+          "institution": "우리은행",
+          "amount": 9680469123,
+          "ratio": 0.235963261528885
+        },
+        {
+          "institution": "산업은행",
+          "amount": 7095691892,
+          "ratio": 0.17295882878881683
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4566987807,
+          "ratio": 0.11132118956321886
+        },
+        {
+          "institution": "국민은행",
+          "amount": 3752470640,
+          "ratio": 0.09146717992230742
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1189058467,
+          "ratio": 0.02898352450246807
+        },
+        {
+          "institution": "하나은행",
+          "amount": 300000000,
+          "ratio": 0.0073125566084888075
+        },
+        {
+          "institution": "현대해상",
+          "amount": 113547,
+          "ratio": 2.767729550746929e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 18458786557,
+          "ratio": 0.4499364054069157
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 20441566226,
+          "ratio": 0.49826703397932637
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 204054082,
+          "ratio": 0.00497385675272739
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 1575541660,
+          "ratio": 0.03840412525927475
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 345374910,
+          "ratio": 0.008418578601755758
+        }
+      ],
+      "items": [
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "푸른현대생명 이율보증보험 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2024-12-01",
+          "amount": 1003088015
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4582553663
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-22",
+          "amount": 1100704823
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "우체국 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0515,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-14",
+          "amount": 3251150018
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0401,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-29",
+          "amount": 1550293095
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "우리은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0392,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-29",
+          "amount": 1376452775
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 575541660
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 1000000000
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "농협현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0323,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 747910
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0507,
+          "start": "2008-06-30",
+          "new_date": null,
+          "end": "2024-12-14",
+          "amount": 784675625
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0507,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-15",
+          "amount": 346156815
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 1095432876
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 3715208221
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-27",
+          "amount": 390305745
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-30",
+          "amount": 39557433
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "우리은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0392,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-28",
+          "amount": 309955726
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "우리은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 400000000
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0325,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 14399451
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": "2015-07-02",
+          "new_date": null,
+          "end": "2024-12-13",
+          "amount": 882645215
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-19",
+          "amount": 42371516
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 2년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.049,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-30",
+          "amount": 4189810314
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 2726886986
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0401,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-27",
+          "amount": 831083331
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 1000000000
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 7671761
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": null,
+          "end": "2026-12-05",
+          "amount": 65239983
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-05",
+          "amount": 563533872
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2027-01-08",
+          "amount": 670334848
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-06",
+          "amount": 1414406995
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-13",
+          "amount": 343851571
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "우리은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0491,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 53084437
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-28",
+          "amount": 1034894072
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 400000000
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "미운용자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0352,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 21642029
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": "2017-12-26",
+          "new_date": null,
+          "end": "2024-12-01",
+          "amount": 58624807
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-02",
+          "amount": 1073181187
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-15",
+          "amount": 343649630
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-16",
+          "amount": 1191202
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2024-12-31",
+          "amount": 1100054884
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "롯데손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2025-01-09",
+          "amount": 336988936
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 907470
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 300000000
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-09",
+          "amount": 537872524
+        },
+        {
+          "category": "1금융",
+          "institution": "하나은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 300000000
+        },
+        {
+          "category": "2금융",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.042,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": null,
+          "amount": 113547
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 762842993
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 222155103
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 104054082
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 100000000
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "삼성생명 고유대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 6289
+        }
+      ]
+    },
+    "2024-12-31": {
+      "base_date": "2024-12-31",
+      "label": "2024년 12월말 (기말)",
+      "total_amount": 41205131149,
+      "weighted_yield": 0.04049009128583711,
+      "expected_interest": 1668399522,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 26632254299,
+          "ratio": 0.6463334433446242,
+          "yield": 0.04221150798170742,
+          "interest": 1124187615
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 3041737639,
+          "ratio": 0.07381938982310021,
+          "yield": 0.041676261347469885,
+          "interest": 126768253
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 11531139211,
+          "ratio": 0.2798471668322756,
+          "yield": 0.03620142349536327,
+          "interest": 417443654
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 14544728302,
+          "ratio": 0.35298342454985693
+        },
+        {
+          "institution": "우리은행",
+          "amount": 9715653452,
+          "ratio": 0.23578746581020862
+        },
+        {
+          "institution": "산업은행",
+          "amount": 7145952956,
+          "ratio": 0.1734238614642396
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4544277061,
+          "ratio": 0.11028425184639375
+        },
+        {
+          "institution": "국민은행",
+          "amount": 3759475909,
+          "ratio": 0.09123805225629619
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1194230315,
+          "ratio": 0.028982563134712473
+        },
+        {
+          "institution": "하나은행",
+          "amount": 300697760,
+          "ratio": 0.007297580461827934
+        },
+        {
+          "institution": "현대해상",
+          "amount": 115394,
+          "ratio": 2.8004764645143102e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 23514477465,
+          "ratio": 0.5706686718207586
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 15594410815,
+          "ratio": 0.3784579827839829
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 1508855616,
+          "ratio": 0.036618148612217634
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 580594736,
+          "ratio": 0.014090350395938258
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 6792517,
+          "ratio": 0.0001648463871025647
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1009059836
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 2945022236
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4622166880
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-22",
+          "amount": 1110223139
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 1002246188
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3273865852
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 580594736
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0298,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 1549435
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": "2008-06-30",
+          "new_date": "2024-12-17",
+          "end": "2025-12-17",
+          "amount": 790213035
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-17",
+          "end": "2025-12-17",
+          "amount": 348599873
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2025-12-19",
+          "amount": 1103956164
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-30",
+          "end": "2025-12-30",
+          "amount": 3742853253
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-30",
+          "end": "2025-12-30",
+          "amount": 393041407
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-30",
+          "end": "2025-12-30",
+          "amount": 39849269
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-30",
+          "end": "2025-12-30",
+          "amount": 311849793
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-09",
+          "end": "2025-12-09",
+          "amount": 415291673
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 298489
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": "2010-05-31",
+          "new_date": "2024-12-16",
+          "end": "2025-12-16",
+          "amount": 896066935
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-20",
+          "end": "2025-12-20",
+          "amount": 42662224
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-30",
+          "end": "2025-12-30",
+          "amount": 4220490004
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": "2022-12-19",
+          "end": "2025-12-19",
+          "amount": 2747150684
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": "2024-12-27",
+          "end": "2025-12-27",
+          "amount": 806091748
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 1002956000
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 235857
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": "2023-12-05",
+          "end": "2026-12-05",
+          "amount": 65685188
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-06",
+          "end": "2026-12-06",
+          "amount": 1424058629
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-13",
+          "end": "2026-12-13",
+          "amount": 346197207
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-28",
+          "end": "2026-12-28",
+          "amount": 1041948992
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": "2024-12-05",
+          "end": "2025-12-05",
+          "amount": 567070570
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": "2024-01-08",
+          "end": "2027-01-08",
+          "amount": 674622862
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "우리은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0491,
+          "start": null,
+          "new_date": "2022-12-20",
+          "end": "2025-12-20",
+          "amount": 4992122
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 401040000
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": "2024-12-09",
+          "end": "2025-12-09",
+          "amount": 14028847
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 4632644
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": "2017-12-26",
+          "new_date": "2025-12-01",
+          "end": "2026-12-01",
+          "amount": 58988007
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": "2025-12-02",
+          "end": "2025-12-02",
+          "amount": 1079851518
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": "2024-12-15",
+          "end": "2025-12-15",
+          "amount": 345875609
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": "2024-12-16",
+          "end": "2025-12-16",
+          "amount": 1198942
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": "2024-12-31",
+          "end": "2025-12-31",
+          "amount": 1107535271
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "KB손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0355,
+          "start": null,
+          "new_date": "2024-12-31",
+          "end": "2025-12-31",
+          "amount": 340894636
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": "2024-12-04",
+          "end": "2027-12-04",
+          "amount": 301690302
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": "2025-12-09",
+          "end": "2028-12-09",
+          "amount": 523365532
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 76092
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 300697760
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.042,
+          "start": "2016-12-29",
+          "new_date": "2024-12-29",
+          "end": "2025-12-29",
+          "amount": 115394
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": "2022-12-15",
+          "end": "2025-12-15",
+          "amount": 768544543
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": "2022-12-20",
+          "end": "2025-12-20",
+          "amount": 224253513
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": "2023-12-29",
+          "end": "2026-12-29",
+          "amount": 104859616
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 96572643
+        }
+      ]
+    },
+    "2025-05-31": {
+      "base_date": "2025-05-31",
+      "label": "2025년 5월말",
+      "total_amount": 38348364730,
+      "weighted_yield": 0.04119931325141019,
+      "expected_interest": 1579926291,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 24593907348,
+          "ratio": 0.6413287116975848,
+          "yield": 0.04357488435051171,
+          "interest": 1071676668
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 3719104195,
+          "ratio": 0.09698208049248415,
+          "yield": 0.041310547882351,
+          "interest": 153638232
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 10035353187,
+          "ratio": 0.26168920780993105,
+          "yield": 0.035336214305508526,
+          "interest": 354611391
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 14342281017,
+          "ratio": 0.37399980724028126
+        },
+        {
+          "institution": "우리은행",
+          "amount": 9288744878,
+          "ratio": 0.2422201036054452
+        },
+        {
+          "institution": "산업은행",
+          "amount": 4912939767,
+          "ratio": 0.1281134098309177
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4463302625,
+          "ratio": 0.11638834293000112
+        },
+        {
+          "institution": "국민은행",
+          "amount": 3814360755,
+          "ratio": 0.09946606020506575
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1221673484,
+          "ratio": 0.03185725108753549
+        },
+        {
+          "institution": "하나은행",
+          "amount": 304946869,
+          "ratio": 0.007952017540957606
+        },
+        {
+          "institution": "현대해상",
+          "amount": 115335,
+          "ratio": 3.0075597958880685e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 23329241098,
+          "ratio": 0.6083503498064283
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 12889346768,
+          "ratio": 0.3361120313408472
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 1534057260,
+          "ratio": 0.04000319885348081
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 585736097,
+          "ratio": 0.015274082770517136
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 9983507,
+          "ratio": 0.00026033722872646726
+        }
+      ],
+      "items": [
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1022991233
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 2985682137
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4721980700
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-22",
+          "amount": 1134197957
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 572302476
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3318534480
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 585736097
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0298,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 855937
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 1125054794
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 3780539144
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 7345829
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": "2010-05-31",
+          "new_date": null,
+          "end": "2025-12-16",
+          "amount": 332361439
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 43238737
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4277574334
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 2797311643
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-27",
+          "amount": 816991915
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 1020124000
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 1142810
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": null,
+          "end": "2026-12-05",
+          "amount": 66802131
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-06",
+          "amount": 1448274011
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-13",
+          "amount": 352084112
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-28",
+          "amount": 1059666796
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-05",
+          "amount": 443489757
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2027-01-08",
+          "amount": 685383885
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 407040000
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 561933
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": "2017-12-26",
+          "new_date": null,
+          "end": "2025-12-01",
+          "amount": 59804807
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-02",
+          "amount": 1094804099
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 350664909
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-16",
+          "amount": 1215543
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-31",
+          "amount": 1122871186
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "KB손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0355,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-31",
+          "amount": 345849972
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-04",
+          "amount": 305806564
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-09",
+          "amount": 533266677
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 76998
+        },
+        {
+          "category": "1금융",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 304946869
+        },
+        {
+          "category": "2금융",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.042,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": null,
+          "amount": 115335
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 787167340
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 229687456
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 106893260
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 97925428
+        }
+      ]
+    },
+    "2025-09-30": {
+      "base_date": "2025-09-30",
+      "label": "2025년 9월말 (3분기)",
+      "total_amount": 38299739604,
+      "weighted_yield": 0.04110132751925016,
+      "expected_interest": 1574170141,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 24380575016,
+          "ratio": 0.636572866240942,
+          "yield": 0.04346821009046376,
+          "interest": 1059779957
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 3769642151,
+          "ratio": 0.09842474622480987,
+          "yield": 0.04131109585489139,
+          "interest": 155728048
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 10149522437,
+          "ratio": 0.26500238753424815,
+          "yield": 0.03533783371896398,
+          "interest": 358662136
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 14553691478,
+          "ratio": 0.3799945281215443
+        },
+        {
+          "institution": "우리은행",
+          "amount": 9365079999,
+          "ratio": 0.24452072248611104
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4503498480,
+          "ratio": 0.11758561615728734
+        },
+        {
+          "institution": "산업은행",
+          "amount": 4466774839,
+          "ratio": 0.11662676783665372
+        },
+        {
+          "institution": "국민은행",
+          "amount": 3859161085,
+          "ratio": 0.10076207109765706
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1242991712,
+          "ratio": 0.03245431234916758
+        },
+        {
+          "institution": "하나은행",
+          "amount": 308423738,
+          "ratio": 0.00805289386269844
+        },
+        {
+          "institution": "현대해상",
+          "amount": 118273,
+          "ratio": 3.0880888805742075e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 23623476119,
+          "ratio": 0.6168051366211581
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 12508480288,
+          "ratio": 0.3265943950880967
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 1554419712,
+          "ratio": 0.04058564700626992
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 607682959,
+          "ratio": 0.01586650367034177
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 5680526,
+          "ratio": 0.00014831761413351045
+        }
+      ],
+      "items": [
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1034387418
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 3018942822
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4804197069
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-22",
+          "amount": 1153945949
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 578603105
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3355069104
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 607682959
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0248,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 863052
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 1142101369
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 3324197557
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 475913
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": "2010-05-31",
+          "new_date": null,
+          "end": "2025-12-16",
+          "amount": 335940555
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 43704528
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4323695447
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 2797574555
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-27",
+          "amount": 825906232
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 1033995000
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 4263682
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": null,
+          "end": "2026-12-05",
+          "amount": 67718418
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-06",
+          "amount": 1468139172
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-13",
+          "amount": 356913452
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-28",
+          "amount": 1074201650
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-05",
+          "amount": 430360770
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2027-01-08",
+          "amount": 694204747
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 411960000
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 271
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": "2017-12-26",
+          "new_date": null,
+          "end": "2025-12-01",
+          "amount": 60472992
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-02",
+          "amount": 1107036078
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 354582803
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-16",
+          "amount": 1229124
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-31",
+          "amount": 1135416752
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "KB손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0355,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-31",
+          "amount": 349906181
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-04",
+          "amount": 309173270
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-09",
+          "amount": 541266277
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 77608
+        },
+        {
+          "category": "1금융",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 308423738
+        },
+        {
+          "category": "2금융",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.042,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": null,
+          "amount": 118273
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 801646648
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 233912372
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 108464712
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 98967980
+        }
+      ]
+    },
+    "2025-10-31": {
+      "base_date": "2025-10-31",
+      "label": "2025년 10월말",
+      "total_amount": 42720749440,
+      "weighted_yield": 0.036958444947931136,
+      "expected_interest": 1578892466,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 28759450262,
+          "ratio": 0.6731962954533787,
+          "yield": 0.03695937787112211,
+          "interest": 1062931390
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 3782599300,
+          "ratio": 0.08854243779858184,
+          "yield": 0.041311246752147396,
+          "interest": 156263893
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 10178699878,
+          "ratio": 0.23826126674803952,
+          "yield": 0.035338224722023776,
+          "interest": 359697184
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 15411674570,
+          "ratio": 0.3607538437883734
+        },
+        {
+          "institution": "우리은행",
+          "amount": 10193793565,
+          "ratio": 0.23861457719314766
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4718502986,
+          "ratio": 0.11044991129256744
+        },
+        {
+          "institution": "산업은행",
+          "amount": 4568088727,
+          "ratio": 0.10692904003043632
+        },
+        {
+          "institution": "국민은행",
+          "amount": 4470610376,
+          "ratio": 0.10464728345364907
+        },
+        {
+          "institution": "하나은행",
+          "amount": 1509313503,
+          "ratio": 0.03532975246887429
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1348647440,
+          "ratio": 0.03156890873120413
+        },
+        {
+          "institution": "iM뱅크",
+          "amount": 500000000,
+          "ratio": 0.011703914527581846
+        },
+        {
+          "institution": "현대해상",
+          "amount": 118273,
+          "ratio": 2.7685141658413755e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 25003649985,
+          "ratio": 0.5852811646040262
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 13233238183,
+          "ratio": 0.309761377233929
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 2459594082,
+          "ratio": 0.05757375781654827
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 1417088016,
+          "ratio": 0.03317095403464907
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 607179174,
+          "ratio": 0.01421274631084749
+        }
+      ],
+      "items": [
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1037303343
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0348,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 3027453181
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4825315219
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.053,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-22",
+          "amount": 1159018431
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 580215107
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3364416404
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 617088016
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 800000000
+        },
+        {
+          "category": "1금융",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0248,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 864869
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.051,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 1146432876
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 3319692320
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 100000000
+        },
+        {
+          "category": "1금융",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 1963531
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": "2010-05-31",
+          "new_date": null,
+          "end": "2025-12-16",
+          "amount": 336850003
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 43822885
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "농협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0327,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-30",
+          "amount": 4335414747
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "국민은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0485,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-19",
+          "amount": 2807726389
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-27",
+          "amount": 828186801
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 1037520000
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 800000000
+        },
+        {
+          "category": "1금융",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 4272740
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": null,
+          "end": "2026-12-05",
+          "amount": 67953241
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-06",
+          "amount": 1473230144
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-13",
+          "amount": 358151098
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-28",
+          "amount": 1077926591
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "푸본현대생명 이율보증형 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-05",
+          "amount": 431577497
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2027-01-08",
+          "amount": 696464144
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 413200000
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 100000000
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0252,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 271
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": "2017-12-26",
+          "new_date": null,
+          "end": "2025-12-01",
+          "amount": 60643963
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-02",
+          "amount": 1110165919
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 355585289
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-16",
+          "amount": 1232599
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "푸본현대생명 이율보증 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-31",
+          "amount": 1138626832
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "KB손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0355,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-31",
+          "amount": 350944415
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-04",
+          "amount": 310034633
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0505,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-09",
+          "amount": 543298963
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "부산은행 정기예금 3년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 600000000
+        },
+        {
+          "category": "1금융",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.022,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 77763
+        },
+        {
+          "category": "1금융",
+          "institution": "기업은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 100000000
+        },
+        {
+          "category": "1금융",
+          "institution": "iM뱅크",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 500000000
+        },
+        {
+          "category": "1금융",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": "2025-12-06",
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 309313503
+        },
+        {
+          "category": "1금융",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 1200000000
+        },
+        {
+          "category": "2금융",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.042,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": null,
+          "amount": 118273
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2025-12-15",
+          "amount": 805494512
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0614,
+          "start": null,
+          "new_date": null,
+          "end": "2025-12-20",
+          "amount": 235035139
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 108874082
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0344,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 99243707
+        },
+        {
+          "category": "2금융",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 100000000
+        }
+      ]
+    },
+    "2025-12-31": {
+      "base_date": "2025-12-31",
+      "label": "2025년 12월말 (기말)",
+      "total_amount": 42782470782,
+      "weighted_yield": 0.032596442521272896,
+      "expected_interest": 1394556350,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 21777715417,
+          "ratio": 0.5090336069641542,
+          "yield": 0.03141063907208647,
+          "interest": 684051959
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 10931246557,
+          "ratio": 0.2555076029315992,
+          "yield": 0.03475419336690569,
+          "interest": 379906657
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 10073508808,
+          "ratio": 0.23545879010424658,
+          "yield": 0.03281852835028563,
+          "interest": 330597734
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 15696441750,
+          "ratio": 0.36688955693984865
+        },
+        {
+          "institution": "우리은행",
+          "amount": 10448613292,
+          "ratio": 0.24422650447753189
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4748315809,
+          "ratio": 0.11098741428926011
+        },
+        {
+          "institution": "국민은행",
+          "amount": 4474829783,
+          "ratio": 0.10459493575772413
+        },
+        {
+          "institution": "산업은행",
+          "amount": 4451469538,
+          "ratio": 0.10404891201077802
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1352477220,
+          "ratio": 0.031612882455798505
+        },
+        {
+          "institution": "하나은행",
+          "amount": 1109817522,
+          "ratio": 0.025940940336408456
+        },
+        {
+          "institution": "iM뱅크",
+          "amount": 500387149,
+          "ratio": 0.011696078787729328
+        },
+        {
+          "institution": "현대해상",
+          "amount": 118719,
+          "ratio": 2.7749449208985145e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 23588044232,
+          "ratio": 0.5513483396551344
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 15581752475,
+          "ratio": 0.36420880304920955
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 3004083571,
+          "ratio": 0.07021762689460931
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 606047072,
+          "ratio": 0.014165780071191776
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 2543432,
+          "ratio": 5.945032985495793e-05
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0337,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1043065152
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0337,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 3044269485
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "흥국생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-30",
+          "amount": 4866896348
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.032,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-22",
+          "amount": 1168484417
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 583400235
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3382885585
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 606047072
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한국투자증권 ELB 1년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.032,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 1000525000
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0248,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 868456
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0293,
+          "start": "2008-06-30",
+          "new_date": "2025-12-22",
+          "end": "2026-12-19",
+          "amount": 1257687750
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0286,
+          "start": null,
+          "new_date": "2025-12-30",
+          "end": "2026-12-30",
+          "amount": 3193516192
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 265596
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": "2010-05-27",
+          "new_date": "2025-12-30",
+          "end": "2026-12-30",
+          "amount": 5358585262
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": "2025-12-22",
+          "end": "2026-12-22",
+          "amount": 2869441291
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": "2025-12-18",
+          "end": "2026-12-18",
+          "amount": 338553737
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": "2025-12-17",
+          "end": "2026-12-17",
+          "amount": 4286746
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": "2025-12-27",
+          "end": "2026-12-27",
+          "amount": 832666236
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 1044456000
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 624020
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": "2023-12-05",
+          "end": "2026-12-05",
+          "amount": 68417692
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-06",
+          "end": "2026-12-06",
+          "amount": 1483299468
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-13",
+          "end": "2026-12-13",
+          "amount": 360599011
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": "2023-12-28",
+          "end": "2026-12-28",
+          "amount": 1085294070
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": "2025-12-12",
+          "end": "2028-12-12",
+          "amount": 433782955
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": "2024-01-08",
+          "end": "2027-01-08",
+          "amount": 700931548
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 415640000
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-22",
+          "amount": 100072911
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 197333
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "수협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": "2017-12-26",
+          "new_date": "2025-12-03",
+          "end": "2026-12-03",
+          "amount": 1158927937
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": "2025-12-16",
+          "end": "2028-12-16",
+          "amount": 357496644
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": "2025-12-17",
+          "end": "2028-12-17",
+          "amount": 1239233
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": "2025-12-31",
+          "end": "2028-12-31",
+          "amount": 1498006901
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": "2024-12-04",
+          "end": "2027-12-04",
+          "amount": 311736589
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "메리츠화재 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0315,
+          "start": null,
+          "new_date": "2025-12-10",
+          "end": "2026-12-10",
+          "amount": 546699715
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": "2025-12-22",
+          "end": "2028-12-22",
+          "amount": 600454707
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.022,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 268057
+        },
+        {
+          "category": "신한은행",
+          "institution": "기업은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": "2025-12-26",
+          "new_date": "2025-12-26",
+          "end": "2026-12-26",
+          "amount": 100080821
+        },
+        {
+          "category": "iM뱅크",
+          "institution": "iM뱅크",
+          "product": "전북은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0297,
+          "start": "2025-12-26",
+          "new_date": "2025-12-29",
+          "end": "2026-12-29",
+          "amount": 500284794
+        },
+        {
+          "category": "iM뱅크",
+          "institution": "iM뱅크",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0249,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 102355
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": "2024-12-06",
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 309429464
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": "2025-12-26",
+          "end": "2026-12-26",
+          "amount": 800387945
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 113
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": "2016-12-29",
+          "new_date": "2025-12-19",
+          "end": "2026-12-19",
+          "amount": 118719
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": "2020-12-11",
+          "new_date": "2025-12-29",
+          "end": "2028-12-29",
+          "amount": 1047044949
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": "2023-12-29",
+          "end": "2026-12-29",
+          "amount": 109679616
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": "2024-12-06",
+          "end": "2027-12-06",
+          "amount": 95432499
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0317,
+          "start": null,
+          "new_date": "2025-12-19",
+          "end": "2028-12-19",
+          "amount": 100102654
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 217502
+        }
+      ]
+    },
+    "2026-05-31": {
+      "base_date": "2026-05-31",
+      "label": "2026년 5월말",
+      "total_amount": 41321191520,
+      "weighted_yield": 0.0327692673763271,
+      "expected_interest": 1354065173,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 20800526893,
+          "ratio": 0.5033864254115777,
+          "yield": 0.031900584023907774,
+          "interest": 663548956
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 10311715504,
+          "ratio": 0.2495502942844471,
+          "yield": 0.03447230788717073,
+          "interest": 355468632
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 10208949123,
+          "ratio": 0.24706328030397512,
+          "yield": 0.03281900826422603,
+          "interest": 335047586
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 15929232495,
+          "ratio": 0.3854978985126806
+        },
+        {
+          "institution": "우리은행",
+          "amount": 10580588787,
+          "ratio": 0.25605720449466846
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4671089612,
+          "ratio": 0.1130434394598503
+        },
+        {
+          "institution": "국민은행",
+          "amount": 4532497961,
+          "ratio": 0.10968943039326955
+        },
+        {
+          "institution": "산업은행",
+          "amount": 2606134031,
+          "ratio": 0.06307015686463438
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1371208194,
+          "ratio": 0.033184139749124056
+        },
+        {
+          "institution": "하나은행",
+          "amount": 1123953304,
+          "ratio": 0.02720040886178202
+        },
+        {
+          "institution": "iM뱅크",
+          "amount": 506368863,
+          "ratio": 0.01225445937963601
+        },
+        {
+          "institution": "현대해상",
+          "amount": 118273,
+          "ratio": 2.8622843545727454e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 23703217872,
+          "ratio": 0.5736334553791202
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 13866838087,
+          "ratio": 0.33558659798782103
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 3048249234,
+          "ratio": 0.07376963543088072
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 632325860,
+          "ratio": 0.015302701513191989
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 70560467,
+          "ratio": 0.001707609688986045
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0337,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1057466037
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0337,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 3086299625
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "흥국생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-30",
+          "amount": 4934287709
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.032,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-22",
+          "amount": 1183810525
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 529157702
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3429041678
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 632325860
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한국투자증권 ELB 1년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.032,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 1013762000
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0248,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 63081359
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0293,
+          "start": "2008-06-30",
+          "new_date": null,
+          "end": "2026-12-19",
+          "amount": 1272920420
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0286,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-30",
+          "amount": 1326959107
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 6254504
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": "2010-05-27",
+          "new_date": null,
+          "end": "2026-12-30",
+          "amount": 5423971454
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-22",
+          "amount": 2904431987
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-18",
+          "amount": 342680815
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-17",
+          "amount": 4338999
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-27",
+          "amount": 842910952
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 1061624000
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 630580
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": null,
+          "end": "2026-12-05",
+          "amount": 69581099
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-06",
+          "amount": 1508522210
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-13",
+          "amount": 366730811
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-28",
+          "amount": 1103748935
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-12",
+          "amount": 439616002
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2027-01-08",
+          "amount": 660021644
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 421600000
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 7
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "수협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": "2017-12-26",
+          "new_date": null,
+          "end": "2026-12-03",
+          "amount": 1173849690
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-16",
+          "amount": 362069474
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-17",
+          "amount": 1255085
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-31",
+          "amount": 1517168284
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-04",
+          "amount": 315989923
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "메리츠화재 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0315,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-10",
+          "amount": 553759323
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-22",
+          "amount": 608135274
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.022,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 270908
+        },
+        {
+          "category": "신한은행",
+          "institution": "기업은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": "2025-12-26",
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 101268904
+        },
+        {
+          "category": "iM뱅크",
+          "institution": "iM뱅크",
+          "product": "전북은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0297,
+          "start": "2025-12-26",
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 506265479
+        },
+        {
+          "category": "iM뱅크",
+          "institution": "iM뱅크",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0249,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 103384
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": "2024-12-06",
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 313801959
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 810151232
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 113
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": null,
+          "amount": 118273
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2028-12-29",
+          "amount": 1061203344
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 111647232
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 96734580
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0317,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-19",
+          "amount": 101403426
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 219612
+        }
+      ]
+    },
+    "2026-06-30": {
+      "base_date": "2026-06-30",
+      "label": "2026년 6월말 (반기)",
+      "total_amount": 41267222187,
+      "weighted_yield": 0.03279156999340726,
+      "expected_interest": 1353217005,
+      "maturity_distribution": [
+        {
+          "category": "1년 이내",
+          "amount": 20690692977,
+          "ratio": 0.5013832257291595,
+          "yield": 0.03193778743673152,
+          "interest": 660814954
+        },
+        {
+          "category": "1년이상 2년미만",
+          "amount": 10340370577,
+          "ratio": 0.25057103504915396,
+          "yield": 0.0344726992110101,
+          "interest": 356460485
+        },
+        {
+          "category": "2년이상 3년미만",
+          "amount": 10236158633,
+          "ratio": 0.24804573922168657,
+          "yield": 0.032819105093396014,
+          "interest": 335941566
+        }
+      ],
+      "institution_distribution": [
+        {
+          "institution": "농협",
+          "amount": 15907038575,
+          "ratio": 0.3854642433386523
+        },
+        {
+          "institution": "우리은행",
+          "amount": 10569760259,
+          "ratio": 0.2561296762622827
+        },
+        {
+          "institution": "기업은행",
+          "amount": 4686173343,
+          "ratio": 0.11355679143521898
+        },
+        {
+          "institution": "국민은행",
+          "amount": 4544020688,
+          "ratio": 0.1101121046483099
+        },
+        {
+          "institution": "산업은행",
+          "amount": 2550764293,
+          "ratio": 0.061810903613559474
+        },
+        {
+          "institution": "삼성생명",
+          "amount": 1374988067,
+          "ratio": 0.03331913305841915
+        },
+        {
+          "institution": "하나은행",
+          "amount": 1126769067,
+          "ratio": 0.027304214029578052
+        },
+        {
+          "institution": "iM뱅크",
+          "amount": 507589622,
+          "ratio": 0.012300067586325228
+        },
+        {
+          "institution": "현대해상",
+          "amount": 118273,
+          "ratio": 2.8660276542010224e-06
+        }
+      ],
+      "product_distribution": [
+        {
+          "product_type": "GIC",
+          "amount": 23732478950,
+          "ratio": 0.5750927174709667
+        },
+        {
+          "product_type": "정기예금",
+          "amount": 13844559948,
+          "ratio": 0.3354856279219422
+        },
+        {
+          "product_type": "ELB/DLB",
+          "amount": 3057245544,
+          "ratio": 0.07408411281346418
+        },
+        {
+          "product_type": "실적배당형(펀드)",
+          "amount": 629085176,
+          "ratio": 0.01524418515860693
+        },
+        {
+          "product_type": "현금/기타",
+          "amount": 3852569,
+          "ratio": 9.335663501997564e-05
+        }
+      ],
+      "items": [
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0337,
+          "start": "2010-05-28",
+          "new_date": null,
+          "end": "2027-12-10",
+          "amount": 1060350728
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "DB 생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0337,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-30",
+          "amount": 3094718827
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "흥국생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0338,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-30",
+          "amount": 4947787427
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한화생명 이율보증형보험 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.032,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-22",
+          "amount": 1186879300
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 530584327
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-16",
+          "amount": 3438286479
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "유진자산운용 OCIO펀드",
+          "product_type": "실적배당형(펀드)",
+          "is_performance": true,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 629085176
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "한국투자증권 ELB 1년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.032,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 1016392000
+        },
+        {
+          "category": "농협",
+          "institution": "농협",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0248,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 2954311
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "광주은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0293,
+          "start": "2008-06-30",
+          "new_date": null,
+          "end": "2026-12-19",
+          "amount": 1275946779
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "하나은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0286,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-30",
+          "amount": 1274514524
+        },
+        {
+          "category": "산업은행",
+          "institution": "산업은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 302990
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": "2010-05-27",
+          "new_date": null,
+          "end": "2026-12-30",
+          "amount": 5436962089
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-22",
+          "amount": 2911383781
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-18",
+          "amount": 343500764
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-17",
+          "amount": 4349380
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "DB 손해보험 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.03,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-27",
+          "amount": 808529201
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "SK ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0415,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 1065035000
+        },
+        {
+          "category": "우리은행",
+          "institution": "우리은행",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 44
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": "2015-07-07",
+          "new_date": null,
+          "end": "2026-12-05",
+          "amount": 69814585
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-06",
+          "amount": 1513584191
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-13",
+          "amount": 367961409
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "DB 손해보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0416,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-28",
+          "amount": 1107452663
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-12",
+          "amount": 440868736
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠 화재 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.039,
+          "start": null,
+          "new_date": null,
+          "end": "2027-01-08",
+          "amount": 662100383
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "메리츠증권 DLB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0365,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 422880000
+        },
+        {
+          "category": "기업은행",
+          "institution": "기업은행",
+          "product": "현금성자산",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.025,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 7
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "수협은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": "2017-12-26",
+          "new_date": null,
+          "end": "2026-12-03",
+          "amount": 1176814277
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-16",
+          "amount": 362984924
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-17",
+          "amount": 1258258
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-31",
+          "amount": 1521004267
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-04",
+          "amount": 316841841
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "메리츠화재 GIC 1년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0315,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-10",
+          "amount": 555172771
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0312,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-22",
+          "amount": 609672873
+        },
+        {
+          "category": "국민은행",
+          "institution": "국민은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.022,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 271477
+        },
+        {
+          "category": "신한은행",
+          "institution": "기업은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": "2025-12-26",
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 101511369
+        },
+        {
+          "category": "iM뱅크",
+          "institution": "iM뱅크",
+          "product": "전북은행 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0297,
+          "start": "2025-12-26",
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 507486027
+        },
+        {
+          "category": "iM뱅크",
+          "institution": "iM뱅크",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0249,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 103595
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "IBK 연금보험 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0345,
+          "start": "2024-12-06",
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 314677996
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "카카오뱅크 정기예금 1년",
+          "product_type": "정기예금",
+          "is_performance": false,
+          "rate": 0.0295,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-26",
+          "amount": 812090958
+        },
+        {
+          "category": "하나은행",
+          "institution": "하나은행",
+          "product": "고유 계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 113
+        },
+        {
+          "category": "현대해상",
+          "institution": "현대해상",
+          "product": "GIC(이율보장형)",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": "2016-12-29",
+          "new_date": null,
+          "end": null,
+          "amount": 118273
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 화재 이율보증 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.033,
+          "start": "2020-12-11",
+          "new_date": null,
+          "end": "2028-12-29",
+          "amount": 1064038985
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "메리츠 증권 ELB 3년",
+          "product_type": "ELB/DLB",
+          "is_performance": false,
+          "rate": 0.0482,
+          "start": null,
+          "new_date": null,
+          "end": "2026-12-29",
+          "amount": 112069808
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0333,
+          "start": null,
+          "new_date": null,
+          "end": "2027-12-06",
+          "amount": 96995379
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "삼성생명 GIC 3년",
+          "product_type": "GIC",
+          "is_performance": false,
+          "rate": 0.0317,
+          "start": null,
+          "new_date": null,
+          "end": "2028-12-19",
+          "amount": 101663863
+        },
+        {
+          "category": "삼성생명",
+          "institution": "삼성생명",
+          "product": "고유계정대",
+          "product_type": "현금/기타",
+          "is_performance": false,
+          "rate": 0.0,
+          "start": null,
+          "new_date": null,
+          "end": null,
+          "amount": 220032
+        }
+      ]
+    }
+  },
+  "yoy_comparison": [
+    {
+      "year": 2021,
+      "date": "2021-12-31",
+      "label": "2021년 12월말 (기말)",
+      "total_amount": 27815061127,
+      "weighted_yield": 0.021218358774189577,
+      "expected_interest": 590189946,
+      "growth_amount": 0,
+      "growth_rate": 0.0,
+      "yield_change": 0.0
+    },
+    {
+      "year": 2022,
+      "date": "2022-12-31",
+      "label": "2022년 12월말 (기말)",
+      "total_amount": 34963360497,
+      "weighted_yield": 0.05387535589503549,
+      "expected_interest": 1883663490,
+      "growth_amount": 7148299370,
+      "growth_rate": 0.25699384004089665,
+      "yield_change": 3.265699712084591
+    },
+    {
+      "year": 2023,
+      "date": "2023-12-31",
+      "label": "2023년 12월말 (기말)",
+      "total_amount": 39085384896,
+      "weighted_yield": 0.04687315682335248,
+      "expected_interest": 1832055376,
+      "growth_amount": 4122024399,
+      "growth_rate": 0.11789554380373954,
+      "yield_change": -0.7002199071683007
+    },
+    {
+      "year": 2024,
+      "date": "2024-12-31",
+      "label": "2024년 12월말 (기말)",
+      "total_amount": 41205131149,
+      "weighted_yield": 0.04049009128583711,
+      "expected_interest": 1668399522,
+      "growth_amount": 2119746253,
+      "growth_rate": 0.054233731064445394,
+      "yield_change": -0.6383065537515373
+    },
+    {
+      "year": 2025,
+      "date": "2025-12-31",
+      "label": "2025년 12월말 (기말)",
+      "total_amount": 42782470782,
+      "weighted_yield": 0.032596442521272896,
+      "expected_interest": 1394556350,
+      "growth_amount": 1577339633,
+      "growth_rate": 0.03828017504170182,
+      "yield_change": -0.7893648764564214
+    },
+    {
+      "year": 2026,
+      "date": "2026-06-30",
+      "label": "2026년 6월말 (반기)",
+      "total_amount": 41267222187,
+      "weighted_yield": 0.03279156999340726,
+      "expected_interest": 1353217005,
+      "growth_amount": -1515248595,
+      "growth_rate": -0.035417510192924974,
+      "yield_change": 0.019512747213436266
+    }
+  ]
+}
