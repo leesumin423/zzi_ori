@@ -117,31 +117,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ftcCheckCompany')?.addEventListener('change', (e) => {
     const nameLabel = document.getElementById('ftcCheckCompanyNameLabel');
     const nameInput = document.getElementById('ftcCheckCompanyName');
-    const capitalInput = document.getElementById('ftcCheckCapital');
-    const infoBox = document.getElementById('ftcCheckCompanyInfo');
     const isDirect = !e.target.value;
     if (nameLabel) nameLabel.style.display = isDirect ? '' : 'none';
     if (isDirect) {
-      if (infoBox) infoBox.textContent = '계열사를 선택하거나 회사명을 입력하면 자본금ㆍ자본총계 정보가 여기 표시됩니다.';
+      renderFtcCompanyInfo(null);
     } else {
       if (nameInput) nameInput.value = ''; // 드롭다운으로 골랐으면 직접입력 칸은 비워 혼동 방지
-      const rec = (lastData.subsidiaryCapital?.records ?? []).find(r => r.name === e.target.value);
-      if (rec) {
-        if (capitalInput && rec.capital_base != null) capitalInput.value = Math.round(rec.capital_base).toLocaleString('ko-KR');
-        if (infoBox) {
-          const capitalTotalNote = (rec.capital_total ?? 0) < 0 ? '(자본잠식)' : '';
-          const largeCoNote = rec.is_large_unlisted_co
-            ? ' 자산총계가 1,000억원 이상이라 외부감사법상 대형비상장주식회사(주요사항보고서 제출대상)에도 해당할 수 있습니다.'
-            : '';
-          infoBox.innerHTML = `${escapeAttr(rec.name)} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
-            + `자본총계 ${fmtWon(rec.capital_total)}원${capitalTotalNote} → 자본금ㆍ자본총계 중 큰 금액 <b>${fmtWon(rec.capital_base)}원</b>.`
-            + `${largeCoNote} (<a href="${rec.dart_url}" target="_blank" class="clickable-name">원문 보기</a>)`;
-        }
-      }
+      renderFtcCompanyInfo(findCapitalRecordByName(e.target.value));
     }
     updateFtcTargetAutoStatus();
   });
-  document.getElementById('ftcCheckCompanyName')?.addEventListener('input', updateFtcTargetAutoStatus);
+  document.getElementById('ftcCheckCompanyName')?.addEventListener('input', (e) => {
+    // 유진 기업집단 대표회사 공시에 실린 약 70개사 전체와 자동 대조한다 —
+    // "(주)"/"㈜"/"주식회사" 표기 차이, 공백은 무시하고 비교(20% 계열사
+    // 목록 대조와 같은 정규화 규칙 재사용).
+    renderFtcCompanyInfo(findCapitalRecordByName(e.target.value));
+    updateFtcTargetAutoStatus();
+  });
   attachCommaFormatting(document.getElementById('ftcCheckAmount'));
   attachCommaFormatting(document.getElementById('ftcCheckCapital'));
 
@@ -490,11 +482,44 @@ async function loadSubsidiaryCapital() {
 function renderSubsidiaryCapital(payload) {
   const companySelect = document.getElementById('ftcCheckCompany');
   if (!companySelect) return;
-  const list = payload?.records ?? [];
+  // 유진 기업집단 대표회사 공시 하나로 그룹 소속 회사 전체(약 70개사)의
+  // 자본금ㆍ자본총계를 받아오지만, 드롭다운에는 재무제표를 따로 조회할 방법이
+  // 없는 비상장 자회사 5개사만 노출한다 — 나머지는 "직접입력" 칸에 이름을
+  // 치면 findCapitalRecordByName()이 전체 목록과 자동 대조해 채워준다.
+  const list = (payload?.records ?? []).filter(r => r.is_known_subsidiary);
   const currentValue = companySelect.value;
   companySelect.innerHTML = '<option value="">직접입력</option>'
     + list.map(r => `<option value="${escapeAttr(r.name)}">${escapeAttr(r.name)}</option>`).join('');
   if (list.some(r => r.name === currentValue)) companySelect.value = currentValue;
+}
+
+// 회사명(드롭다운 선택값 또는 직접입력 텍스트)으로 자본금 데이터를 찾는다 —
+// 표기 차이를 무시하는 normalizeCompanyNameForMatch()로 비교하므로 전체
+// ~70개사 중 어느 이름을 쳐도(예: "동양", "유진기업 주식회사") 매칭된다.
+function findCapitalRecordByName(name) {
+  const target = normalizeCompanyNameForMatch(name);
+  if (!target) return null;
+  return (lastData.subsidiaryCapital?.records ?? []).find(r => normalizeCompanyNameForMatch(r.name) === target) ?? null;
+}
+
+function renderFtcCompanyInfo(rec) {
+  const infoBox = document.getElementById('ftcCheckCompanyInfo');
+  if (!infoBox) return;
+  if (!rec) {
+    infoBox.textContent = '계열사를 선택하거나 회사명을 입력하면 자본금ㆍ자본총계 정보가 여기 표시됩니다.';
+    return;
+  }
+  const capitalInput = document.getElementById('ftcCheckCapital');
+  if (capitalInput && rec.capital_base != null) {
+    capitalInput.value = Math.round(rec.capital_base).toLocaleString('ko-KR');
+  }
+  const capitalTotalNote = (rec.capital_total ?? 0) < 0 ? '(자본잠식)' : '';
+  const largeCoNote = rec.is_large_unlisted_co
+    ? ' 자산총계가 1,000억원 이상이라 외부감사법상 대형비상장주식회사(주요사항보고서 제출대상)에도 해당할 수 있습니다.'
+    : '';
+  infoBox.innerHTML = `${escapeAttr(rec.name)} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
+    + `자본총계 ${fmtWon(rec.capital_total)}원${capitalTotalNote} → 자본금ㆍ자본총계 중 큰 금액 <b>${fmtWon(rec.capital_base)}원</b>.`
+    + `${largeCoNote} (<a href="${rec.dart_url}" target="_blank" class="clickable-name">원문 보기</a>)`;
 }
 
 // ── 상품ㆍ용역거래 특례 대상 회사 목록(20% 계열사 A / 그 50%초과 자회사 B) ──

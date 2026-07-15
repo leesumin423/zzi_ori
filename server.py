@@ -2401,98 +2401,6 @@ FTC_SUBSIDIARY_CORP_CODES = {
     "디씨아이티와이부천피에프브이(주)": {"corp_code": "01971228", "biz_reg_no": "406-86-03271"},
     "디씨아이티와이인천피에프브이(주)": {"corp_code": "01971200", "biz_reg_no": "542-81-04061"},
 }
-SUBSIDIARY_CAPITAL_CACHE_TTL = 24 * 3600
-
-def _group_status_parse_capital(html_text: str, name_fragment: str):
-    """"기업집단현황공시(연1회-개별회사용)"의 "(2) 회사 재무현황" 표에서
-    자산총계ㆍ자본금ㆍ자본총계(백만원 단위)를 뽑는다. 헤더 행("소속회사명/자산/
-    부채/자본/부채비율" 다음 행의 세부열 이름들)에서 각 열의 위치를 찾아 그
-    데이터 행에서 값을 읽으므로, 자산ㆍ부채 세부열 개수가 바뀌어도 안전하다."""
-    soup = BeautifulSoup(html_text, 'html.parser')
-    marker = soup.find(string=lambda s: s and '개별 재무상태표 기준 재무현황' in s)
-    if not marker:
-        return None
-    for table in marker.find_all_next('table')[:5]:
-        rows = table.find_all('tr')
-        if len(rows) < 3:
-            continue
-        header2 = [c.get_text(strip=True) for c in rows[1].find_all(['td', 'th'])]
-        if '자본금' not in header2 or '자본총계' not in header2:
-            continue
-        cap_idx = header2.index('자본금') + 2       # +2: 분류(비금융회사 등)ㆍ회사명 두 라벨열만큼 밀림
-        capsum_idx = header2.index('자본총계') + 2
-        asset_idx = header2.index('자산총계(a+b)') + 2 if '자산총계(a+b)' in header2 else None
-        for row in rows[2:]:
-            cells = [c.get_text(strip=True) for c in row.find_all(['td', 'th'])]
-            if len(cells) <= max(cap_idx, capsum_idx) or len(cells) <= 1:
-                continue
-            if name_fragment in cells[1]:
-                capital_mm = _equity_parse_num(cells[cap_idx])
-                capital_total_mm = _equity_parse_num(cells[capsum_idx])
-                total_assets_mm = _equity_parse_num(cells[asset_idx]) if asset_idx is not None and len(cells) > asset_idx else None
-                if capital_mm is None and capital_total_mm is None:
-                    continue
-                return {'capital_mm': capital_mm, 'capital_total_mm': capital_total_mm, 'total_assets_mm': total_assets_mm}
-        break  # 재무현황 표는 찾았지만 이 회사명 행이 없는 경우 — 더 뒤 테이블을 봐도 소용없음
-    return None
-
-_subsidiary_capital_cache = {'ts': 0.0, 'data': None}
-
-def fetch_subsidiary_capital_info(force: bool = False) -> list:
-    """FTC_SUBSIDIARY_CORP_CODES에 등록된 비상장 계열사들의 최신 "기업집단현황
-    공시(연1회-개별회사용)"에서 자본금ㆍ자본총계(원 단위)를 뽑는다. 자본총계가
-    마이너스(자본잠식)인 경우도 그대로 반영되며, "자본금 또는 자본총계 중 큰
-    금액"(capital_base)은 둘 중 대수적으로 더 큰 값을 그대로 쓴다(자본잠식이면
-    자본금 쪽이 더 크게 잡힘 — 공정위 기준상 맞는 처리)."""
-    now = datetime.now().timestamp()
-    if not force and _subsidiary_capital_cache['data'] is not None and now - _subsidiary_capital_cache['ts'] < SUBSIDIARY_CAPITAL_CACHE_TTL:
-        return _subsidiary_capital_cache['data']
-
-    results = []
-    end_de = datetime.now().strftime('%Y%m%d')
-    bgn_de = (datetime.now() - timedelta(days=400)).strftime('%Y%m%d')
-    for name, info in FTC_SUBSIDIARY_CORP_CODES.items():
-        if not DART_API_KEY:
-            continue
-        items = [d for d in fetch_dart_disclosures(info['corp_code'], bgn_de, end_de) if '연1회' in d.get('report_nm', '')]
-        if not items:
-            continue
-        latest = max(items, key=lambda d: d['rcept_dt'])
-        text = fetch_dart_document_text(latest['rcept_no'])
-        if not text:
-            continue
-        parsed = _group_status_parse_capital(text, name.replace('(주)', ''))
-        if not parsed:
-            continue
-        capital = parsed['capital_mm'] * 1_000_000 if parsed['capital_mm'] is not None else None
-        capital_total = parsed['capital_total_mm'] * 1_000_000 if parsed['capital_total_mm'] is not None else None
-        total_assets = parsed['total_assets_mm'] * 1_000_000 if parsed.get('total_assets_mm') is not None else None
-        values = [v for v in (capital, capital_total) if v is not None]
-        capital_base = max(values) if values else None
-        rcept_dt = latest['rcept_dt']
-        # 외부감사법상 "대형비상장주식회사"(공시대상기업집단 소속회사는 자산총액
-        # 1,000억원 이상이면 해당 — 일반 비상장회사 기준인 5,000억원과 다름)에
-        # 해당하면 상장 여부와 무관하게 자본시장법상 사업보고서 제출대상법인이 되어
-        # "주요사항보고서"(부도ㆍ영업정지ㆍ회생절차ㆍ해산ㆍ유상증자ㆍ합병ㆍ중요한
-        # 영업/자산 양수도 등 발생 시 다음날까지 제출) 의무가 생긴다.
-        is_large_unlisted_co = total_assets is not None and total_assets >= 100_000_000_000
-        results.append({
-            "name": name,
-            "biz_reg_no": info['biz_reg_no'],
-            "total_assets": total_assets,
-            "capital": capital,
-            "capital_total": capital_total,
-            "capital_base": capital_base,
-            "is_large_unlisted_co": is_large_unlisted_co,
-            "basis_note": "직전 사업연도말 개별 재무상태표 기준",
-            "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
-            "rcept_no": latest['rcept_no'],
-            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest['rcept_no']}",
-        })
-
-    _subsidiary_capital_cache.update(ts=now, data=results)
-    return results
-
 # ─────────────────────────────────────────────────────────────
 # 3-3-7. 상품ㆍ용역거래 상대방 판단용 — "동일인 및 동일인 친족 20% 이상 출자
 # 계열회사(A)ㆍ그 50% 초과 자회사(B, 상법 제342조의2에 따라 사슬로 이어지는
@@ -2629,18 +2537,19 @@ def _compute_goods_services_targets(companies: dict) -> list:
     return sorted(target)
 
 _goods_services_targets_cache = {'ts': 0.0, 'data': None}
+_group_rep_doc_cache = {'ts': 0.0, 'text': None, 'rcept_no': None, 'rcept_dt': None}
 
-def fetch_goods_services_target_companies(force: bool = False) -> dict:
+def _fetch_group_rep_document(force: bool = False) -> dict:
     """유진 기업집단 대표회사(유진기업㈜)의 최신 "기업집단현황공시(연1회-대표
-    회사)"의 소유지분현황 데이터로 상품ㆍ용역거래 특례 대상 회사 목록을
-    계산한다. 매년 갱신되는 자료라 24시간 캐시."""
+    회사)" 원문을 캐시해서 재사용한다 — "(1) 소유지분현황"(20% 계열사 계산)과
+    "(2) 회사 재무현황"(전체 계열사 자본금ㆍ자본총계)이 같은 문서 안에 있어서,
+    두 계산이 같은 다운로드를 공유하면 DART 호출을 절반으로 줄일 수 있다."""
     now = datetime.now().timestamp()
-    if not force and _goods_services_targets_cache['data'] is not None and now - _goods_services_targets_cache['ts'] < GOODS_SERVICES_TARGETS_CACHE_TTL:
-        return _goods_services_targets_cache['data']
+    if not force and _group_rep_doc_cache['text'] is not None and now - _group_rep_doc_cache['ts'] < GOODS_SERVICES_TARGETS_CACHE_TTL:
+        return _group_rep_doc_cache
 
-    result = {"companies": [], "rcept_no": None, "dart_url": None, "disclosure_date": None}
     if not DART_API_KEY:
-        return result
+        return _group_rep_doc_cache
 
     end_de = datetime.now().strftime('%Y%m%d')
     bgn_de = (datetime.now() - timedelta(days=400)).strftime('%Y%m%d')
@@ -2652,18 +2561,126 @@ def fetch_goods_services_target_companies(force: bool = False) -> dict:
         latest = max(items, key=lambda d: d['rcept_dt'])
         text = fetch_dart_document_text(latest['rcept_no'])
         if text:
-            ownership = _group_status_parse_ownership(text)
-            companies = _compute_goods_services_targets(ownership) if ownership else []
-            rcept_dt = latest['rcept_dt']
-            result = {
-                "companies": companies,
-                "rcept_no": latest['rcept_no'],
-                "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={latest['rcept_no']}",
-                "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
-            }
+            _group_rep_doc_cache.update(ts=now, text=text, rcept_no=latest['rcept_no'], rcept_dt=latest['rcept_dt'])
+    return _group_rep_doc_cache
+
+def fetch_goods_services_target_companies(force: bool = False) -> dict:
+    """유진 기업집단 대표회사(유진기업㈜)의 최신 "기업집단현황공시(연1회-대표
+    회사)"의 소유지분현황 데이터로 상품ㆍ용역거래 특례 대상 회사 목록을
+    계산한다. 매년 갱신되는 자료라 24시간 캐시."""
+    now = datetime.now().timestamp()
+    if not force and _goods_services_targets_cache['data'] is not None and now - _goods_services_targets_cache['ts'] < GOODS_SERVICES_TARGETS_CACHE_TTL:
+        return _goods_services_targets_cache['data']
+
+    result = {"companies": [], "rcept_no": None, "dart_url": None, "disclosure_date": None}
+    doc = _fetch_group_rep_document(force=force)
+    if doc.get('text'):
+        ownership = _group_status_parse_ownership(doc['text'])
+        companies = _compute_goods_services_targets(ownership) if ownership else []
+        rcept_dt = doc['rcept_dt']
+        result = {
+            "companies": companies,
+            "rcept_no": doc['rcept_no'],
+            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={doc['rcept_no']}",
+            "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
+        }
 
     _goods_services_targets_cache.update(ts=now, data=result)
     return result
+
+def _group_status_parse_all_capital(html_text: str) -> dict:
+    """"기업집단현황공시(연1회-대표회사)"의 "(2) 회사 재무현황" 표에서 유진
+    기업집단 소속 회사 전체(약 70개사)의 자산총계ㆍ자본금ㆍ자본총계(백만원
+    단위)를 한 번에 뽑는다 — 개별회사용 공시를 회사마다 따로 조회하지 않아도
+    되므로, 지금 화면에서 다루는 5개 비상장 자회사뿐 아니라 동양(주)ㆍ
+    유진기업(주) 등 이름만 입력해도 자동으로 매칭될 수 있게 해준다.
+    반환: {정규화된 회사명: {"capital_mm": .., "capital_total_mm": .., "total_assets_mm": ..}}"""
+    soup = BeautifulSoup(html_text, 'html.parser')
+    marker = soup.find(string=lambda s: s and '개별 재무상태표 기준 재무현황' in s)
+    if not marker:
+        return {}
+    table = None
+    for t in marker.find_all_next('table')[:4]:
+        if len(t.find_all('tr')) > 5:
+            table = t
+            break
+    if table is None:
+        return {}
+
+    rows_trs = table.find_all('tr')
+    header2 = [c.get_text(strip=True).replace(' ', '') for c in rows_trs[1].find_all(['td', 'th'])]
+    if '자본금' not in header2 or '자본총계' not in header2:
+        return {}
+    cap_idx = header2.index('자본금') + 2
+    capsum_idx = header2.index('자본총계') + 2
+    asset_idx = header2.index('자산총계(a+b)') + 2 if '자산총계(a+b)' in header2 else None
+
+    grid = _expand_rowspan_grid(rows_trs[2:])
+    if not grid:
+        return {}
+    ncols = max(max(r.keys()) for r in grid) + 1
+    rows = [[r.get(i, '') for i in range(ncols)] for r in grid]
+
+    result = {}
+    for row in rows:
+        if len(row) <= max(cap_idx, capsum_idx) or len(row) <= 1:
+            continue
+        name = row[1]
+        if not name or name in ('소계', '합계'):
+            continue
+        capital_mm = _equity_parse_num(row[cap_idx])
+        capital_total_mm = _equity_parse_num(row[capsum_idx])
+        if capital_mm is None and capital_total_mm is None:
+            continue
+        total_assets_mm = _equity_parse_num(row[asset_idx]) if asset_idx is not None and len(row) > asset_idx else None
+        norm_name = _lh_normalize_name(name.replace('㈜', '(주)'))
+        result[norm_name] = {"capital_mm": capital_mm, "capital_total_mm": capital_total_mm, "total_assets_mm": total_assets_mm}
+    return result
+
+_all_capital_cache = {'ts': 0.0, 'data': None}
+
+def fetch_all_group_capital_info(force: bool = False) -> list:
+    """유진 기업집단 대표회사 공시 하나로 그룹 소속 회사 전체(약 70개사)의
+    자본금ㆍ자본총계ㆍ자산총계를 반환한다. 프런트엔드는 이 중 비상장 자회사
+    5개사만 드롭다운에 노출하고(is_known_subsidiary), 나머지는 "직접입력"
+    칸에 이름을 치면 이 전체 목록과 자동 대조해 자본금을 채운다."""
+    now = datetime.now().timestamp()
+    if not force and _all_capital_cache['data'] is not None and now - _all_capital_cache['ts'] < GOODS_SERVICES_TARGETS_CACHE_TTL:
+        return _all_capital_cache['data']
+
+    results = []
+    doc = _fetch_group_rep_document(force=force)
+    if doc.get('text'):
+        parsed = _group_status_parse_all_capital(doc['text'])
+        rcept_dt = doc['rcept_dt']
+        disclosure_date = _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if rcept_dt and len(rcept_dt) == 8 else rcept_dt
+        dart_url = f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={doc['rcept_no']}" if doc.get('rcept_no') else None
+        known_subsidiary_names = {_lh_normalize_name(n.replace('㈜', '(주)')): info for n, info in FTC_SUBSIDIARY_CORP_CODES.items()}
+        for name, v in parsed.items():
+            capital = v['capital_mm'] * 1_000_000 if v['capital_mm'] is not None else None
+            capital_total = v['capital_total_mm'] * 1_000_000 if v['capital_total_mm'] is not None else None
+            total_assets = v['total_assets_mm'] * 1_000_000 if v.get('total_assets_mm') is not None else None
+            values = [x for x in (capital, capital_total) if x is not None]
+            capital_base = max(values) if values else None
+            sub_info = known_subsidiary_names.get(name)
+            results.append({
+                "name": name,
+                "biz_reg_no": sub_info['biz_reg_no'] if sub_info else None,
+                "is_known_subsidiary": sub_info is not None,
+                "total_assets": total_assets,
+                "capital": capital,
+                "capital_total": capital_total,
+                "capital_base": capital_base,
+                "is_large_unlisted_co": total_assets is not None and total_assets >= 100_000_000_000,
+                "basis_note": "직전 사업연도말 개별 재무상태표 기준",
+                "disclosure_date": disclosure_date,
+                "rcept_no": doc.get('rcept_no'),
+                "dart_url": dart_url,
+            })
+
+    results.sort(key=lambda r: r['name'])
+    _all_capital_cache.update(ts=now, data=results)
+    return results
 
 def check_ftc_disclosure(transaction_type: str, amount: int, capital_base: int, is_goods_services_target: bool = True):
     """대규모내부거래 이사회 의결ㆍ공시 대상 여부를 판단한다(공정거래법 제26조,
@@ -3003,7 +3020,7 @@ def data_endpoint():
 
     if section == 'subsidiary_capital':
         force = request.args.get('refresh') == '1'
-        records = fetch_subsidiary_capital_info(force=force)
+        records = fetch_all_group_capital_info(force=force)
         return jsonify({"records": records})
 
     if section == 'goods_services_targets':
