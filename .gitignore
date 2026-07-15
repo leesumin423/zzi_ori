@@ -1,0 +1,8 @@
+# Ignore all source code and data files in this subdirectory
+/퇴직연금통합관리시스템/*
+
+# Except the markdown documentation file
+!/퇴직연금통합관리시스템/퇴직연금.MD
+
+# Also ignore system generated caches
+/퇴직연금통합관리시스템/__pycache__/
