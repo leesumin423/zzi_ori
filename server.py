@@ -3,6 +3,7 @@ import re
 import json
 import io
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time as dtime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -532,6 +533,28 @@ def fetch_stock(ticker: str) -> dict:
             "change_rate": f"{change_rate_close:+.2f}%",
         },
     }
+
+def _fetch_company_row(name: str, code: str, capital_fallback: dict) -> dict:
+    """계열사/시멘트사 표 한 줄(fetch_stock + DART 자본금)을 만든다 — 병렬 조회용으로 분리."""
+    d = fetch_stock(code)
+    d['display_name'] = name
+    dart_capital = fetch_dart_capital(code)
+    d['capital_billion'] = f"{dart_capital:,}" if dart_capital is not None else capital_fallback.get(name, '0')
+    return d
+
+def fetch_company_rows_parallel(items: dict, capital_fallback: dict) -> list:
+    """
+    종목별로 순서대로(하나씩) 조회하면 5개 종목 × 3~4회 네트워크 요청이 전부 직렬로
+    쌓여 느리다 — 스레드풀로 동시에 조회한다. ThreadPoolExecutor.map은 입력 순서를
+    그대로 보장하므로 표에 나오는 종목 순서는 이전과 동일하다.
+    """
+    names_codes = list(items.items())
+    with ThreadPoolExecutor(max_workers=len(names_codes) or 1) as executor:
+        rows = list(executor.map(
+            lambda nc: _fetch_company_row(nc[0], nc[1], capital_fallback),
+            names_codes,
+        ))
+    return rows
 
 # ─────────────────────────────────────────────────────────────
 # 3-1. 개별 종목 수급 동향 (기관/외국인 순매매)
@@ -2994,14 +3017,7 @@ def data_endpoint():
             "YTN":          "477",
             "티엑스알로보틱스": "77",
         }
-        result = []
-        for name, code in COMPANIES.items():
-            d = fetch_stock(code)
-            d['display_name'] = name
-            dart_capital = fetch_dart_capital(code)
-            d['capital_billion'] = f"{dart_capital:,}" if dart_capital is not None else CAPITAL_FALLBACK.get(name, '0')
-            result.append(d)
-        return jsonify(result)
+        return jsonify(fetch_company_rows_parallel(COMPANIES, CAPITAL_FALLBACK))
 
     if section == 'cement':
         CEMENT = {
@@ -3022,14 +3038,7 @@ def data_endpoint():
             "아세아시멘트": "204",
             "강동씨앤엘":   "63",
         }
-        result = []
-        for name, code in CEMENT.items():
-            d = fetch_stock(code)
-            d['display_name'] = name
-            dart_capital = fetch_dart_capital(code)
-            d['capital_billion'] = f"{dart_capital:,}" if dart_capital is not None else CAPITAL_FALLBACK.get(name, '0')
-            result.append(d)
-        return jsonify(result)
+        return jsonify(fetch_company_rows_parallel(CEMENT, CAPITAL_FALLBACK))
 
     if section == 'exchange':
         return jsonify(fetch_exchange())
@@ -3128,4 +3137,6 @@ def data_endpoint():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    # threaded=True: 프론트엔드가 여러 섹션(/data?section=...)을 동시에 요청하는데,
+    # 이게 없으면 개발서버가 요청을 한 번에 하나씩만 처리해서 그만큼 더 느려진다.
+    app.run(host='0.0.0.0', port=port, debug=True, threaded=True)
