@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>(주)동양 퇴직연금 통합 관리 대시보드</title>
+    <meta name="description" content="(주)동양의 DB형 퇴직연금 운용 현황, 수익률 분석 및 만기 분포를 시각화하여 통합 관리하는 프리미엄 대시보드 시스템입니다.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+<body class="dark-theme">
+    <div class="dashboard-container">
+        <!-- Sidebar or Header -->
+        <header class="main-header">
+            <div class="header-logo">
+                <span class="logo-accent"></span>
+                <div class="logo-text">
+                    <h1>(주)동양 퇴직연금 통합 관리 시스템</h1>
+                    <p class="subtitle">Retirement Pension Management Dashboard</p>
+                </div>
+            </div>
+            <div class="header-controls">
+                <div class="control-group">
+                    <label for="snapshot-select" class="control-label">조회 기준일</label>
+                    <select id="snapshot-select" class="dropdown-control">
+                        <!-- Options filled dynamically -->
+                    </select>
+                </div>
+                <div class="control-group">
+                    <span class="control-label">금액 단위</span>
+                    <div class="toggle-container">
+                        <input type="checkbox" id="unit-toggle" class="toggle-checkbox">
+                        <label for="unit-toggle" class="toggle-label">
+                            <span class="toggle-inner" data-on="백만원" data-off="원"></span>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI Cards Grid -->
+        <section class="kpi-grid" aria-label="핵심 요약 지표">
+            <div class="kpi-card" id="kpi-total-assets">
+                <div class="kpi-icon-wrapper">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="kpi-icon"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                </div>
+                <div class="kpi-info">
+                    <h2>총 운용자산</h2>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value" id="val-total-assets">0</span>
+                        <span class="kpi-unit" id="unit-total-assets">원</span>
+                    </div>
+                    <p class="kpi-trend trend-neutral" id="trend-total-assets">-</p>
+                </div>
+            </div>
+
+            <div class="kpi-card kpi-clickable" id="kpi-weighted-yield" style="cursor:pointer;" title="클릭하면 계산 상세 내역을 확인할 수 있습니다">
+                <div class="kpi-icon-wrapper">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="kpi-icon"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                </div>
+                <div class="kpi-info">
+                    <h2>가중평균 수익률 <span class="kpi-click-hint">🔍 클릭</span></h2>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value text-accent" id="val-weighted-yield">0.00%</span>
+                    </div>
+                    <p class="kpi-trend trend-neutral" id="trend-weighted-yield">-</p>
+                </div>
+            </div>
+
+            <div class="kpi-card kpi-clickable" id="kpi-expected-interest" style="cursor:pointer;" title="클릭하면 계산 상세 내역을 확인할 수 있습니다">
+                <div class="kpi-icon-wrapper">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="kpi-icon"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                </div>
+                <div class="kpi-info">
+                    <h2>예상 연 이자 <span class="kpi-click-hint">🔍 클릭</span></h2>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value" id="val-expected-interest">0</span>
+                        <span class="kpi-unit" id="unit-expected-interest">원</span>
+                    </div>
+                    <p class="kpi-trend trend-neutral" id="trend-expected-interest">연간 예상 캐시플로우</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section Grid -->
+        <main class="charts-section">
+            <!-- Row 1: Pie Charts -->
+            <div class="charts-row">
+                <div class="chart-container chart-container--pie glass-card">
+                    <h3 class="chart-title">금융기관별 자산 운용 비중
+                        <span class="chart-hint">클릭 시 하단 테이블 필터 적용</span>
+                    </h3>
+                    <div class="chart-inner-layout">
+                        <div class="canvas-wrapper">
+                            <canvas id="chart-institution" style="cursor:pointer;"></canvas>
+                        </div>
+                        <div id="legend-institution" class="custom-legend"></div>
+                    </div>
+                </div>
+                <div class="chart-container chart-container--pie glass-card">
+                    <h3 class="chart-title">상품 유형별 포트폴리오 비중
+                        <span class="chart-hint">클릭 시 하단 테이블 필터 적용</span>
+                    </h3>
+                    <div class="chart-inner-layout">
+                        <div class="canvas-wrapper">
+                            <canvas id="chart-product"></canvas>
+                        </div>
+                        <div id="legend-product" class="custom-legend"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2: Maturity and YoY -->
+            <div class="charts-row">
+                <div class="chart-container glass-card">
+                    <h3 class="chart-title">만기구간 분포 현황</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="chart-maturity"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container glass-card">
+                    <h3 class="chart-title">전년 대비 수익률 및 자산 증감 추이 (YoY)</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="chart-yoy"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 운용 증감 비교 분석 섹션 -->
+            <section class="compare-section glass-card" id="compare-section" aria-label="운용 증감 비교 분석">
+                <h3 class="chart-title">금융기관별 · 상품유형별 운용자산 증감 비교
+                    <span class="chart-hint">전년말 대비</span>
+                </h3>
+                <div id="rate-anomaly-box"></div>
+                <div class="compare-grid" id="compare-grid">
+                    <div style="color:var(--text-muted);text-align:center;padding:1.5rem;">데이터 로딩 중...</div>
+                </div>
+            </section>
+
+            <!-- Table Section -->
+            <section class="table-section glass-card" aria-label="퇴직연금 세부 상품 내역">
+                <div class="table-header-row">
+                    <div class="table-title-group">
+                        <h3 class="chart-title">퇴직연금 개별 상품 상세 내역</h3>
+                        <span id="table-filter-badge" class="table-filter-badge" style="display:none;"></span>
+                        <button id="filter-clear-btn" class="filter-clear-btn" title="필터 초기화">✕ 필터 해제</button>
+                    </div>
+                    <div class="table-actions-group" style="display: flex; align-items: center; gap: 0.75rem;">
+                        <button id="maturing-this-year-btn" class="pill-toggle-btn" title="조회 기준년도 내 만기 상품만 필터링">📅 당해년도 만기 상품만 보기</button>
+                        <div class="table-search-box">
+                            <input type="text" id="table-search-input" placeholder="금융기관 또는 상품명 검색..." class="search-input">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="asset-detail-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">구분 (금융기관)</th>
+                                <th scope="col">상품명</th>
+                                <th scope="col">금리</th>
+                                <th scope="col">최초가입일</th>
+                                <th scope="col">신규일</th>
+                                <th scope="col">만기일</th>
+                                <th scope="col" class="text-right">평가금액</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Rows filled dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="main-footer">
+            <p>© 2026 (주)동양 재경팀. All Rights Reserved. 본 데이터는 실제 DB형 퇴직연금 현황을 근거로 가공되었습니다.</p>
+        </footer>
+    </div>
+    
+    <!-- 계산 상세 내역 모달 -->
+    <div id="calc-modal-overlay" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+        <div class="modal-dialog glass-card">
+            <div class="modal-header">
+                <h3 id="calc-modal-title">수익률 계산 상세 내역</h3>
+                <button id="calc-modal-close" class="modal-close-btn" aria-label="닫기">✕</button>
+            </div>
+            <div id="calc-modal-body" class="modal-body">
+                <!-- filled dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
