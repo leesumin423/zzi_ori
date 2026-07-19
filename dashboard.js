@@ -430,11 +430,13 @@ function renderFtc(payload) {
   const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
   const isRecent = meta.range !== 'all';
 
+  const rangeLabel = meta.range_start ? `${meta.range_start} ~ 오늘` : '최근 1년';
+
   if (!Array.isArray(list) || list.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10">공정위 공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
     if (note) {
       note.textContent = isRecent && meta.total_count_all_years > 0
-        ? `최근 1년간은 해당 이력이 없습니다(전체 ${meta.lookback_years ?? 10}년간 ${meta.total_count_all_years}건 있음 — "전체 이력" 탭에서 확인).`
+        ? `${rangeLabel} 기간에는 해당 이력이 없습니다(전체 ${meta.lookback_years ?? 10}년간 ${meta.total_count_all_years}건 있음 — "전체 이력" 탭에서 확인).`
         : '';
     }
     return;
@@ -442,10 +444,11 @@ function renderFtc(payload) {
 
   if (note) {
     note.textContent = isRecent
-      ? `최근 1년간 ${list.length}건. 특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래 3종만 집계했습니다 `
+      ? `${rangeLabel} 기준 ${list.length}건(전년도 1월 1일부터 오늘까지 — 공정위 공시점검 등 연도 단위 자료 제출용). `
+        + `특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 3종만 집계했습니다 `
         + `(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순 — `
         + `전체 ${meta.lookback_years ?? 10}년간은 총 ${meta.total_count_all_years ?? list.length}건입니다("전체 이력" 탭 참고).`
-      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. 특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래 3종만 `
+      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. 특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 3종만 `
         + `집계했습니다(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순입니다.`;
   }
 
@@ -477,6 +480,9 @@ function ftcTimelinessBadge(item) {
   }
   if (item.filing_timeliness === 'late') {
     return `<span class="down">⚠ 지연 의심(${days}영업일)</span>`;
+  }
+  if (item.filing_timeliness === 'not_applicable') {
+    return '<span class="rule-cite" title="변경(사후공시)은 이사회 의결 없이 분기종료 후 45일 이내에 공시하면 되므로 3영업일 규정 대상이 아닙니다.">해당없음(45일 특례)</span>';
   }
   return '<span class="rule-cite">확인불가</span>';
 }

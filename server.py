@@ -2208,12 +2208,19 @@ FTC_CACHE_TTL = 6 * 3600
 FTC_REPORT_TYPES = {
     'invest': '특수관계인에대한출자',
     'bond_sale': '특수관계인에대한채권매도',
-    'goods_services': '동일인등출자계열회사와의상품ㆍ용역거래',
+    'goods_services': '동일인등출자계열회사와의상품ㆍ용역거래',  # 파서 선택용 키 — "거래"ㆍ"변경" 공통(문서 구조가 같음)
 }
+# "거래"(분기공시 — 1년치 예상 거래금액을 미리 이사회 의결받는 최초 공시)와
+# "변경"(그 예상치 대비 실제 거래금액이 20% 이상 달라지면, 고시 제9조의2②에 따라
+# 이사회 의결 없이 분기종료 후 45일 이내에 사후 공시)은 이사회 의결 필요 여부
+# 자체가 다른 별개의 절차라서 report_nm의 "변경" 접미어로 명확히 구분해야 한다
+# (구분 안 하면 "변경" 건에 이사회의결일이 없는 게 정상인데 "확인불가"로만 보여
+# 데이터 누락처럼 오인됨 — 실제 사용자가 이 문제를 지적함).
 FTC_TYPE_LABELS = {
     'invest': '특수관계인 출자',
     'bond_sale': '특수관계인 채권매도',
-    'goods_services': '상품ㆍ용역거래(동일인등출자계열회사)',
+    'goods_services_initial': '상품ㆍ용역거래(분기공시ㆍ이사회의결 필요)',
+    'goods_services_change': '상품ㆍ용역거래 변경(사후공시ㆍ이사회의결 불요)',
 }
 
 def _ftc_value_for(soup, *labels) -> str:
@@ -2365,6 +2372,9 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
         kind = next((k for k, kw in FTC_REPORT_TYPES.items() if kw in report_nm), None)
         if kind is None:
             continue
+        # "변경"은 report_nm이 "...상품ㆍ용역거래변경"으로 끝난다 — 이사회 의결
+        # 없이 45일 이내 사후공시하는 별개 절차라 "거래"(분기공시)와 구분해야 함.
+        display_kind = ('goods_services_change' if report_nm.endswith('변경') else 'goods_services_initial') if kind == 'goods_services' else kind
         rcept_no = item['rcept_no']
         rcept_dt = item.get('rcept_dt', '')
         text = fetch_dart_document_text(rcept_no)
@@ -2387,12 +2397,12 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
                 amount_won = amt * 1_000_000
 
         results.append({
-            "type_label": FTC_TYPE_LABELS[kind],
-            "kind": kind,
+            "type_label": FTC_TYPE_LABELS[display_kind],
+            "kind": display_kind,
             "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or ''),
             "relation": parsed.get('relation') or '',
             "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
-            "board_date": parsed.get('board_date') or '',  # 원문에 이미 "YYYY.MM.DD"로 기재됨
+            "board_date": parsed.get('board_date') or '',  # 원문에 이미 "YYYY.MM.DD"로 기재됨 — "변경"은 정상적으로 빈 값
             "amount_label": amount_label,
             "amount_won": amount_won,
             "rcept_no": rcept_no,
@@ -2408,7 +2418,7 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
     # 이력이 있다는 것 자체가 강한 참고 근거가 된다).
     known_counterparties = sorted({
         r['counterparty'] for r in results
-        if r['type_label'] == FTC_TYPE_LABELS['goods_services'] and r['counterparty']
+        if r['kind'] in ('goods_services_initial', 'goods_services_change') and r['counterparty']
     })
 
     _ftc_apply_accuracy_check(results)
@@ -2466,20 +2476,27 @@ def _ftc_apply_accuracy_check(results: list) -> None:
     capital_base = dongyang.get('capital_base') if dongyang else None
 
     for r in results:
-        business_days = _business_days_between(r.get('board_date') or '', r.get('disclosure_date') or '')
-        r['filing_business_days'] = business_days
-        # 'on_time'/'late'/'unknown' — bool 대신 3단계로 둬서 "확인불가"가
-        # "지연"으로 잘못 읽히지 않게 한다(예: 1년 일괄의결 특례라 이사회
-        # 의결일이 "-"로 비어 있는 상품ㆍ용역거래 분기 공시 등).
-        r['filing_timeliness'] = (
-            'unknown' if business_days is None
-            else 'on_time' if business_days <= FTC_FILING_DEADLINE_BUSINESS_DAYS
-            else 'late'
-        )
+        if r.get('kind') == 'goods_services_change':
+            # "변경"은 고시 제9조의2②에 따라 이사회 의결 자체가 없는 사후공시라
+            # board_date가 "-"인 게 정상 — 3영업일 규정을 적용할 대상이 아니다.
+            # (정확한 "분기종료 후 45일" 기준일은 분기 정보를 아직 구조화해서
+            # 파싱하지 않아 여기서는 계산하지 않고, 그렇게 명시만 해둔다.)
+            r['filing_business_days'] = None
+            r['filing_timeliness'] = 'not_applicable'
+        else:
+            business_days = _business_days_between(r.get('board_date') or '', r.get('disclosure_date') or '')
+            r['filing_business_days'] = business_days
+            # 'on_time'/'late'/'unknown' — bool 대신 3단계로 둬서 "확인불가"가
+            # "지연"으로 잘못 읽히지 않게 한다(날짜 표기가 파싱 안 되는 경우 등).
+            r['filing_timeliness'] = (
+                'unknown' if business_days is None
+                else 'on_time' if business_days <= FTC_FILING_DEADLINE_BUSINESS_DAYS
+                else 'late'
+            )
 
         reverify = None
         if r.get('amount_won') is not None and capital_base:
-            transaction_type = 'goods_services' if r.get('kind') == 'goods_services' else 'fund_securities_asset'
+            transaction_type = 'goods_services' if r.get('kind', '').startswith('goods_services') else 'fund_securities_asset'
             reverify = check_ftc_disclosure(transaction_type, r['amount_won'], capital_base, is_goods_services_target=True)
         r['reverify_is_required'] = reverify['is_disclosure_required'] if reverify else None
         r['reverify_note'] = (
@@ -3081,13 +3098,17 @@ def data_endpoint():
 
     if section == 'ftc':
         force = request.args.get('refresh') == '1'
-        range_param = request.args.get('range', 'recent')  # 'recent'(최근 1년, 기본) | 'all'(최근 10년 전체)
+        range_param = request.args.get('range', 'recent')  # 'recent'(작년 1.1~오늘, 기본) | 'all'(최근 10년 전체)
         records = fetch_ftc_monitoring(force=force)
         meta = dict(_ftc_cache.get('meta') or {})
         if range_param != 'all':
-            cutoff = (datetime.now() - timedelta(days=365)).strftime('%Y.%m.%d')
+            # 롤링 365일이 아니라 "작년 1월 1일 ~ 오늘"로 고정 — 공정위 공시점검 등
+            # 자료 제출 시 연도 단위(전년도+금년도)로 확인해야 하기 때문(사용자 요청).
+            this_year = datetime.now().year
+            cutoff = f"{this_year - 1}.01.01"
             filtered = [r for r in records if r.get('disclosure_date', '') >= cutoff]
             meta['range'] = 'recent'
+            meta['range_start'] = cutoff
             meta['total_count_all_years'] = len(records)
             records = filtered
         else:
