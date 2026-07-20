@@ -471,6 +471,7 @@ def fetch_stock(ticker: str) -> dict:
     high_52w = None
     low_52w  = None
     nxt_quote = None
+    foreign_ratio = None
     try:
         main_url = f"https://finance.naver.com/item/main.naver?code={ticker}"
         mr = requests.get(main_url, headers=HEADERS, timeout=10)
@@ -502,8 +503,14 @@ def fetch_stock(ticker: str) -> dict:
             high_52w = int(re.sub(r'[^\d]', '', high_raw) or 0) or None
         if low_raw:
             low_52w = int(re.sub(r'[^\d]', '', low_raw) or 0) or None
+
+        # 외국인소진율(B/A) = 외국인보유주식수 ÷ 외국인한도주식수, main 페이지 실시간 표시값.
+        # frgn.naver 수급 이력표의 '외국인지분율' 컬럼은 액면병합 등 이벤트 직후
+        # 하루치가 갱신 지연/오류로 어긋나는 경우가 있어(예: 001520 2026.07.16 행
+        # 1.85% vs 실제 3.71%) 스냅샷용으로는 이 값 대신 main 페이지 값을 쓴다.
+        foreign_ratio = extract_labeled_value(msoup, ['외국인소진율'])
     except Exception as e:
-        print(f"[DEBUG] {ticker} 상장주식수/52주 고저 조회 중 예외: {e}")
+        print(f"[DEBUG] {ticker} 상장주식수/52주 고저/외국인소진율 조회 중 예외: {e}")
 
     # NXT(넥스트레이드) 프리마켓(08:00~09:00)ㆍ애프터마켓(15:30~20:00) 시간대에는
     # KRX가 쉬거나 이미 마감했어도 이 시간대엔 NXT가 그 종목의 "지금" 가격을 갖고
@@ -545,6 +552,7 @@ def fetch_stock(ticker: str) -> dict:
         "rate": rate,
         "direction": 'up' if rate and float(rate) > 0 else ('down' if rate and float(rate) < 0 else ''),
         "volume": f"{int(volume):,}",
+        "foreign_ratio": foreign_ratio or "N/A",
         "current": {
             "price": f"{int(price_current):,}",
             "marketcap": f"{marketcap_current:,}",
@@ -3068,8 +3076,6 @@ def data_endpoint():
         # 그때 code를 쿼리 파라미터로 받게 확장하면 된다.
         code = '001520'
         d = fetch_stock(code)
-        investor = fetch_stock_investor(code, days=1)
-        foreign_ratio = investor[0]['foreign_ratio'] if investor else 'N/A'
         return jsonify({
             "name": "동양",
             "price": d['current']['price'],
@@ -3078,7 +3084,7 @@ def data_endpoint():
             "direction": d['direction'],
             "marketcap": d['current']['marketcap'],
             "volume": d['volume'],
-            "foreign_ratio": foreign_ratio,
+            "foreign_ratio": d['foreign_ratio'],
         })
 
     if section == 'companies':
