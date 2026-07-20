@@ -390,6 +390,25 @@ def extract_52w_high_low(soup):
                 return ems[0].get_text(strip=True), ems[1].get_text(strip=True)
     return None, None
 
+def fetch_52w_high_low(code: str):
+    """
+    네이버 종목 메인 페이지의 '52주최고l최저' 표시값만 가볍게 조회한다
+    (fetch_stock()은 itemSummary/fchart까지 다 받아와서 무겁고, 코멘트 생성 시엔
+    이 값만 필요하므로 별도 경량 함수로 분리).
+    """
+    try:
+        main_url = f"https://finance.naver.com/item/main.naver?code={code}"
+        mr = requests.get(main_url, headers=HEADERS, timeout=10)
+        mr.encoding = 'utf-8'
+        msoup = BeautifulSoup(mr.text, 'html.parser')
+        high_raw, low_raw = extract_52w_high_low(msoup)
+        high = (int(re.sub(r'[^\d]', '', high_raw) or 0) or None) if high_raw else None
+        low = (int(re.sub(r'[^\d]', '', low_raw) or 0) or None) if low_raw else None
+        return high, low
+    except Exception as e:
+        print(f"[DEBUG] {code} 52주 고저(코멘트용) 조회 중 예외: {e}")
+        return None, None
+
 def fetch_stock(ticker: str) -> dict:
     """
     itemSummary + fchart XML + main 페이지로 종목 데이터 수집
@@ -876,7 +895,20 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
         close_desc = f"현재가(장중) {day['close']:,}원({close_pct:+.2f}%)"
     else:
         close_desc = f"종가 {day['close']:,}원({close_pct:+.2f}%)에 마감"
-    parts = [f"{day['date']} {open_desc}{mid_desc}, {close_desc}"]
+
+    # 52주 최고/최저 경신 여부 — 네이버가 표시하는 현재 52주 고/저와 당일 저가/고가를
+    # 비교한다. 당일 저가가 표시된 52주 최저가 이하면(장중 실시간이라 아직 네이버
+    # 페이지에 반영 전이어도) 오늘이 그 최저가를 만든 날이라는 뜻이므로, 장중/장마감
+    # 여부와 무관하게 항상 같은 방식으로 잡힌다 — 그래서 장마감 후 다시 조회해도 그대로
+    # "경신"으로 반영된다.
+    milestone_desc = ''
+    high_52w, low_52w = fetch_52w_high_low(code)
+    if low_52w is not None and day['low'] <= low_52w:
+        milestone_desc = f" — 52주 최저가 경신({day['low']:,}원)"
+    elif high_52w is not None and day['high'] >= high_52w:
+        milestone_desc = f" — 52주 최고가 경신({day['high']:,}원)"
+
+    parts = [f"{day['date']} {open_desc}{mid_desc}, {close_desc}{milestone_desc}"]
 
     h = hist_by_date.get(day['date'])
     if h:
@@ -2901,7 +2933,16 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
         sentences.append(f"외국인이 {for_n}일 연속 {'순매수' if for_sign > 0 else '순매도'} 중")
 
     # ③ 거래정지 여부 (현재 상태이므로 맨 뒤에 배치)
-    zero_n = _find_zero_volume_streak(history)
+    # _find_zero_volume_streak는 frgn.naver(장마감 후에나 당일치가 채워지는 소스)
+    # 기준이라, 거래정지가 오늘 막 풀려서 실제로는 활발히 거래되고 있어도 그 사실이
+    # 아직 반영 안 돼 "초저유동성"으로 잘못 나올 수 있다. ohlc_asc(fchart, 실시간
+    # 반영됨)의 최신 봉이 오늘이고 거래량이 있으면 이미 재개된 것이 확실하므로
+    # 이 구간 전체를 건너뛴다.
+    resumed_today = bool(
+        ohlc_asc and ohlc_asc[-1]['date'] == datetime.now().strftime('%Y.%m.%d')
+        and ohlc_asc[-1]['volume'] > 0
+    )
+    zero_n = 0 if resumed_today else _find_zero_volume_streak(history)
     if zero_n >= 2:
         status = fetch_trade_status(code)
         if status['halted']:
