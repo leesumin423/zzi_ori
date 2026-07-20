@@ -199,6 +199,50 @@ async function loadAllData() {
   // 수급 분석 + 뉴스 스크랩이 필요해 시간이 더 걸리므로 메인 렌더와 분리해서
   // 별도로 불러온다 (실패해도 나머지 대시보드에는 영향 없음).
   loadCommentary();
+  loadStockSnapshot();
+}
+
+// ── (주)동양 실시간 주가현황 위젯 (사이드바 상단) ───────────────
+async function loadStockSnapshot() {
+  const el = document.getElementById('stockSnapshot');
+  if (!el) return;
+  try {
+    const d = await safeFetch(`${API_BASE}?section=company_snapshot`);
+    const dirClass = d.direction === 'up' ? 'up' : d.direction === 'down' ? 'down' : '';
+    const icon = d.direction === 'up' ? '↑' : d.direction === 'down' ? '↓' : '–';
+
+    const iconEl = document.getElementById('snapshotTrendIcon');
+    if (iconEl) {
+      iconEl.textContent = icon;
+      iconEl.className = `snapshot-trend-icon ${dirClass}`;
+    }
+
+    const priceEl = document.getElementById('snapshotPrice');
+    if (priceEl) {
+      priceEl.textContent = `${d.price ?? '--'}원`;
+      priceEl.className = `snapshot-price ${dirClass}`;
+    }
+
+    const changeEl = document.getElementById('snapshotChange');
+    if (changeEl) {
+      const diff = Number(d.diff ?? 0);
+      const sign = diff > 0 ? '+' : '';
+      const rate = d.rate ?? 0;
+      changeEl.textContent = `${sign}${diff.toLocaleString('ko-KR')}원 (${sign}${rate}%)`;
+      changeEl.className = `snapshot-change ${dirClass}`;
+    }
+
+    const mcEl = document.getElementById('snapshotMarketcap');
+    if (mcEl) mcEl.textContent = d.marketcap ? `${d.marketcap}억` : '--';
+
+    const volEl = document.getElementById('snapshotVolume');
+    if (volEl) volEl.textContent = d.volume ?? '--';
+
+    const frEl = document.getElementById('snapshotForeignRatio');
+    if (frEl) frEl.textContent = d.foreign_ratio ?? '--';
+  } catch (err) {
+    console.warn('종목 스냅샷 로드 실패:', err);
+  }
 }
 
 async function loadCommentary() {

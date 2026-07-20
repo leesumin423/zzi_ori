@@ -68,6 +68,71 @@ html, body {
   letter-spacing: 0;
 }
 
+/* ── (주)동양 실시간 주가현황 위젯 (사이드바 상단) ──────────────── */
+.stock-snapshot {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.snapshot-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.snapshot-trend-icon {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.snapshot-trend-icon.up   { color: var(--up); }
+.snapshot-trend-icon.down { color: var(--down); }
+.snapshot-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.snapshot-price {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .01em;
+  line-height: 1.2;
+}
+.snapshot-change {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.snapshot-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-top: 4px;
+}
+.snapshot-metric {
+  text-align: center;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 6px 2px;
+}
+.snapshot-metric-label {
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.snapshot-metric-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: keep-all;
+  line-height: 1.3;
+}
+
 /* ── Sidebar ──────────────────────────────────────────────────── */
 .sidebar h2 {
   font-size: 12px;

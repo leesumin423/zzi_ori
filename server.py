@@ -433,6 +433,7 @@ def fetch_stock(ticker: str) -> dict:
     price_current = summary.get('now', 0) or 0
     diff          = summary.get('diff', 0) or 0
     rate          = summary.get('rate', 0) or 0
+    volume        = summary.get('quant', 0) or 0  # 당일 누적 거래량 (KRX 정규장 기준, NXT 시세로 안 덮어씀)
 
     market_open = is_krx_open()
     price_close = (price_current - diff) if market_open else price_current
@@ -540,6 +541,10 @@ def fetch_stock(ticker: str) -> dict:
         "high_52w": f"{high_52w:,}" if high_52w is not None else "N/A",
         "low_52w": f"{low_52w:,}" if low_52w is not None else "N/A",
         "daily_change": f"{diff:+,} ({rate:+.2f}% {arrow})" if diff and rate else "0 (0.00% -)",
+        "diff": diff,
+        "rate": rate,
+        "direction": 'up' if rate and float(rate) > 0 else ('down' if rate and float(rate) < 0 else ''),
+        "volume": f"{int(volume):,}",
         "current": {
             "price": f"{int(price_current):,}",
             "marketcap": f"{marketcap_current:,}",
@@ -635,6 +640,7 @@ def fetch_stock_investor(code: str, days: int = 5) -> list:
                 "individual": f"{individual_val:+,}",
                 "institution": texts[5],
                 "foreign": texts[6],
+                "foreign_ratio": texts[8],  # 외국인지분율, 예: "3.92%"
             })
             if len(result) >= days:
                 break
@@ -3056,6 +3062,24 @@ def data_endpoint():
         ]
         result = [{"name": name, **fetch_theme_change(no)} for name, no in THEMES]
         return jsonify(result)
+
+    if section == 'company_snapshot':
+        # 사이드바 상단 실시간 카드 위젯 전용 — (주)동양 고정. 다른 종목도 필요해지면
+        # 그때 code를 쿼리 파라미터로 받게 확장하면 된다.
+        code = '001520'
+        d = fetch_stock(code)
+        investor = fetch_stock_investor(code, days=1)
+        foreign_ratio = investor[0]['foreign_ratio'] if investor else 'N/A'
+        return jsonify({
+            "name": "동양",
+            "price": d['current']['price'],
+            "diff": d['diff'],
+            "rate": d['rate'],
+            "direction": d['direction'],
+            "marketcap": d['current']['marketcap'],
+            "volume": d['volume'],
+            "foreign_ratio": foreign_ratio,
+        })
 
     if section == 'companies':
         COMPANIES = {

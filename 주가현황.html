@@ -10,6 +10,30 @@
   <div class="container">
     <!-- ── 좌측 사이드바 ── -->
     <aside class="sidebar">
+      <!-- (주)동양 실시간 주가현황 — 주가/공시 탭과 무관하게 항상 상단에 표시 -->
+      <div class="stock-snapshot" id="stockSnapshot">
+        <div class="snapshot-header">
+          <span class="snapshot-trend-icon" id="snapshotTrendIcon">–</span>
+          <span class="snapshot-name">동양</span>
+        </div>
+        <div class="snapshot-price" id="snapshotPrice">-- 원</div>
+        <div class="snapshot-change" id="snapshotChange">-</div>
+        <div class="snapshot-metrics">
+          <div class="snapshot-metric">
+            <div class="snapshot-metric-label">시가총액</div>
+            <div class="snapshot-metric-value" id="snapshotMarketcap">--</div>
+          </div>
+          <div class="snapshot-metric">
+            <div class="snapshot-metric-label">거래량</div>
+            <div class="snapshot-metric-value" id="snapshotVolume">--</div>
+          </div>
+          <div class="snapshot-metric">
+            <div class="snapshot-metric-label">외인비율</div>
+            <div class="snapshot-metric-value" id="snapshotForeignRatio">--</div>
+          </div>
+        </div>
+      </div>
+
       <h2>메뉴</h2>
       <div class="tab-group" id="pageTabs">
         <button class="tab-btn active" data-page="stock">주가</button>
