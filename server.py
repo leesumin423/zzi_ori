@@ -3190,20 +3190,48 @@ def update_mgmt_history_today(history: dict) -> bool:
 def _half_year_start(d: date) -> date:
     return date(d.year, 1, 1) if d.month <= 6 else date(d.year, 7, 1)
 
+def _fmt_date(d_str: str) -> str:
+    """'YYYYMMDD' -> 'YYYY-MM-DD'"""
+    return f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
+
+def _add_business_days(start: date, n: int) -> date:
+    """start로부터 평일(토ㆍ일 제외) n일 뒤 날짜. 향후 공휴일ㆍ추가 매매정지는 알 수
+    없어 반영하지 못하는 근사치 — '예상' 값으로만 표기해야 한다."""
+    d = start
+    added = 0
+    while added < n:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            added += 1
+    return d
+
 def compute_mgmt_status(code: str, history: dict) -> dict:
     """
     저장된 이력으로 시가총액ㆍ거래량 두 기준의 현재 상태를 계산.
-    - 시가총액: 최근 이력일부터 거슬러 연속으로 20억원 미만인 매매거래일 수
+    - 시가총액: 최근 매매거래일부터 거슬러 연속으로 20억원 미만인 매매거래일 수
       (MGMT_CAP_STREAK_DAYS 이상이면 관리종목 지정 대상)
-    - 거래량: 이번 반기 시작일 ~ 최근 이력일까지 누적거래량 ÷ 경과 개월수
+    - 거래량: 이번 반기 시작일 ~ 최근 매매거래일까지 누적거래량 ÷ 경과 개월수
       (반기가 끝나야 확정치이므로 항상 "진행 중 잠정치"로 표시)
+
+    매매거래정지 기간은 거래량이 0으로 찍히며 시세가 정지 직전 값에 얼어붙은 채로
+    KRX 일별매매정보에 그대로 남는데, 이걸 매매거래일로 잘못 세면 안 된다(예:
+    동양2우B가 2026.7.3~7.16 주식병합으로 정지된 열흘이 전부 "20억원 미만"으로
+    찍혀있어서, 정지 기간을 안 뺐을 때 실제 4매매거래일짜리 미달을 14일로 오산했었음
+    — 상장규정 제64조는 어디까지나 "매매거래일" 기준이라 정지일은 카운트에서 제외).
     """
     day_map = history.get(code, {})
-    if not day_map:
+    # 거래량 0인 날(매매거래정지 등으로 시세가 얼어붙은 날)은 매매거래일이 아니므로
+    # 연속일수 계산에서 제외한다. 반기 누적거래량 합산에는 그대로 둬도 0이 더해질
+    # 뿐이라 영향 없다.
+    trading_dates = sorted(d for d, v in day_map.items() if v.get("volume", 0) > 0)
+
+    if not trading_dates:
         return {
             "has_data": False,
             "cap_streak_days": 0,
-            "cap_status": "데이터 없음 (KRX 키 미설정 또는 첫 실행)",
+            "cap_streak_start_date": None,
+            "expected_designation_date": None,
+            "cap_status": "데이터 없음 (KRX 키 미설정, 첫 실행, 또는 매매거래정지 중)",
             "latest_mktcap": None,
             "latest_date": None,
             "volume_avg_monthly": None,
@@ -3212,24 +3240,32 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
             "history_days": 0,
         }
 
-    dates_sorted = sorted(day_map.keys())  # 'YYYYMMDD' 문자열 오름차순 = 날짜 오름차순
-    latest_date_str = dates_sorted[-1]
+    latest_date_str = trading_dates[-1]
     latest = day_map[latest_date_str]
 
     cap_streak = 0
-    for d_str in reversed(dates_sorted):
+    cap_streak_start = None
+    for d_str in reversed(trading_dates):
         if day_map[d_str]["mktcap"] < MGMT_CAP_THRESHOLD:
             cap_streak += 1
+            cap_streak_start = d_str
         else:
             break
+
+    latest_dt = datetime.strptime(latest_date_str, '%Y%m%d').date()
+    expected_designation_date = None
     if cap_streak >= MGMT_CAP_STREAK_DAYS:
-        cap_status = "관리종목 지정 대상 (20억원 미만 30매매거래일 충족)"
+        cap_status = f"관리종목 지정 대상 (20억원 미만 30매매거래일 충족, {_fmt_date(cap_streak_start)}부터)"
     elif cap_streak > 0:
-        cap_status = f"주의 — 20억원 미만 {cap_streak}/{MGMT_CAP_STREAK_DAYS}매매거래일째"
+        expected_dt = _add_business_days(latest_dt, MGMT_CAP_STREAK_DAYS - cap_streak)
+        expected_designation_date = expected_dt.strftime('%Y-%m-%d')
+        cap_status = (
+            f"주의 — {_fmt_date(cap_streak_start)}부터 {cap_streak}/{MGMT_CAP_STREAK_DAYS}매매거래일째"
+            f" (예상 지정일 {expected_designation_date}, 휴장일ㆍ추가 매매정지 미반영 근사치)"
+        )
     else:
         cap_status = "정상"
 
-    latest_dt = datetime.strptime(latest_date_str, '%Y%m%d').date()
     half_start = _half_year_start(latest_dt)
     half_label = f"{half_start.year}년 {'상반기' if half_start.month == 1 else '하반기'}"
     elapsed_months = (latest_dt.year - half_start.year) * 12 + (latest_dt.month - half_start.month) + 1
@@ -3243,13 +3279,15 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
     return {
         "has_data": True,
         "cap_streak_days": cap_streak,
+        "cap_streak_start_date": _fmt_date(cap_streak_start) if cap_streak_start else None,
+        "expected_designation_date": expected_designation_date,
         "cap_status": cap_status,
         "latest_mktcap": latest["mktcap"],
-        "latest_date": latest_date_str,
+        "latest_date": _fmt_date(latest_date_str),
         "volume_avg_monthly": volume_avg_monthly,
         "volume_status": volume_status,
         "half_year_label": half_label,
-        "history_days": len(dates_sorted),
+        "history_days": len(trading_dates),
     }
 
 # ─────────────────────────────────────────────────────────────
