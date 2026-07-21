@@ -18,6 +18,10 @@ debug_*.html
 .env
 .env.*
 
+# 관리종목지정 모니터링용 KRX 일별 이력 캐시 — 실행 중 자동 생성/누적되는
+# 로컬 데이터라 커밋 불필요 (배포 zip에도 안 들어감, 각 PC에서 알아서 채워짐)
+mgmt_watch_history.json
+
 # OS
 .DS_Store
 Thumbs.db

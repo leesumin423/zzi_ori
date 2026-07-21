@@ -200,6 +200,47 @@ async function loadAllData() {
   // 별도로 불러온다 (실패해도 나머지 대시보드에는 영향 없음).
   loadCommentary();
   loadStockSnapshot();
+  loadMgmtWatch();
+}
+
+// ── 관리종목지정 모니터링 (동양우/동양2우B) ─────────────────────
+async function loadMgmtWatch() {
+  const note = document.getElementById('mgmtWatchNote');
+  const tbody = document.querySelector('#mgmt-watch-table tbody');
+  if (!tbody) return;
+  try {
+    const data = await safeFetch(`${API_BASE}?section=mgmt_watch`);
+    if (!data.available) {
+      if (note) note.textContent = data.reason || 'KRX API를 사용할 수 없습니다.';
+      tbody.innerHTML = '';
+      return;
+    }
+    if (note) {
+      note.textContent = '유가증권시장 상장규정 제64조(관리종목지정) 기준 — 시가총액 20억원 미만 ' +
+        '30매매거래일 연속, 반기 월평균거래량 1만주 미만 여부를 매매일 기준으로 체크합니다.';
+    }
+    tbody.innerHTML = data.rows.map(row => {
+      if (!row.has_data) {
+        return `<tr><td>${row.name}</td><td colspan="5">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
+      }
+      const capWarn = row.cap_streak_days > 0;
+      const volWarn = row.volume_status === '미달 우려';
+      const mktcapEok = row.latest_mktcap != null ? Math.round(row.latest_mktcap / 100000000).toLocaleString('ko-KR') : '--';
+      const volAvg = row.volume_avg_monthly != null ? row.volume_avg_monthly.toLocaleString('ko-KR') : '--';
+      return `
+        <tr>
+          <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
+          <td>${row.latest_date ?? '--'}</td>
+          <td>${mktcapEok}억원</td>
+          <td class="${capWarn ? 'down' : ''}">${row.cap_status}</td>
+          <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
+          <td class="${volWarn ? 'down' : ''}">${row.volume_status}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    if (note) note.textContent = `관리종목 모니터링 로드 실패: ${err.message}`;
+  }
 }
 
 // ── (주)동양 실시간 주가현황 위젯 (사이드바 상단) ───────────────

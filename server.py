@@ -33,6 +33,22 @@ def _load_dart_api_key() -> str:
 DART_API_KEY = _load_dart_api_key()
 
 # ─────────────────────────────────────────────────────────────
+# KRX(한국거래소) Open API 키 — DART와 동일한 방식(환경변수 또는 로컬 파일).
+# 키 발급: https://openapi.krx.co.kr (승인 후 반영까지 며칠 걸릴 수 있음 — 승인 직후엔
+# 401 Unauthorized Key가 나도 전파 지연일 뿐인 경우가 있었음)
+def _load_krx_api_key() -> str:
+    key = os.getenv('KRX_API_KEY', '').strip()
+    if key:
+        return key
+    key_file = os.path.join(BASE_DIR, '.krx_api_key')
+    if os.path.exists(key_file):
+        with open(key_file, encoding='utf-8') as f:
+            return f.read().strip()
+    return ''
+
+KRX_API_KEY = _load_krx_api_key()
+
+# ─────────────────────────────────────────────────────────────
 # 정적 파일 서빙 (HTML/CSS/JS) — 이 라우트 덕분에 python server.py
 # 하나만 실행해도 http://localhost:5000 에서 대시보드가 통째로 열림
 # ─────────────────────────────────────────────────────────────
@@ -3046,6 +3062,197 @@ def debug_dump_investor_page(code: str = "KOSPI"):
     print(f"저장 완료: debug_investor_{code}.html (상태코드 {r.status_code})")
 
 # ─────────────────────────────────────────────────────────────
+# 관리종목지정 모니터링 (동양우/동양2우B — 종류주권)
+#
+# 유가증권시장 상장규정 제64조제1항(rule.krx.co.kr에서 원문 확인, 2026.7.1 개정본):
+#  - 4호 거래량 미달: 반기(1~6월/7~12월)의 월평균거래량이 1만주 미만인 경우
+#    (신규상장 반기ㆍ매매정지일수 50%↑ 인 반기ㆍ유동성공급계약 체결 시 제외)
+#  - 5호 시가총액 미달: 상장시가총액이 20억원 미달 상태가 30매매거래일 연속 지속되는 경우
+# 두 기준 다 "일별 이력"이 있어야 판단 가능해서, KRX Open API(유가증권일별매매정보,
+# stk_bydd_trd)로 날짜별 시가총액ㆍ거래량을 로컬 파일에 누적 저장해가며 계산한다.
+# ─────────────────────────────────────────────────────────────
+MGMT_WATCH_TICKERS = {
+    "동양우":   "001525",
+    "동양2우B": "001527",
+}
+MGMT_CAP_THRESHOLD = 2_000_000_000       # 20억원
+MGMT_VOLUME_THRESHOLD = 10_000           # 반기 월평균 1만주
+MGMT_CAP_STREAK_DAYS = 30                # 시가총액 미달 관리종목 지정 트리거: 연속 매매거래일 수
+MGMT_BACKFILL_TARGET_DAYS = 90           # 종목당 확보하려는 과거 매매거래일 수
+MGMT_BACKFILL_MAX_CALLS_PER_REQUEST = 20   # 한 번의 /data 요청에서 backfill에 쓸 최대 KRX 호출 수
+                                            # (KRX 응답이 호출당 약 2초라 90일 풀백필은 요청 하나로는
+                                            # 너무 느림 — 부족분은 새로고침할 때마다 이어서 채워짐.
+                                            # 배포 zip에는 미리 90일치를 백필해서 넣어두므로 실사용
+                                            # 환경에서는 이 한도에 거의 안 걸린다.)
+MGMT_WATCH_HISTORY_FILE = os.path.join(BASE_DIR, 'mgmt_watch_history.json')
+
+def _load_mgmt_history() -> dict:
+    if os.path.exists(MGMT_WATCH_HISTORY_FILE):
+        try:
+            with open(MGMT_WATCH_HISTORY_FILE, encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[DEBUG] 관리종목 이력 파일 로드 실패: {e}")
+    return {}
+
+def _save_mgmt_history(history: dict):
+    with open(MGMT_WATCH_HISTORY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+def _fetch_krx_day(bas_dd: str) -> dict:
+    """
+    KRX 유가증권일별매매정보(stk_bydd_trd)에서 특정 날짜(YYYYMMDD)의 전종목 데이터를
+    받아 관심 종목(동양우/동양2우B)만 골라 {종목코드: {mktcap, volume, close}}로 반환.
+    휴장일이면 OutBlock_1이 빈 배열로 오므로 빈 dict가 반환된다(호출자가 이걸로
+    휴장일 여부를 판단해 그 날짜는 이력에 저장하지 않고 건너뛴다).
+    """
+    if not KRX_API_KEY:
+        return {}
+    url = "http://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd"
+    try:
+        r = requests.get(
+            url,
+            params={"basDd": bas_dd},
+            headers={"AUTH_KEY": KRX_API_KEY},
+            timeout=15,
+        )
+        rows = r.json().get("OutBlock_1", [])
+    except Exception as e:
+        print(f"[DEBUG] KRX {bas_dd} 조회 중 예외: {e}")
+        return {}
+
+    wanted_codes = set(MGMT_WATCH_TICKERS.values())
+    result = {}
+    for row in rows:
+        code = row.get("ISU_CD")
+        if code in wanted_codes:
+            try:
+                result[code] = {
+                    "mktcap": int(row["MKTCAP"]),
+                    "volume": int(row["ACC_TRDVOL"]),
+                    "close": int(row["TDD_CLSPRC"]),
+                }
+            except (KeyError, ValueError):
+                continue
+    return result
+
+def backfill_mgmt_history(history: dict) -> bool:
+    """
+    종목별로 MGMT_BACKFILL_TARGET_DAYS(매매거래일 기준)치 이력이 쌓일 때까지 하루씩
+    거슬러 올라가며 채운다. 한 번의 HTTP 요청이 너무 오래 걸리지 않도록 API 호출
+    수를 MGMT_BACKFILL_MAX_CALLS_PER_REQUEST로 제한 — 부족하면(휴장일이 많이 끼는 등)
+    다음 새로고침 때 이어서 채워진다(이미 있는 날짜는 다시 안 부른다).
+    """
+    if not KRX_API_KEY:
+        return False
+
+    changed = False
+    calls = 0
+    d = date.today() - timedelta(days=1)  # 오늘자는 update_mgmt_history_today()가 담당
+    cutoff = date.today() - timedelta(days=250)  # 매매거래일 90일보다 넉넉한 안전장치
+
+    while calls < MGMT_BACKFILL_MAX_CALLS_PER_REQUEST and d > cutoff:
+        counts = [len(history.get(code, {})) for code in MGMT_WATCH_TICKERS.values()]
+        if all(c >= MGMT_BACKFILL_TARGET_DAYS for c in counts):
+            break
+        if d.weekday() >= 5:  # 토ㆍ일은 API 호출 없이 스킵
+            d -= timedelta(days=1)
+            continue
+
+        d_str = d.strftime('%Y%m%d')
+        already_have = all(d_str in history.get(code, {}) for code in MGMT_WATCH_TICKERS.values())
+        if not already_have:
+            day_data = _fetch_krx_day(d_str)
+            calls += 1
+            if day_data:  # 휴장일이 아니었던 경우만 저장
+                for code, vals in day_data.items():
+                    history.setdefault(code, {})[d_str] = vals
+                changed = True
+        d -= timedelta(days=1)
+
+    return changed
+
+def update_mgmt_history_today(history: dict) -> bool:
+    """오늘(최근 매매일) 데이터를 이력에 추가. 이미 있거나 휴장일이면 아무 것도 안 함."""
+    if not KRX_API_KEY:
+        return False
+    d_str = date.today().strftime('%Y%m%d')
+    already_have = all(d_str in history.get(code, {}) for code in MGMT_WATCH_TICKERS.values())
+    if already_have:
+        return False
+    day_data = _fetch_krx_day(d_str)
+    if not day_data:
+        return False
+    for code, vals in day_data.items():
+        history.setdefault(code, {})[d_str] = vals
+    return True
+
+def _half_year_start(d: date) -> date:
+    return date(d.year, 1, 1) if d.month <= 6 else date(d.year, 7, 1)
+
+def compute_mgmt_status(code: str, history: dict) -> dict:
+    """
+    저장된 이력으로 시가총액ㆍ거래량 두 기준의 현재 상태를 계산.
+    - 시가총액: 최근 이력일부터 거슬러 연속으로 20억원 미만인 매매거래일 수
+      (MGMT_CAP_STREAK_DAYS 이상이면 관리종목 지정 대상)
+    - 거래량: 이번 반기 시작일 ~ 최근 이력일까지 누적거래량 ÷ 경과 개월수
+      (반기가 끝나야 확정치이므로 항상 "진행 중 잠정치"로 표시)
+    """
+    day_map = history.get(code, {})
+    if not day_map:
+        return {
+            "has_data": False,
+            "cap_streak_days": 0,
+            "cap_status": "데이터 없음 (KRX 키 미설정 또는 첫 실행)",
+            "latest_mktcap": None,
+            "latest_date": None,
+            "volume_avg_monthly": None,
+            "volume_status": "데이터 없음",
+            "half_year_label": None,
+            "history_days": 0,
+        }
+
+    dates_sorted = sorted(day_map.keys())  # 'YYYYMMDD' 문자열 오름차순 = 날짜 오름차순
+    latest_date_str = dates_sorted[-1]
+    latest = day_map[latest_date_str]
+
+    cap_streak = 0
+    for d_str in reversed(dates_sorted):
+        if day_map[d_str]["mktcap"] < MGMT_CAP_THRESHOLD:
+            cap_streak += 1
+        else:
+            break
+    if cap_streak >= MGMT_CAP_STREAK_DAYS:
+        cap_status = "관리종목 지정 대상 (20억원 미만 30매매거래일 충족)"
+    elif cap_streak > 0:
+        cap_status = f"주의 — 20억원 미만 {cap_streak}/{MGMT_CAP_STREAK_DAYS}매매거래일째"
+    else:
+        cap_status = "정상"
+
+    latest_dt = datetime.strptime(latest_date_str, '%Y%m%d').date()
+    half_start = _half_year_start(latest_dt)
+    half_label = f"{half_start.year}년 {'상반기' if half_start.month == 1 else '하반기'}"
+    elapsed_months = (latest_dt.year - half_start.year) * 12 + (latest_dt.month - half_start.month) + 1
+    half_volume_sum = sum(
+        v["volume"] for d_str, v in day_map.items()
+        if datetime.strptime(d_str, '%Y%m%d').date() >= half_start
+    )
+    volume_avg_monthly = round(half_volume_sum / elapsed_months) if elapsed_months else 0
+    volume_status = "미달 우려" if volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
+
+    return {
+        "has_data": True,
+        "cap_streak_days": cap_streak,
+        "cap_status": cap_status,
+        "latest_mktcap": latest["mktcap"],
+        "latest_date": latest_date_str,
+        "volume_avg_monthly": volume_avg_monthly,
+        "volume_status": volume_status,
+        "half_year_label": half_label,
+        "history_days": len(dates_sorted),
+    }
+
+# ─────────────────────────────────────────────────────────────
 # API Routes
 # ─────────────────────────────────────────────────────────────
 
@@ -3086,6 +3293,22 @@ def data_endpoint():
             "volume": d['volume'],
             "foreign_ratio": d['foreign_ratio'],
         })
+
+    if section == 'mgmt_watch':
+        if not KRX_API_KEY:
+            return jsonify({"available": False, "reason": "KRX API 키가 설정되지 않았습니다."})
+        history = _load_mgmt_history()
+        changed = update_mgmt_history_today(history)
+        if backfill_mgmt_history(history):
+            changed = True
+        if changed:
+            _save_mgmt_history(history)
+
+        rows = [
+            {"name": name, "code": code, **compute_mgmt_status(code, history)}
+            for name, code in MGMT_WATCH_TICKERS.items()
+        ]
+        return jsonify({"available": True, "rows": rows})
 
     if section == 'companies':
         COMPANIES = {
