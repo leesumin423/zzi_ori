@@ -238,6 +238,21 @@ def fetch_index(code: str) -> dict:
         "close":   {"value": value_close,   "detail": detail_close,   "direction": close_direction},
     }
 
+def fetch_index_rate(code: str):
+    """
+    지수 등락률(%)만 가볍게 조회 — 주가 동향 코멘트에서 "이날 시장 전체는 얼마나
+    움직였나" 비교용. fetch_index()는 화면 표시용으로 이것저것 다 묶어서 무겁고
+    문자열로 포맷돼 있어, 숫자만 필요한 이 용도로는 따로 가볍게 조회한다.
+    """
+    url = f"https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        d = r.json()['datas'][0]
+        return float(str(d.get('fluctuationsRatio', '0')).replace(',', ''))
+    except Exception as e:
+        print(f"[DEBUG] {code} 지수 등락률(코멘트용) 조회 중 예외: {e}")
+        return None
+
 def fetch_investor_trend(code: str) -> dict:
     """KOSPI/KOSDAQ 투자자별(개인/외국인/기관계) 순매매 금액 반환 (네이버 증권 홈에서 추출)"""
     url = "https://finance.naver.com/"
@@ -883,7 +898,72 @@ def _last_trading_day_index(ohlc_asc: list):
             return i
     return None
 
-def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, hist_by_date: dict, news: list) -> str:
+def _volume_anomaly_desc(ohlc_asc: list, idx: int) -> str:
+    """
+    당일 거래량을 당일 이전 최대 10거래일 평균과 비교해, 뚜렷하게 이례적일 때만
+    한 문장으로 반환한다("왜 이만큼 움직였나"의 단서 중 하나 — 거래량이 평소보다
+    훨씬 많으면 실제 매수·매도 유인이 있었다는 뜻이고, 훨씬 적으면 그날의 등락폭이
+    소수 거래로 만들어진 노이즈일 수 있다는 뜻이라 문맥이 달라짐).
+    """
+    window = [d for d in ohlc_asc[max(0, idx - 10):idx] if d['volume'] > 0]
+    if len(window) < 3:
+        return ''
+    avg_vol = sum(d['volume'] for d in window) / len(window)
+    today_vol = ohlc_asc[idx]['volume']
+    if avg_vol <= 0:
+        return ''
+    ratio = today_vol / avg_vol
+    if ratio >= 2.0:
+        return f"거래량 {today_vol:,}주로 최근 10거래일 평균 대비 {ratio:.1f}배 급증"
+    if ratio <= 0.4:
+        return f"거래량 {today_vol:,}주로 최근 10거래일 평균 대비 {ratio:.1f}배 수준으로 위축"
+    return ''
+
+def _find_same_day_disclosure(code: str, date_str: str):
+    """
+    date_str('YYYY.MM.DD') 당일 및 하루 전(장 마감 후 늦게 올라온 공시가 다음 날
+    가격에 반영되는 경우 대비) DART 공시 중, 주가에 실질적 영향을 줄 만한 유형만
+    골라 반환한다. 뉴스 헤드라인보다 더 근거가 확실한 "원인 후보"라 뉴스와 별도로
+    보여준다 — 공시는 법정 의무 공개라 추정이 아니라 사실관계 자체이기 때문.
+    """
+    corp_code = DART_CORP_CODES.get(code)
+    if not corp_code or not DART_API_KEY:
+        return None
+    try:
+        target = datetime.strptime(date_str, '%Y.%m.%d')
+    except Exception:
+        return None
+    bgn_de = (target - timedelta(days=1)).strftime('%Y%m%d')
+    end_de = target.strftime('%Y%m%d')
+    disclosures = fetch_dart_disclosures(corp_code, bgn_de, end_de)
+    if not disclosures:
+        return None
+
+    # 정기적/사무적으로 매일같이 나올 수 있어 그 자체로는 원인 설명력이 낮은 유형은 제외
+    # DART report_nm은 공백 없이 붙여쓴다("주식등의대량보유상황보고서") — 띄어쓰기
+    # 넣으면 매칭이 안 돼 조용히 새어나가니 주의.
+    NOISE_KEYWORDS = ('임원ㆍ주요주주', '주식등의대량보유', '기업설명회', '자기주식취득결과보고서')
+    # 주가에 실질적 영향을 줄 가능성이 높은 유형 — 있으면 우선 채택
+    IMPACT_KEYWORDS = (
+        '실적', '매출액또는손익', '매출액 또는 손익', '영업이익', '순이익', '잠정실적',
+        '계약체결', '공급계약', '수주', '유상증자', '무상증자', '전환사채', '신주인수권부사채',
+        '자기주식', '소송', '영업정지', '주식병합', '주식소각', '감자', '분할', '합병',
+        '단일판매', '투자판단', '매매거래정지', '불성실공시', '관리종목',
+    )
+    candidates = [d for d in disclosures if not any(k in d.get('report_nm', '') for k in NOISE_KEYWORDS)]
+    if not candidates:
+        return None
+    impact = [d for d in candidates if any(k in d.get('report_nm', '') for k in IMPACT_KEYWORDS)]
+    picked = impact[0] if impact else candidates[0]
+
+    rcept_dt = picked.get('rcept_dt', '')
+    date_fmt = f"{rcept_dt[:4]}.{rcept_dt[4:6]}.{rcept_dt[6:8]}" if len(rcept_dt) == 8 else rcept_dt
+    return {"title": re.sub(r'\s+', ' ', picked['report_nm']).strip(), "date": date_fmt}
+
+def _describe_latest_trading_day(
+    code: str, display_name: str, ohlc_asc: list, hist_by_date: dict, news: list,
+    kospi_rate: float = None,
+) -> str:
     """
     가장 최근 실제 거래일 하루를 '시가 → (장중 급변동 있었다면) 고점/저점 → 종가' 흐름과
     그날의 수급 우위, 관련 뉴스까지 묶어 한 문단으로 서술. 변동폭 크기와 무관하게 항상 생성.
@@ -940,6 +1020,26 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
 
     parts = [f"{day['date']} {open_desc}{mid_desc}, {close_desc}{milestone_desc}"]
 
+    # 거래량이 평소 대비 이례적이었는지 — 같은 등락폭이라도 거래량이 뒷받침됐는지에
+    # 따라 "실제 매수·매도 유인이 있었다"와 "소수 거래로 만들어진 노이즈"는 의미가 다르다.
+    vol_desc = _volume_anomaly_desc(ohlc_asc, idx)
+    if vol_desc:
+        parts.append(vol_desc)
+
+    # 시장 전체(코스피) 대비 상대적으로 강했는지 약했는지 — 개별 이슈인지 시장 전체
+    # 흐름에 올라탄 것인지를 가르는 가장 기초적인 기준이라 항상 붙인다. kospi_rate는
+    # "현재" 등락률이지만, day가 가장 최근 실제 거래일이라 장중이면 둘 다 오늘 기준,
+    # 장마감 후(다음 거래일 개장 전)면 코스피도 아직 그 거래일 종가 그대로라 시점이
+    # 항상 맞는다.
+    if kospi_rate is not None:
+        kospi_dir = '상승' if kospi_rate > 0 else ('하락' if kospi_rate < 0 else '보합')
+        gap = close_pct - kospi_rate
+        if abs(gap) >= 3:
+            relative = f"코스피 대비 뚜렷한 {'강세' if gap > 0 else '약세'}"
+        else:
+            relative = "코스피와 비슷한 흐름"
+        parts.append(f"같은 날 코스피는 {kospi_rate:+.2f}% {kospi_dir}해 {relative}")
+
     h = hist_by_date.get(day['date'])
     if h:
         flow_sentence = _flow_summary_sentence(h, price_up=(close_pct > 0) if close_pct != 0 else None)
@@ -951,11 +1051,17 @@ def _describe_latest_trading_day(code: str, display_name: str, ohlc_asc: list, h
         # 왜 없는지 명시해서 "수급 원인 없음"으로 오해하지 않게 한다.
         parts.append("당일 기관·외국인 수급은 장마감 후 집계되어 아직 반영되지 않음")
 
+    # 공시(DART)가 뉴스보다 근거가 확실한 "원인 후보"라 먼저 확인 — 있으면 뉴스와
+    # 함께, 없으면 뉴스만 보여준다(뉴스도 없으면 그때 "확인되지 않음"으로 명시).
+    disclosure = _find_same_day_disclosure(code, day['date'])
+    if disclosure:
+        parts.append(f"당일 공시 「{disclosure['title']}」({disclosure['date']})")
+
     matched = _find_related_news(news, day['date'], display_name)
     if matched:
         parts.append(f"관련 기사 「{matched['title']}」({matched['date']})")
-    else:
-        parts.append("최근 관련 뉴스는 확인되지 않음")
+    elif not disclosure:
+        parts.append("최근 관련 뉴스ㆍ공시는 확인되지 않음")
 
     return '. '.join(parts)
 
@@ -2945,11 +3051,13 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
 
     sentences = []
 
-    # ① 당일(최근 거래일) 동향 — 항상 서술
+    # ① 당일(최근 거래일) 동향 — 항상 서술. 거래량 이례성ㆍ코스피 대비 상대강도ㆍ
+    # 당일 DART 공시까지 함께 확인해 "왜 이만큼 움직였는지"의 단서를 최대한 모은다.
     ohlc_asc = fetch_daily_ohlc(code, count=12)
     news = fetch_stock_news(code, count=10)
+    kospi_rate = fetch_index_rate('KOSPI')
     if ohlc_asc:
-        day_sentence = _describe_latest_trading_day(code, display_name, ohlc_asc, hist_by_date, news)
+        day_sentence = _describe_latest_trading_day(code, display_name, ohlc_asc, hist_by_date, news, kospi_rate)
         if day_sentence:
             sentences.append(day_sentence)
 
