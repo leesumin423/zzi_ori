@@ -3062,22 +3062,31 @@ def debug_dump_investor_page(code: str = "KOSPI"):
     print(f"저장 완료: debug_investor_{code}.html (상태코드 {r.status_code})")
 
 # ─────────────────────────────────────────────────────────────
-# 관리종목지정 모니터링 (동양우/동양2우B — 종류주권)
+# 관리종목지정 모니터링 — 동양(보통주) + 동양우/동양2우B(종류주권)
 #
-# 유가증권시장 상장규정 제64조제1항(rule.krx.co.kr에서 원문 확인, 2026.7.1 개정본):
-#  - 4호 거래량 미달: 반기(1~6월/7~12월)의 월평균거래량이 1만주 미만인 경우
-#    (신규상장 반기ㆍ매매정지일수 50%↑ 인 반기ㆍ유동성공급계약 체결 시 제외)
-#  - 5호 시가총액 미달: 상장시가총액이 20억원 미달 상태가 30매매거래일 연속 지속되는 경우
-# 두 기준 다 "일별 이력"이 있어야 판단 가능해서, KRX Open API(유가증권일별매매정보,
-# stk_bydd_trd)로 날짜별 시가총액ㆍ거래량을 로컬 파일에 누적 저장해가며 계산한다.
+# 유가증권시장 상장규정(rule.krx.co.kr에서 원문 확인, 2026.7.1 개정본):
+#  - 제64조제1항(종류주권 — 동양우/동양2우B):
+#    4호 거래량 미달: 반기(1~6월/7~12월)의 월평균거래량이 1만주 미만인 경우
+#      (신규상장 반기ㆍ매매정지일수 50%↑ 인 반기ㆍ유동성공급계약 체결 시 제외)
+#    5호 시가총액 미달: 상장시가총액이 20억원 미달 상태가 30매매거래일 연속 지속되는 경우
+#  - 제47조제1항제9호의2(보통주권 — 동양, 신설 2026.5.13): 주가 미달 — 종가가
+#    1,000원 미만인 상태가 30일(매매거래일 기준) 동안 계속되는 경우. (제47조제1항제9호의
+#    "시가총액 500억원 미달" 기준은 동양 시총이 훨씬 커서 해당 없어 이 모니터링에서는 뺌)
+# 세 기준 다 "일별 이력"이 있어야 판단 가능해서, KRX Open API(유가증권일별매매정보,
+# stk_bydd_trd)로 날짜별 시가총액ㆍ종가ㆍ거래량을 로컬 파일에 누적 저장해가며 계산한다.
 # ─────────────────────────────────────────────────────────────
 MGMT_WATCH_TICKERS = {
     "동양우":   "001525",
     "동양2우B": "001527",
 }
-MGMT_CAP_THRESHOLD = 2_000_000_000       # 20억원
+MGMT_COMMON_TICKERS = {
+    "동양": "001520",
+}
+MGMT_ALL_TICKERS = {**MGMT_WATCH_TICKERS, **MGMT_COMMON_TICKERS}
+MGMT_CAP_THRESHOLD = 2_000_000_000       # 20억원 (종류주권 시가총액 미달 기준)
+MGMT_PRICE_THRESHOLD = 1_000             # 1,000원 (보통주 주가 미달 기준)
 MGMT_VOLUME_THRESHOLD = 10_000           # 반기 월평균 1만주
-MGMT_CAP_STREAK_DAYS = 30                # 시가총액 미달 관리종목 지정 트리거: 연속 매매거래일 수
+MGMT_STREAK_DAYS = 30                    # 관리종목 지정 트리거: 연속 매매거래일 수 (공통)
 MGMT_BACKFILL_TARGET_DAYS = 90           # 종목당 확보하려는 과거 매매거래일 수
 MGMT_BACKFILL_MAX_CALLS_PER_REQUEST = 20   # 한 번의 /data 요청에서 backfill에 쓸 최대 KRX 호출 수
                                             # (KRX 응답이 호출당 약 2초라 90일 풀백필은 요청 하나로는
@@ -3102,7 +3111,7 @@ def _save_mgmt_history(history: dict):
 def _fetch_krx_day(bas_dd: str) -> dict:
     """
     KRX 유가증권일별매매정보(stk_bydd_trd)에서 특정 날짜(YYYYMMDD)의 전종목 데이터를
-    받아 관심 종목(동양우/동양2우B)만 골라 {종목코드: {mktcap, volume, close}}로 반환.
+    받아 관심 종목(동양/동양우/동양2우B)만 골라 {종목코드: {mktcap, volume, close}}로 반환.
     휴장일이면 OutBlock_1이 빈 배열로 오므로 빈 dict가 반환된다(호출자가 이걸로
     휴장일 여부를 판단해 그 날짜는 이력에 저장하지 않고 건너뛴다).
     """
@@ -3121,7 +3130,7 @@ def _fetch_krx_day(bas_dd: str) -> dict:
         print(f"[DEBUG] KRX {bas_dd} 조회 중 예외: {e}")
         return {}
 
-    wanted_codes = set(MGMT_WATCH_TICKERS.values())
+    wanted_codes = set(MGMT_ALL_TICKERS.values())
     result = {}
     for row in rows:
         code = row.get("ISU_CD")
@@ -3152,7 +3161,7 @@ def backfill_mgmt_history(history: dict) -> bool:
     cutoff = date.today() - timedelta(days=250)  # 매매거래일 90일보다 넉넉한 안전장치
 
     while calls < MGMT_BACKFILL_MAX_CALLS_PER_REQUEST and d > cutoff:
-        counts = [len(history.get(code, {})) for code in MGMT_WATCH_TICKERS.values()]
+        counts = [len(history.get(code, {})) for code in MGMT_ALL_TICKERS.values()]
         if all(c >= MGMT_BACKFILL_TARGET_DAYS for c in counts):
             break
         if d.weekday() >= 5:  # 토ㆍ일은 API 호출 없이 스킵
@@ -3160,7 +3169,7 @@ def backfill_mgmt_history(history: dict) -> bool:
             continue
 
         d_str = d.strftime('%Y%m%d')
-        already_have = all(d_str in history.get(code, {}) for code in MGMT_WATCH_TICKERS.values())
+        already_have = all(d_str in history.get(code, {}) for code in MGMT_ALL_TICKERS.values())
         if not already_have:
             day_data = _fetch_krx_day(d_str)
             calls += 1
@@ -3177,7 +3186,7 @@ def update_mgmt_history_today(history: dict) -> bool:
     if not KRX_API_KEY:
         return False
     d_str = date.today().strftime('%Y%m%d')
-    already_have = all(d_str in history.get(code, {}) for code in MGMT_WATCH_TICKERS.values())
+    already_have = all(d_str in history.get(code, {}) for code in MGMT_ALL_TICKERS.values())
     if already_have:
         return False
     day_data = _fetch_krx_day(d_str)
@@ -3205,25 +3214,56 @@ def _add_business_days(start: date, n: int) -> date:
             added += 1
     return d
 
-def compute_mgmt_status(code: str, history: dict) -> dict:
-    """
-    저장된 이력으로 시가총액ㆍ거래량 두 기준의 현재 상태를 계산.
-    - 시가총액: 최근 매매거래일부터 거슬러 연속으로 20억원 미만인 매매거래일 수
-      (MGMT_CAP_STREAK_DAYS 이상이면 관리종목 지정 대상)
-    - 거래량: 이번 반기 시작일 ~ 최근 매매거래일까지 누적거래량 ÷ 경과 개월수
-      (반기가 끝나야 확정치이므로 항상 "진행 중 잠정치"로 표시)
+def _trading_dates(day_map: dict) -> list:
+    """거래량 0인 날(매매거래정지 등으로 시세가 얼어붙은 날)은 매매거래일이 아니므로
+    제외하고, 날짜 오름차순으로 정렬해 반환한다.
 
     매매거래정지 기간은 거래량이 0으로 찍히며 시세가 정지 직전 값에 얼어붙은 채로
     KRX 일별매매정보에 그대로 남는데, 이걸 매매거래일로 잘못 세면 안 된다(예:
     동양2우B가 2026.7.3~7.16 주식병합으로 정지된 열흘이 전부 "20억원 미만"으로
     찍혀있어서, 정지 기간을 안 뺐을 때 실제 4매매거래일짜리 미달을 14일로 오산했었음
-    — 상장규정 제64조는 어디까지나 "매매거래일" 기준이라 정지일은 카운트에서 제외).
+    — 상장규정은 어디까지나 "매매거래일" 기준이라 정지일은 카운트에서 제외)."""
+    return sorted(d for d, v in day_map.items() if v.get("volume", 0) > 0)
+
+def _streak_status_text(desc: str, streak: int, streak_start: str, latest_dt: date, total_trading_days: int):
+    """
+    연속 미달일수를 사람이 읽을 상태 문구로 변환.
+    desc 예: "20억원 미만", "1,000원 미만"
+    total_trading_days: 백필로 확보한 전체 매매거래일 수 — streak가 이 값과 같으면
+    "시작일"이 실제 미달 시작일이 아니라 그냥 우리가 백필한 데이터의 첫날일 수 있다는
+    뜻이라(그 이전 데이터가 아직 없어서 더 못 감), 그 사실을 문구에 명시한다.
+    반환: (상태문구, 예상 지정일 문자열 또는 None)
+    """
+    boundary_note = ""
+    if streak >= total_trading_days and total_trading_days > 0:
+        boundary_note = " — 확보된 이력의 첫날이라 실제 시작일은 더 이전일 수 있음, 백필 진행 중"
+
+    if streak >= MGMT_STREAK_DAYS:
+        return (
+            f"관리종목 지정 대상 ({desc} 30거래일 충족, {_fmt_date(streak_start)}부터{boundary_note})",
+            None,
+        )
+    if streak > 0:
+        expected_dt = _add_business_days(latest_dt, MGMT_STREAK_DAYS - streak)
+        expected = expected_dt.strftime('%Y-%m-%d')
+        return (
+            f"주의 — {_fmt_date(streak_start)}부터 {desc} 30거래일 중 {streak}일째"
+            f" (예상 지정일 {expected}, 휴장일ㆍ추가 매매정지 미반영 근사치){boundary_note}",
+            expected,
+        )
+    return ("정상", None)
+
+def compute_mgmt_status(code: str, history: dict) -> dict:
+    """
+    유가증권시장 상장규정 제64조(종류주권 — 동양우/동양2우B)의 시가총액ㆍ거래량
+    두 기준의 현재 상태를 계산.
+    - 시가총액: 최근 매매거래일부터 거슬러 연속으로 20억원 미만인 매매거래일 수
+      (MGMT_STREAK_DAYS 이상이면 관리종목 지정 대상)
+    - 거래량: 이번 반기 시작일 ~ 최근 매매거래일까지 누적거래량 ÷ 경과 개월수
+      (반기가 끝나야 확정치이므로 항상 "진행 중 잠정치"로 표시)
     """
     day_map = history.get(code, {})
-    # 거래량 0인 날(매매거래정지 등으로 시세가 얼어붙은 날)은 매매거래일이 아니므로
-    # 연속일수 계산에서 제외한다. 반기 누적거래량 합산에는 그대로 둬도 0이 더해질
-    # 뿐이라 영향 없다.
-    trading_dates = sorted(d for d, v in day_map.items() if v.get("volume", 0) > 0)
+    trading_dates = _trading_dates(day_map)
 
     if not trading_dates:
         return {
@@ -3242,6 +3282,7 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
 
     latest_date_str = trading_dates[-1]
     latest = day_map[latest_date_str]
+    latest_dt = datetime.strptime(latest_date_str, '%Y%m%d').date()
 
     cap_streak = 0
     cap_streak_start = None
@@ -3251,20 +3292,9 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
             cap_streak_start = d_str
         else:
             break
-
-    latest_dt = datetime.strptime(latest_date_str, '%Y%m%d').date()
-    expected_designation_date = None
-    if cap_streak >= MGMT_CAP_STREAK_DAYS:
-        cap_status = f"관리종목 지정 대상 (20억원 미만 30매매거래일 충족, {_fmt_date(cap_streak_start)}부터)"
-    elif cap_streak > 0:
-        expected_dt = _add_business_days(latest_dt, MGMT_CAP_STREAK_DAYS - cap_streak)
-        expected_designation_date = expected_dt.strftime('%Y-%m-%d')
-        cap_status = (
-            f"주의 — {_fmt_date(cap_streak_start)}부터 {cap_streak}/{MGMT_CAP_STREAK_DAYS}매매거래일째"
-            f" (예상 지정일 {expected_designation_date}, 휴장일ㆍ추가 매매정지 미반영 근사치)"
-        )
-    else:
-        cap_status = "정상"
+    cap_status, expected_designation_date = _streak_status_text(
+        "20억원 미만", cap_streak, cap_streak_start, latest_dt, len(trading_dates)
+    )
 
     half_start = _half_year_start(latest_dt)
     half_label = f"{half_start.year}년 {'상반기' if half_start.month == 1 else '하반기'}"
@@ -3287,6 +3317,55 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
         "volume_avg_monthly": volume_avg_monthly,
         "volume_status": volume_status,
         "half_year_label": half_label,
+        "history_days": len(trading_dates),
+    }
+
+def compute_price_status(code: str, history: dict) -> dict:
+    """
+    유가증권시장 상장규정 제47조제1항제9호의2(보통주권 — 동양, 2026.5.13 신설):
+    "주가 미달" — 종가가 1,000원 미만인 상태가 30매매거래일 연속되면 관리종목 지정
+    대상("동전주" 이슈). 같은 항 9호(시가총액 500억원 미달)는 동양 시총이 훨씬 커서
+    해당 없어 이 모니터링에서는 계산하지 않는다.
+    """
+    day_map = history.get(code, {})
+    trading_dates = _trading_dates(day_map)
+
+    if not trading_dates:
+        return {
+            "has_data": False,
+            "price_streak_days": 0,
+            "price_streak_start_date": None,
+            "expected_designation_date": None,
+            "price_status": "데이터 없음 (KRX 키 미설정, 첫 실행, 또는 매매거래정지 중)",
+            "latest_close": None,
+            "latest_date": None,
+            "history_days": 0,
+        }
+
+    latest_date_str = trading_dates[-1]
+    latest = day_map[latest_date_str]
+    latest_dt = datetime.strptime(latest_date_str, '%Y%m%d').date()
+
+    price_streak = 0
+    price_streak_start = None
+    for d_str in reversed(trading_dates):
+        if day_map[d_str]["close"] < MGMT_PRICE_THRESHOLD:
+            price_streak += 1
+            price_streak_start = d_str
+        else:
+            break
+    price_status, expected_designation_date = _streak_status_text(
+        "1,000원 미만", price_streak, price_streak_start, latest_dt, len(trading_dates)
+    )
+
+    return {
+        "has_data": True,
+        "price_streak_days": price_streak,
+        "price_streak_start_date": _fmt_date(price_streak_start) if price_streak_start else None,
+        "expected_designation_date": expected_designation_date,
+        "price_status": price_status,
+        "latest_close": latest["close"],
+        "latest_date": _fmt_date(latest_date_str),
         "history_days": len(trading_dates),
     }
 
@@ -3342,11 +3421,15 @@ def data_endpoint():
         if changed:
             _save_mgmt_history(history)
 
-        rows = [
+        common_rows = [
+            {"name": name, "code": code, **compute_price_status(code, history)}
+            for name, code in MGMT_COMMON_TICKERS.items()
+        ]
+        preferred_rows = [
             {"name": name, "code": code, **compute_mgmt_status(code, history)}
             for name, code in MGMT_WATCH_TICKERS.items()
         ]
-        return jsonify({"available": True, "rows": rows})
+        return jsonify({"available": True, "common": common_rows, "preferred": preferred_rows})
 
     if section == 'companies':
         COMPANIES = {

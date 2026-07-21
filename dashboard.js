@@ -203,23 +203,42 @@ async function loadAllData() {
   loadMgmtWatch();
 }
 
-// ── 관리종목지정 모니터링 (동양우/동양2우B) ─────────────────────
+// ── 관리종목지정 모니터링 (동양 보통주 / 동양우ㆍ동양2우B 우선주) ──
 async function loadMgmtWatch() {
   const note = document.getElementById('mgmtWatchNote');
-  const tbody = document.querySelector('#mgmt-watch-table tbody');
-  if (!tbody) return;
+  const commonBody = document.querySelector('#mgmt-watch-common-table tbody');
+  const preferredBody = document.querySelector('#mgmt-watch-preferred-table tbody');
+  if (!commonBody || !preferredBody) return;
   try {
     const data = await safeFetch(`${API_BASE}?section=mgmt_watch`);
     if (!data.available) {
       if (note) note.textContent = data.reason || 'KRX API를 사용할 수 없습니다.';
-      tbody.innerHTML = '';
+      commonBody.innerHTML = '';
+      preferredBody.innerHTML = '';
       return;
     }
     if (note) {
-      note.textContent = '유가증권시장 상장규정 제64조(관리종목지정) 기준 — 시가총액 20억원 미만 ' +
-        '30매매거래일 연속, 반기 월평균거래량 1만주 미만 여부를 매매일 기준으로 체크합니다.';
+      note.textContent = '유가증권시장 상장규정 기준 — 보통주(제47조제1항제9호의2)는 종가 1,000원 미만, ' +
+        '우선주(제64조제1항)는 시가총액 20억원 미만ㆍ반기 월평균거래량 1만주 미만 상태가 30거래일 ' +
+        '지속되는지를 매매거래일 기준으로 체크합니다 (매매거래정지 기간은 매매거래일에서 제외).';
     }
-    tbody.innerHTML = data.rows.map(row => {
+
+    commonBody.innerHTML = data.common.map(row => {
+      if (!row.has_data) {
+        return `<tr><td>${row.name}</td><td colspan="3">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
+      }
+      const priceWarn = row.price_streak_days > 0;
+      return `
+        <tr>
+          <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
+          <td>${row.latest_date ?? '--'}</td>
+          <td>${row.latest_close != null ? row.latest_close.toLocaleString('ko-KR') : '--'}원</td>
+          <td class="${priceWarn ? 'down' : ''}">${row.price_status}</td>
+        </tr>
+      `;
+    }).join('');
+
+    preferredBody.innerHTML = data.preferred.map(row => {
       if (!row.has_data) {
         return `<tr><td>${row.name}</td><td colspan="5">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
       }

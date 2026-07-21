@@ -153,10 +153,24 @@
 
       <!-- 6. 관리종목지정 모니터링 (동양우/동양2우B — 유가증권시장 상장규정 제64조) -->
       <section class="section" id="mgmt-watch-section">
-        <h2>관리종목지정 모니터링 <span class="market-note">(동양우ㆍ동양2우B)</span></h2>
+        <h2>관리종목지정 모니터링</h2>
         <p class="info" id="mgmtWatchNote">불러오는 중…</p>
+
+        <h3 class="mgmt-watch-subtitle">1) 보통주 <span class="market-note">(동양 — 주가 미달)</span></h3>
         <div class="table-wrap">
-          <table id="mgmt-watch-table">
+          <table id="mgmt-watch-common-table">
+            <thead>
+              <tr>
+                <th>종목</th><th>기준일</th><th>종가<br>(기준일 현재)</th><th>주가 상태<br>(1,000원 기준)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <h3 class="mgmt-watch-subtitle">2) 우선주 <span class="market-note">(동양우ㆍ동양2우B — 시가총액ㆍ거래량 미달)</span></h3>
+        <div class="table-wrap">
+          <table id="mgmt-watch-preferred-table">
             <thead>
               <tr>
                 <th>종목</th><th>기준일</th><th>시가총액<br>(기준일 현재)</th><th>시가총액 상태<br>(20억원 기준)</th>
