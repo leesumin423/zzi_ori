@@ -3252,8 +3252,8 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
         designation_dt = datetime.strptime(day30, '%Y%m%d').date() + timedelta(days=1)
         designation = designation_dt.strftime('%Y-%m-%d')
         return (
-            f"관리종목 지정 대상 — {_fmt_date(streak_start)}부터 {streak}일째"
-            f" (30거래일 중 30일째 {_fmt_date(day30)}) 지정일 그다음날 {designation}",
+            f"관리종목 지정 대상 — {_fmt_date(streak_start)}부터 {streak}일째(30거래일 충족)"
+            f" 30거래일째 {_fmt_date(day30)} (익일 지정 {designation})",
             designation,
         )
 
@@ -3262,8 +3262,8 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
     day30 = day30_dt.strftime('%Y-%m-%d')
     designation = designation_dt.strftime('%Y-%m-%d')
     return (
-        f"주의 — {_fmt_date(streak_start)}부터 {streak}일째 (30거래일 중 {streak}일째)"
-        f" 30거래일 예상일 {day30} (지정일 그다음날 {designation})",
+        f"주의 — {_fmt_date(streak_start)}부터 {streak}일째(30거래일 중)"
+        f" 30거래일 예상일 {day30} (익일 지정 {designation})",
         designation,
     )
 

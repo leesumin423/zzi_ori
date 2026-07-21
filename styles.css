@@ -228,6 +228,9 @@ html, body {
 .mgmt-watch-subtitle:first-of-type {
   margin-top: 4px;
 }
+.mgmt-watch-rule-note {
+  margin-bottom: 10px;
+}
 
 /* ── Index Cards ─────────────────────────────────────────────── */
 .grid {
