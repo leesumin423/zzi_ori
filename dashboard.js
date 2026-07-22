@@ -648,6 +648,15 @@ function renderFtc(payload) {
 // "공시기한"ㆍ"공시대상 재확인" 배지 — 자동 판정이 아니라 확인 필요 후보를
 // 색으로 눈에 띄게 표시하는 용도(초록=정상/충족, 빨강=지연/미달, 회색=확인불가).
 function ftcTimelinessBadge(item) {
+  if (item.kind === 'goods_services_change') {
+    if (item.filing_timeliness === 'on_time') {
+      return `<span class="up" title="분기종료 후 45일(${item.filing_deadline_date}) 이내 공시(고시 제9조의2②)">✓ 준수(분기종료 후 ${item.days_after_quarter_end}일, 45일특례)</span>`;
+    }
+    if (item.filing_timeliness === 'late') {
+      return `<span class="down" title="분기종료 후 45일(${item.filing_deadline_date}) 초과">⚠ 지연 의심(분기종료 후 ${item.days_after_quarter_end}일, 45일특례)</span>`;
+    }
+    return `<span class="rule-cite" title="${escapeAttr(item.reverify_note ?? '거래기간(분기) 정보를 원문에서 확인하지 못해 45일 규정 준수 여부를 계산할 수 없습니다.')}">확인불가</span>`;
+  }
   const days = item.filing_business_days;
   if (item.filing_timeliness === 'on_time') {
     return `<span class="up">✓ 준수(${days}영업일)</span>`;
@@ -655,16 +664,13 @@ function ftcTimelinessBadge(item) {
   if (item.filing_timeliness === 'late') {
     return `<span class="down">⚠ 지연 의심(${days}영업일)</span>`;
   }
-  if (item.filing_timeliness === 'not_applicable') {
-    return '<span class="rule-cite" title="변경(사후공시)은 이사회 의결 없이 분기종료 후 45일 이내에 공시하면 되므로 3영업일 규정 대상이 아닙니다.">해당없음(45일 특례)</span>';
-  }
   return '<span class="rule-cite">확인불가</span>';
 }
 
 function ftcReverifyBadge(item) {
-  if (item.reverify_is_required === true) return '<span class="up">✓ 충족</span>';
+  if (item.reverify_is_required === true) return `<span class="up" title="${escapeAttr(item.reverify_note ?? '')}">✓ 충족</span>`;
   if (item.reverify_is_required === false) return `<span class="down" title="${escapeAttr(item.reverify_note ?? '')}">⚠ 미달(참고)</span>`;
-  return '<span class="rule-cite">확인불가</span>';
+  return `<span class="rule-cite" title="${escapeAttr(item.reverify_note ?? '')}">확인불가</span>`;
 }
 
 // ── 계열사별 자본금ㆍ자본총계(비상장 자회사 — 공정위 사전검증 계산기 드롭다운용) ──

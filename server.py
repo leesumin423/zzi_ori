@@ -2526,6 +2526,7 @@ def _ftc_parse_goods_services(soup) -> dict:
     보이면(=값이 아니라 헤더 행이었다는 뜻) 다음 행의 같은 열 위치로 대체한다."""
     board_date = _ftc_value_for(soup, '이사회의결일')
     prior_revenue = _equity_parse_num(_ftc_value_for(soup, '직전사업연도매출액'))
+    transaction_period = _ftc_value_for(soup, '거래기간')
     text = soup.get_text(' ', strip=True)
     section_m = re.search(r'거래금액(.*?)5\.\s*상품', text, re.S)
     section = section_m.group(1) if section_m else ''
@@ -2563,6 +2564,7 @@ def _ftc_parse_goods_services(soup) -> dict:
         'board_date': board_date,
         'prior_revenue': prior_revenue,
         'max_quarterly_ratio': max(ratios) if ratios else None,
+        'transaction_period': transaction_period,
     }
 
 _FTC_PARSERS = {
@@ -2647,7 +2649,9 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
             "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or ''),
             "relation": parsed.get('relation') or '',
             "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
-            "board_date": parsed.get('board_date') or '',  # 원문에 이미 "YYYY.MM.DD"로 기재됨 — "변경"은 정상적으로 빈 값
+            "board_date": _format_ftc_date(parsed.get('board_date') or ''),  # "변경"은 정상적으로 빈 값
+            "transaction_period": parsed.get('transaction_period') or '',
+            "period_end_date": _format_period_end_date(parsed.get('transaction_period') or ''),
             "amount_label": amount_label,
             "amount_won": amount_won,
             "rcept_no": rcept_no,
@@ -2677,9 +2681,16 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
 
 def _normalize_dot_date(raw: str):
     """"2025.04.25"뿐 아니라 "2025. 4. 25."처럼 공백ㆍ트레일링 점이 섞인 원문
-    표기도 파싱한다("-"처럼 날짜가 아예 없는 경우는 None)."""
+    표기, "2020년 4월 28일"처럼 옛 공시(2020년 특수관계인출자ㆍ채권매도 등)에서
+    쓰인 한글 날짜 표기도 파싱한다("-"처럼 날짜가 아예 없는 경우는 None)."""
     if not raw:
         return None
+    m = re.match(r'(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일', raw.strip())
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
     cleaned = raw.replace(' ', '').strip('.')
     parts = cleaned.split('.')
     if len(parts) != 3:
@@ -2688,6 +2699,25 @@ def _normalize_dot_date(raw: str):
         return date(int(parts[0]), int(parts[1]), int(parts[2]))
     except ValueError:
         return None
+
+def _format_ftc_date(raw: str) -> str:
+    """공정위 공시 원문의 날짜 표기를 화면 표시용으로 "YYYY.MM.DD"로 통일한다.
+    파싱 안 되는 값("-" 등)은 원문 그대로 둔다."""
+    d = _normalize_dot_date(raw)
+    return d.strftime('%Y.%m.%d') if d else raw
+
+def _format_period_end_date(period_text: str) -> str:
+    """"4분기(2024.10.1~2024.12.31)"ㆍ"1년(2024.1.1~2024.12.31)"처럼 상품ㆍ용역거래
+    공시의 "2. 거래기간" 필드에서 종료일을 뽑아 "YYYY.MM.DD"로 반환한다(공시규정
+    제9조의2②의 "분기종료 후 45일 이내" 기산점 — 변경 공시가 어느 분기 실적에
+    대한 것인지는 이 필드로만 알 수 있고, 이사회의결일은 없다). 못 찾으면 빈 문자열."""
+    m = re.search(r'~\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})', period_text or '')
+    if not m:
+        return ''
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).strftime('%Y.%m.%d')
+    except ValueError:
+        return ''
 
 def _business_days_between(start_dot: str, end_dot: str):
     """두 날짜 사이의 영업일 수(토ㆍ일만 제외, 공휴일은 반영 못함 — 근사치)를
@@ -2705,39 +2735,73 @@ def _business_days_between(start_dot: str, end_dot: str):
     return days
 
 FTC_FILING_DEADLINE_BUSINESS_DAYS = 3  # 동양(주)은 상장법인 — 이사회 의결 후 3영업일 이내 공시
+FTC_CHANGE_FILING_DEADLINE_DAYS = 45  # 고시 제9조의2② — 상품ㆍ용역거래 변경(20% 이상 감소)은 분기종료 후 45일 이내(역일 기준) 공시
 
 def _ftc_apply_accuracy_check(results: list) -> None:
     """이미 제출된 공정위 공시 건들을 대상으로 "정확성 점검"을 덧붙인다(자동
     판정이 아니라 확인 필요 후보를 추려주는 용도):
-    1) 공시기한 준수 — 이사회 의결일로부터 실제 공시일까지 영업일수를 계산해
-       3영업일(동양(주)은 상장법인) 초과 여부를 표시.
-    2) 공시대상 재확인 — 원문에서 뽑은 거래금액(amount_won)과 동양(주)의 "현재"
-       자본총계·자본금 중 큰 금액으로 check_ftc_disclosure()를 다시 돌려본다.
-       이미 신고된 건이니 거의 항상 "대상"으로 나와야 정상 — False가 나오면
-       자본금이 신고 당시와 달라졌거나 원문 파싱이 어긋났을 수 있어 확인이
-       필요하다는 신호로 취급한다(과거 시점 자본금이 아니라 현재 값을 쓰는
-       근사치라는 한계를 화면에도 명시해야 함)."""
+    1) 공시기한 준수 — "거래"(초기)ㆍ출자ㆍ채권매도는 이사회 의결일로부터 실제
+       공시일까지 영업일수를 계산해 3영업일(동양(주)은 상장법인) 초과 여부를
+       표시. "변경"은 이사회 의결이 없는 대신, 고시 제9조의2②에 따라 거래기간
+       필드("2. 거래기간")에서 뽑은 분기 종료일로부터 45일(역일) 이내 공시했는지를
+       확인한다 — 둘은 기산점ㆍ단위(영업일 vs 역일)가 다른 별개 규정이라 섞어
+       계산하면 안 된다.
+    2) 공시대상 재확인 — "변경"은 애초에 "실제 거래금액이 당초 이사회 의결금액
+       보다 20% 이상 감소"한 경우에만 발생하는 사후공시 절차이므로(원문 "8. 기타"
+       사유란에도 명시됨), 공시가 존재한다는 사실 자체가 요건 충족의 근거이다 —
+       금액 재계산 없이 항상 충족으로 표시한다. 그 외 유형은 원문에서 뽑은
+       거래금액(amount_won)과 동양(주)의 "현재" 자본총계·자본금 중 큰 금액으로
+       check_ftc_disclosure()를 다시 돌려본다(과거 시점 자본금이 아니라 현재
+       값을 쓰는 근사치라는 한계를 화면에도 명시해야 함)."""
     dongyang = next((r for r in fetch_all_group_capital_info() if r['name'] == '동양(주)'), None)
     capital_base = dongyang.get('capital_base') if dongyang else None
 
     for r in results:
+        r['filing_deadline_date'] = None
+        r['days_after_quarter_end'] = None
+
         if r.get('kind') == 'goods_services_change':
-            # "변경"은 고시 제9조의2②에 따라 이사회 의결 자체가 없는 사후공시라
-            # board_date가 "-"인 게 정상 — 3영업일 규정을 적용할 대상이 아니다.
-            # (정확한 "분기종료 후 45일" 기준일은 분기 정보를 아직 구조화해서
-            # 파싱하지 않아 여기서는 계산하지 않고, 그렇게 명시만 해둔다.)
             r['filing_business_days'] = None
-            r['filing_timeliness'] = 'not_applicable'
-        else:
-            business_days = _business_days_between(r.get('board_date') or '', r.get('disclosure_date') or '')
-            r['filing_business_days'] = business_days
-            # 'on_time'/'late'/'unknown' — bool 대신 3단계로 둬서 "확인불가"가
-            # "지연"으로 잘못 읽히지 않게 한다(날짜 표기가 파싱 안 되는 경우 등).
-            r['filing_timeliness'] = (
-                'unknown' if business_days is None
-                else 'on_time' if business_days <= FTC_FILING_DEADLINE_BUSINESS_DAYS
-                else 'late'
-            )
+
+            if _normalize_dot_date(r.get('board_date') or ''):
+                # 이사회 의결일이 실제로 기재된 "변경" 건 — 감소형(20% 이상 감소,
+                # 이사회 의결 없이 분기종료 후 45일 이내 사후공시)이 아니라 증가형
+                # (20% 이상 증가 "예상"되어 분기 중 미리 이사회 의결ㆍ공시하는 경우,
+                # 매뉴얼 11-2. 특례 단서)일 가능성이 있다 — 절차ㆍ기산점 자체가 달라
+                # 45일 규정을 적용하면 안 되고, 자동 판정 없이 확인 필요로 남긴다.
+                r['filing_timeliness'] = 'unknown'
+                r['reverify_is_required'] = None
+                r['reverify_note'] = "이 '변경' 공시는 이사회 의결일이 기재되어 있어, 감소형(20% 이상 감소ㆍ사후공시)이 아니라 증가형(20% 이상 증가 예상ㆍ사전 의결) 변경일 가능성이 있습니다 — 원문을 직접 확인해 주세요."
+                continue
+
+            period_end = _normalize_dot_date(r.get('period_end_date') or '')
+            disclosure = _normalize_dot_date(r.get('disclosure_date') or '')
+            if period_end and disclosure:
+                days_after = (disclosure - period_end).days
+                r['days_after_quarter_end'] = days_after
+                r['filing_deadline_date'] = (period_end + timedelta(days=FTC_CHANGE_FILING_DEADLINE_DAYS)).strftime('%Y.%m.%d')
+                r['filing_timeliness'] = (
+                    'on_time' if 0 <= days_after <= FTC_CHANGE_FILING_DEADLINE_DAYS
+                    else 'late' if days_after > FTC_CHANGE_FILING_DEADLINE_DAYS
+                    else 'unknown'  # 공시일이 분기종료일보다 앞섬 — 데이터 이상, 확인불가로 취급
+                )
+            else:
+                r['filing_timeliness'] = 'unknown'
+
+            # 20% 감소 여부는 공시 존재 자체가 근거 — 별도 금액 재계산 없이 충족 처리
+            r['reverify_is_required'] = True
+            r['reverify_note'] = "상품ㆍ용역거래 변경 공시는 실제 거래금액이 당초 이사회 의결금액보다 20% 이상 감소한 경우에만 발생하는 사후공시 절차입니다(고시 제9조의2②) — 공시가 존재한다는 사실 자체가 요건 충족의 근거입니다."
+            continue
+
+        business_days = _business_days_between(r.get('board_date') or '', r.get('disclosure_date') or '')
+        r['filing_business_days'] = business_days
+        # 'on_time'/'late'/'unknown' — bool 대신 3단계로 둬서 "확인불가"가
+        # "지연"으로 잘못 읽히지 않게 한다(날짜 표기가 파싱 안 되는 경우 등).
+        r['filing_timeliness'] = (
+            'unknown' if business_days is None
+            else 'on_time' if business_days <= FTC_FILING_DEADLINE_BUSINESS_DAYS
+            else 'late'
+        )
 
         reverify = None
         if r.get('amount_won') is not None and capital_base:

@@ -384,14 +384,18 @@
         <section class="section" id="ftc-section">
           <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button> <button class="rule-btn" data-guide="ftc">작성 가이드</button></h2>
           <div class="tab-group" id="ftcRangeTabs" style="max-width:260px; margin-bottom:12px;">
-            <button class="tab-btn active" data-ftc-range="recent">최근 1년(작년 1.1~오늘)</button>
-            <button class="tab-btn" data-ftc-range="all">전체 이력(최근 10년)</button>
+            <button class="tab-btn active" data-ftc-range="recent">최근 1년<br><span class="tab-btn-sub">(작년 1.1~오늘)</span></button>
+            <button class="tab-btn" data-ftc-range="all">전체 이력<br><span class="tab-btn-sub">(최근 10년)</span></button>
           </div>
           <p class="info" id="ftcNote" style="margin-bottom:12px;">불러오는 중…</p>
-          <p class="info">공시 정확성 점검 — <b>공시기한</b>은 이사회 의결일로부터 실제 공시일까지 영업일수를 계산해
-            상장법인 기준(동양(주)) <b>3영업일 이내</b>인지 확인합니다(공휴일은 반영하지 못하는 근사치입니다).
+          <p class="info">공시 정확성 점검 — <b>공시기한</b>은 특수관계인 출자ㆍ채권매도ㆍ상품ㆍ용역거래(초기)는
+            이사회 의결일로부터 실제 공시일까지 영업일수를 계산해 상장법인 기준(동양(주)) <b>3영업일 이내</b>인지 확인합니다.
+            상품ㆍ용역거래 변경(감소형ㆍ이사회 의결 없는 사후공시, 고시 제9조의2②)은 원문 "거래기간" 필드의 분기
+            종료일로부터 실제 공시일까지 역일수를 계산해 <b>45일 이내</b>인지 확인합니다(공휴일 미반영 근사치이며,
+            이사회 의결일이 기재된 변경 건은 증가형 사전 의결 가능성이 있어 자동판정 대신 확인불가로 표시합니다).
             <b>공시대상 재확인</b>은 원문의 거래금액과 동양(주)의 <b>현재</b> 자본총계ㆍ자본금으로 다시 판단해본
-            결과입니다 — 신고 당시가 아닌 현재 자본 기준이라 참고용이며, "미달"이어도 오류가 아니라 그 사이
+            결과입니다(상품ㆍ용역거래 변경(감소형)은 공시 존재 자체가 20% 이상 감소 요건 충족의 근거이므로 항상 충족으로
+            표시) — 신고 당시가 아닌 현재 자본 기준이라 참고용이며, "미달"이어도 오류가 아니라 그 사이
             자본 규모가 달라졌을 수 있습니다.</p>
           <div class="table-wrap">
             <table id="ftc-table">
@@ -410,7 +414,7 @@
               <thead>
                 <tr>
                   <th>순번</th><th>유형</th><th>거래상대방</th><th>관계</th><th>공시일자</th>
-                  <th>이사회의결일</th><th>공시기한<br>(3영업일)</th><th>공시대상<br>재확인</th>
+                  <th>이사회의결일</th><th>공시기한<br>(3영업일/45일)</th><th>공시대상<br>재확인</th>
                   <th>거래금액<br>(매출액대비)</th><th>원문</th>
                 </tr>
               </thead>

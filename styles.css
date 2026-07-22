@@ -249,6 +249,19 @@ html, body {
 .tab-btn:hover { background: rgba(255,255,255,0.1); }
 .tab-btn.active { background: var(--accent); color: #fff; }
 
+/* #ftcRangeTabs — 두 버튼 모두 동일한 높이의 2줄로 통일(라벨 길이가 달라
+   한쪽만 줄바꿈되면서 크기가 들쭉날쭉해 보이는 문제 수정) */
+#ftcRangeTabs .tab-btn {
+  min-height: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.5;
+  gap: 1px;
+}
+#ftcRangeTabs .tab-btn-sub { font-size: 10px; font-weight: 500; opacity: 0.8; }
+
 /* ── Sections ────────────────────────────────────────────────── */
 .section {
   margin-bottom: 32px;
