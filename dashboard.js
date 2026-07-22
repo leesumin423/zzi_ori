@@ -11,7 +11,7 @@ const API_BASE = 'http://localhost:5000/data';
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null, goodsServicesTargets: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null, goodsServicesTargets: null, mgmtWatch: null };
 
 // 포털형 공시현황 요약 — 지금은 동양(주) 하나만 실제로 연동돼 있어 계열사
 // 선택 없이 바로 보여준다. 카드를 눌러 유형별로 필터링하는 상태만 관리한다.
@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const note = document.getElementById('basisNote');
       if (note) note.textContent = `(${BASIS_LABEL[basis]})`;
       renderAll();
+      renderMgmtWatch();
     });
   });
   document.querySelectorAll('#pageTabs .tab-btn').forEach(btn => {
@@ -204,58 +205,72 @@ async function loadAllData() {
 }
 
 // ── 관리종목지정 모니터링 (동양 보통주 / 동양우ㆍ동양2우B 우선주) ──
+// 사이드바 "현재기준/장마감기준" 탭을 그대로 따른다: 현재기준은 오늘자 실시간
+// 가격으로 스케일링한 값, 장마감기준은 KRX가 공식 확정한 마지막 매매일 값.
+// 상태 판정(연속 미달일수ㆍ지정대상 여부)은 언제나 KRX 공식 확정 이력 기준이라
+// 탭을 바꿔도 바뀌지 않는다 — 규정상 판단은 실시간 값으로 흔들리면 안 되므로.
 async function loadMgmtWatch() {
   const note = document.getElementById('mgmtWatchNote');
+  try {
+    const data = await safeFetch(`${API_BASE}?section=mgmt_watch`);
+    lastData.mgmtWatch = data;
+    if (note) note.textContent = data.available ? '' : (data.reason || 'KRX API를 사용할 수 없습니다.');
+  } catch (err) {
+    if (note) note.textContent = `관리종목 모니터링 로드 실패: ${err.message}`;
+    return;
+  }
+  renderMgmtWatch();
+}
+
+function renderMgmtWatch() {
   const commonBody = document.querySelector('#mgmt-watch-common-table tbody');
   const preferredBody = document.querySelector('#mgmt-watch-preferred-table tbody');
   if (!commonBody || !preferredBody) return;
-  try {
-    const data = await safeFetch(`${API_BASE}?section=mgmt_watch`);
-    if (!data.available) {
-      if (note) note.textContent = data.reason || 'KRX API를 사용할 수 없습니다.';
-      commonBody.innerHTML = '';
-      preferredBody.innerHTML = '';
-      return;
-    }
-    if (note) note.textContent = '';
-
-    commonBody.innerHTML = data.common.map(row => {
-      if (!row.has_data) {
-        return `<tr><td>${row.name}</td><td colspan="3">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
-      }
-      const priceWarn = row.price_streak_days > 0;
-      return `
-        <tr>
-          <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
-          <td>${row.latest_date ?? '--'}</td>
-          <td>${row.latest_close != null ? row.latest_close.toLocaleString('ko-KR') : '--'}원</td>
-          <td class="${priceWarn ? 'down' : ''}">${row.price_status}</td>
-        </tr>
-      `;
-    }).join('');
-
-    preferredBody.innerHTML = data.preferred.map(row => {
-      if (!row.has_data) {
-        return `<tr><td>${row.name}</td><td colspan="5">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
-      }
-      const capWarn = row.cap_streak_days > 0;
-      const volWarn = row.volume_status === '미달 우려';
-      const mktcapEok = row.latest_mktcap != null ? Math.round(row.latest_mktcap / 100000000).toLocaleString('ko-KR') : '--';
-      const volAvg = row.volume_avg_monthly != null ? row.volume_avg_monthly.toLocaleString('ko-KR') : '--';
-      return `
-        <tr>
-          <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
-          <td>${row.latest_date ?? '--'}</td>
-          <td>${mktcapEok}억원</td>
-          <td class="${capWarn ? 'down' : ''}">${row.cap_status}</td>
-          <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
-          <td class="${volWarn ? 'down' : ''}">${row.volume_status}</td>
-        </tr>
-      `;
-    }).join('');
-  } catch (err) {
-    if (note) note.textContent = `관리종목 모니터링 로드 실패: ${err.message}`;
+  const data = lastData.mgmtWatch;
+  if (!data || !data.available) {
+    commonBody.innerHTML = '';
+    preferredBody.innerHTML = '';
+    return;
   }
+
+  commonBody.innerHTML = data.common.map(row => {
+    if (!row.has_data) {
+      return `<tr><td>${row.name}</td><td colspan="3">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
+    }
+    const priceWarn = row.price_streak_days > 0;
+    const shownDate = basis === 'current' ? row.current_date : row.latest_date;
+    const shownClose = basis === 'current' ? row.current_close : row.latest_close;
+    return `
+      <tr>
+        <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
+        <td>${shownDate ?? '--'}</td>
+        <td>${shownClose != null ? shownClose.toLocaleString('ko-KR') : '--'}원</td>
+        <td class="${priceWarn ? 'down' : ''}">${row.price_status}</td>
+      </tr>
+    `;
+  }).join('');
+
+  preferredBody.innerHTML = data.preferred.map(row => {
+    if (!row.has_data) {
+      return `<tr><td>${row.name}</td><td colspan="5">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
+    }
+    const capWarn = row.cap_streak_days > 0;
+    const volWarn = row.volume_status === '미달 우려';
+    const shownDate = basis === 'current' ? row.current_date : row.latest_date;
+    const shownMktcap = basis === 'current' ? row.current_mktcap : row.latest_mktcap;
+    const mktcapEok = shownMktcap != null ? Math.round(shownMktcap / 100000000).toLocaleString('ko-KR') : '--';
+    const volAvg = row.volume_avg_monthly != null ? row.volume_avg_monthly.toLocaleString('ko-KR') : '--';
+    return `
+      <tr>
+        <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
+        <td>${shownDate ?? '--'}</td>
+        <td>${mktcapEok}억원</td>
+        <td class="${capWarn ? 'down' : ''}">${row.cap_status}</td>
+        <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
+        <td class="${volWarn ? 'down' : ''}">${row.volume_status}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // ── (주)동양 실시간 주가현황 위젯 (사이드바 상단) ───────────────

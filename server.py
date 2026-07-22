@@ -3219,6 +3219,27 @@ def _save_mgmt_history(history: dict):
     with open(MGMT_WATCH_HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
+def _fetch_live_price(code: str):
+    """
+    실시간 현재가만 가볍게 조회 (itemSummary API) — 관리종목 모니터링의 "현재기준"
+    표시값용. KRX 일별매매정보(stk_bydd_trd)는 장마감 후에나 그날 치가 확정되는
+    공식 데이터라 "지금 이 순간"의 시가총액ㆍ주가를 못 주는데, 사이드바의
+    현재기준/장마감기준 탭 중 "현재기준"을 골랐을 때는 이 페이지도 다른 표들처럼
+    실시간 값을 보여줘야 해서 별도로 가볍게 조회한다. 상태 판정(연속 미달일수ㆍ
+    지정대상 여부)은 이 값과 무관하게 항상 KRX 공식 확정 이력만 사용한다 —
+    실시간 값 하나로 규정상 매매거래일 판단을 흔들면 안 되므로.
+    """
+    try:
+        r = requests.get(
+            f"https://api.finance.naver.com/service/itemSummary.nhn?itemcode={code}",
+            headers=HEADERS, timeout=10,
+        )
+        price = r.json().get('now', 0)
+        return int(price) if price else None
+    except Exception as e:
+        print(f"[DEBUG] {code} 실시간 현재가(관리종목 모니터링용) 조회 중 예외: {e}")
+        return None
+
 def _fetch_krx_day(bas_dd: str) -> dict:
     """
     KRX 유가증권일별매매정보(stk_bydd_trd)에서 특정 날짜(YYYYMMDD)의 전종목 데이터를
@@ -3375,14 +3396,20 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
         designation,
     )
 
-def compute_mgmt_status(code: str, history: dict) -> dict:
+def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dict:
     """
     유가증권시장 상장규정 제64조(종류주권 — 동양우/동양2우B)의 시가총액ㆍ거래량
     두 기준의 현재 상태를 계산.
     - 시가총액: 최근 매매거래일부터 거슬러 연속으로 20억원 미만인 매매거래일 수
-      (MGMT_STREAK_DAYS 이상이면 관리종목 지정 대상)
+      (MGMT_STREAK_DAYS 이상이면 관리종목 지정 대상) — 항상 KRX 공식 확정
+      이력(장마감기준) 기준으로 판단, live_price와 무관.
     - 거래량: 이번 반기 시작일 ~ 최근 매매거래일까지 누적거래량 ÷ 경과 개월수
       (반기가 끝나야 확정치이므로 항상 "진행 중 잠정치"로 표시)
+
+    live_price가 주어지면(사이드바 "현재기준" 탭용), 최근 확정 종가 대비 현재가
+    비율로 시가총액을 스케일링해 "현재기준" 표시값(current_mktcap/current_date)도
+    함께 계산한다 — 규정 판단(cap_status 등)에는 영향 없음, 어디까지나 화면
+    표시용 실시간 근사치.
     """
     day_map = history.get(code, {})
     trading_dates = _trading_dates(day_map)
@@ -3396,6 +3423,8 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
             "cap_status": "데이터 없음 (KRX 키 미설정, 첫 실행, 또는 매매거래정지 중)",
             "latest_mktcap": None,
             "latest_date": None,
+            "current_mktcap": None,
+            "current_date": None,
             "volume_avg_monthly": None,
             "volume_status": "데이터 없음",
             "half_year_label": None,
@@ -3427,6 +3456,10 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
     volume_avg_monthly = round(half_volume_sum / elapsed_months) if elapsed_months else 0
     volume_status = "미달 우려" if volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
 
+    current_mktcap = None
+    if live_price and latest.get("close"):
+        current_mktcap = round(latest["mktcap"] / latest["close"] * live_price)
+
     return {
         "has_data": True,
         "cap_streak_days": cap_streak,
@@ -3435,13 +3468,15 @@ def compute_mgmt_status(code: str, history: dict) -> dict:
         "cap_status": cap_status,
         "latest_mktcap": latest["mktcap"],
         "latest_date": _fmt_date(latest_date_str),
+        "current_mktcap": current_mktcap,
+        "current_date": date.today().strftime('%Y-%m-%d'),
         "volume_avg_monthly": volume_avg_monthly,
         "volume_status": volume_status,
         "half_year_label": half_label,
         "history_days": len(trading_dates),
     }
 
-def compute_price_status(code: str, history: dict) -> dict:
+def compute_price_status(code: str, history: dict, live_price: int = None) -> dict:
     """
     유가증권시장 상장규정 제47조제1항제9호의2(보통주권 — 동양, 2026.5.13 신설,
     2026.7.1 시행): "주가 미달" — 종가가 1,000원 미만인 상태가 30매매거래일 연속되면
@@ -3450,6 +3485,9 @@ def compute_price_status(code: str, history: dict) -> dict:
 
     시행일(2026.7.1) 이전에 이미 1,000원 미만이었어도 그 이전 매매거래일은 연속일수에
     포함하지 않는다 — 규정 시행 전에는 애초에 적용될 수 없는 조항이었으므로.
+
+    live_price가 주어지면(사이드바 "현재기준" 탭용) current_close/current_date로
+    그대로 담아 반환한다 — 규정 판단(price_status 등)에는 영향 없음, 화면 표시용.
     """
     day_map = history.get(code, {})
     trading_dates = _trading_dates(day_map)
@@ -3463,6 +3501,8 @@ def compute_price_status(code: str, history: dict) -> dict:
             "price_status": "데이터 없음 (KRX 키 미설정, 첫 실행, 또는 매매거래정지 중)",
             "latest_close": None,
             "latest_date": None,
+            "current_close": None,
+            "current_date": None,
             "history_days": 0,
         }
 
@@ -3490,6 +3530,8 @@ def compute_price_status(code: str, history: dict) -> dict:
         "price_status": price_status,
         "latest_close": latest["close"],
         "latest_date": _fmt_date(latest_date_str),
+        "current_close": live_price,
+        "current_date": date.today().strftime('%Y-%m-%d'),
         "history_days": len(trading_dates),
     }
 
@@ -3545,12 +3587,19 @@ def data_endpoint():
         if changed:
             _save_mgmt_history(history)
 
+        # "현재기준" 표시용 실시간 현재가 — 3종목뿐이라 병렬로 가볍게 조회
+        with ThreadPoolExecutor(max_workers=len(MGMT_ALL_TICKERS)) as executor:
+            live_prices = dict(zip(
+                MGMT_ALL_TICKERS.values(),
+                executor.map(_fetch_live_price, MGMT_ALL_TICKERS.values()),
+            ))
+
         common_rows = [
-            {"name": name, "code": code, **compute_price_status(code, history)}
+            {"name": name, "code": code, **compute_price_status(code, history, live_prices.get(code))}
             for name, code in MGMT_COMMON_TICKERS.items()
         ]
         preferred_rows = [
-            {"name": name, "code": code, **compute_mgmt_status(code, history)}
+            {"name": name, "code": code, **compute_mgmt_status(code, history, live_prices.get(code))}
             for name, code in MGMT_WATCH_TICKERS.items()
         ]
         return jsonify({"available": True, "common": common_rows, "preferred": preferred_rows})
