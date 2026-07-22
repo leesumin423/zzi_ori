@@ -3397,11 +3397,25 @@ def _fetch_naver_fallback_day(code: str, bas_dd: str, history: dict):
     }
 
 def _fetch_day_with_fallback(bas_dd: str, history: dict) -> dict:
-    """_fetch_krx_day()가 실패(None)했을 때만 종목별로 네이버 대체 조회를 시도해
-    합쳐서 반환한다. KRX가 성공(휴장일 포함)했으면 그대로 그 결과를 쓴다."""
+    """
+    KRX 응답을 우선 쓰되, 두 가지 경우엔 네이버로 대체한다:
+    1. 요청 자체가 실패(None) — 타임아웃 등
+    2. 오늘 날짜인데 장은 이미 마감됐고(not is_krx_open) KRX가 빈 결과({})를 줬을 때
+       — KRX 공식 일별매매정보는 장마감 직후 바로 올라오지 않고 어느 정도 지연 후
+       게시되는데, 이 경우 응답 자체는 "성공"(빈 배열)이라 _fetch_krx_day()가 None이
+       아니라 {}를 반환한다. 예전엔 이걸 무조건 "휴장일"로 간주해서, 오늘 장이
+       끝났는데도 장마감기준 기준일이 어제에 계속 머물러 있는 버그가 있었다.
+       오늘이 아닌 과거 날짜의 빈 결과는 여전히 진짜 휴장일로 간주하고 폴백하지 않는다.
+    """
     day_data = _fetch_krx_day(bas_dd)
-    if day_data is not None:
+    is_today = bas_dd == date.today().strftime('%Y%m%d')
+
+    if day_data:  # 실제 데이터를 받았으면 그대로 사용
         return day_data
+    if day_data is not None and not (is_today and not is_krx_open()):
+        # 성공+빈 결과인데, "오늘·장마감 후" 케이스가 아니면 진짜 휴장일로 간주
+        return {}
+
     day_data = {}
     for code in MGMT_ALL_TICKERS.values():
         fb = _fetch_naver_fallback_day(code, bas_dd, history)
