@@ -3240,15 +3240,21 @@ def _fetch_live_price(code: str):
         print(f"[DEBUG] {code} 실시간 현재가(관리종목 모니터링용) 조회 중 예외: {e}")
         return None
 
-def _fetch_krx_day(bas_dd: str) -> dict:
+def _fetch_krx_day(bas_dd: str):
     """
     KRX 유가증권일별매매정보(stk_bydd_trd)에서 특정 날짜(YYYYMMDD)의 전종목 데이터를
-    받아 관심 종목(동양/동양우/동양2우B)만 골라 {종목코드: {mktcap, volume, close}}로 반환.
-    휴장일이면 OutBlock_1이 빈 배열로 오므로 빈 dict가 반환된다(호출자가 이걸로
-    휴장일 여부를 판단해 그 날짜는 이력에 저장하지 않고 건너뛴다).
+    받아 관심 종목(동양/동양우/동양2우B)만 골라 {종목코드: {mktcap, volume, close, source}}로
+    반환한다.
+
+    반환값 구분이 중요하다 — 휴장일(요청은 성공했지만 그날 거래가 없음)이면 빈 dict
+    `{}`를, 요청 자체가 실패(타임아웃 등 KRX 쪽 문제)하면 `None`을 반환한다. 호출부는
+    `{}`면 진짜 휴장일이니 그대로 건너뛰고, `None`이면 KRX가 지금 이 날짜를 못 주는
+    것뿐이니 `_fetch_naver_fallback_day()`로 대체 조회를 시도한다(예: 2026.7.21 하루만
+    KRX가 계속 타임아웃 났던 사례 — 60초를 줘도 응답이 안 왔지만 네이버엔 이미 그날
+    실거래 데이터가 있었음).
     """
     if not KRX_API_KEY:
-        return {}
+        return None
     url = "http://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd"
     try:
         r = requests.get(
@@ -3260,7 +3266,7 @@ def _fetch_krx_day(bas_dd: str) -> dict:
         rows = r.json().get("OutBlock_1", [])
     except Exception as e:
         print(f"[DEBUG] KRX {bas_dd} 조회 중 예외: {e}")
-        return {}
+        return None
 
     wanted_codes = set(MGMT_ALL_TICKERS.values())
     result = {}
@@ -3272,10 +3278,59 @@ def _fetch_krx_day(bas_dd: str) -> dict:
                     "mktcap": int(row["MKTCAP"]),
                     "volume": int(row["ACC_TRDVOL"]),
                     "close": int(row["TDD_CLSPRC"]),
+                    "source": "krx",
                 }
             except (KeyError, ValueError):
                 continue
     return result
+
+def _fetch_naver_fallback_day(code: str, bas_dd: str, history: dict):
+    """
+    KRX가 특정 날짜 응답에 실패했을 때(타임아웃 등) 네이버 일봉으로 그 날짜를 메운다.
+    - 종가ㆍ거래량은 네이버 fchart 일봉의 실측값을 그대로 쓴다.
+    - 시가총액은 상장주식수를 따로 조회하지 않고, 이 종목의 이력 중 가장 최근에
+      KRX가 확정해준 시가총액/종가 비율로 스케일링한 추정치를 쓴다(관리종목 감시용
+      근사치로는 충분 — 상장주식수가 그 사이 바뀌었다면 KRX가 복구된 뒤 실제값으로
+      자연히 덮어써진다).
+
+    대상 날짜가 오늘이면서 아직 장중이면(is_krx_open) 폴백하지 않고 None을
+    반환한다 — 네이버 fchart의 "오늘" 봉은 장중엔 계속 갱신되는 미확정 값이라,
+    이걸 "장마감기준"(확정치) 자리에 채우면 안 된다. 장마감 후 다시 시도하면
+    그때는 진짜 확정 종가가 되어 있으므로 정상적으로 채워진다.
+    """
+    if bas_dd == date.today().strftime('%Y%m%d') and is_krx_open():
+        return None
+    ohlc = fetch_daily_ohlc(code, count=15)
+    target_date_dot = f"{bas_dd[:4]}.{bas_dd[4:6]}.{bas_dd[6:8]}"
+    day = next((d for d in ohlc if d['date'] == target_date_dot), None)
+    if not day or not day.get('close'):
+        return None
+
+    day_map = history.get(code, {})
+    ref_dates = sorted(d for d, v in day_map.items() if v.get('close'))
+    if not ref_dates:
+        return None
+    ref = day_map[ref_dates[-1]]
+
+    return {
+        "mktcap": round(ref["mktcap"] / ref["close"] * day["close"]),
+        "volume": day["volume"],
+        "close": day["close"],
+        "source": "naver_est",
+    }
+
+def _fetch_day_with_fallback(bas_dd: str, history: dict) -> dict:
+    """_fetch_krx_day()가 실패(None)했을 때만 종목별로 네이버 대체 조회를 시도해
+    합쳐서 반환한다. KRX가 성공(휴장일 포함)했으면 그대로 그 결과를 쓴다."""
+    day_data = _fetch_krx_day(bas_dd)
+    if day_data is not None:
+        return day_data
+    day_data = {}
+    for code in MGMT_ALL_TICKERS.values():
+        fb = _fetch_naver_fallback_day(code, bas_dd, history)
+        if fb:
+            day_data[code] = fb
+    return day_data
 
 def backfill_mgmt_history(history: dict) -> bool:
     """
@@ -3283,6 +3338,13 @@ def backfill_mgmt_history(history: dict) -> bool:
     거슬러 올라가며 채운다. 한 번의 HTTP 요청이 너무 오래 걸리지 않도록 API 호출
     수를 MGMT_BACKFILL_MAX_CALLS_PER_REQUEST로 제한 — 부족하면(휴장일이 많이 끼는 등)
     다음 새로고침 때 이어서 채워진다(이미 있는 날짜는 다시 안 부른다).
+
+    "이미 목표치(90일) 이상 쌓였으면 멈춘다"는 총 개수만 보면 안 된다 — 예를 들어
+    KRX가 특정 날짜(예: 어제) 응답에 계속 실패해서 최근 날짜 하나가 비어있는데
+    그 이전엔 이미 90일 넘게 쌓여 있는 경우, 총 개수 조건만 보면 그 빈 날짜를 다시는
+    시도하지 않고 영원히 건너뛰게 된다. 그래서 "빠진 날짜는 총 개수와 무관하게 항상
+    먼저 채우고, 이미 채워진 날짜에 도달했을 때만 목표치 도달 여부로 계속 갈지
+    정지할지 판단"하는 순서로 짠다.
     """
     if not KRX_API_KEY:
         return False
@@ -3293,22 +3355,27 @@ def backfill_mgmt_history(history: dict) -> bool:
     cutoff = date.today() - timedelta(days=250)  # 매매거래일 90일보다 넉넉한 안전장치
 
     while calls < MGMT_BACKFILL_MAX_CALLS_PER_REQUEST and d > cutoff:
-        counts = [len(history.get(code, {})) for code in MGMT_ALL_TICKERS.values()]
-        if all(c >= MGMT_BACKFILL_TARGET_DAYS for c in counts):
-            break
         if d.weekday() >= 5:  # 토ㆍ일은 API 호출 없이 스킵
             d -= timedelta(days=1)
             continue
 
         d_str = d.strftime('%Y%m%d')
         already_have = all(d_str in history.get(code, {}) for code in MGMT_ALL_TICKERS.values())
-        if not already_have:
-            day_data = _fetch_krx_day(d_str)
-            calls += 1
-            if day_data:  # 휴장일이 아니었던 경우만 저장
-                for code, vals in day_data.items():
-                    history.setdefault(code, {})[d_str] = vals
-                changed = True
+        if already_have:
+            # 이 날짜는 이미 채워져 있음 — 목표치를 다 채웠으면 여기서 멈추고,
+            # 아직이면(휴장일이 많이 끼어 실질 매매거래일이 부족한 경우) 계속 거슬러 올라간다.
+            counts = [len(history.get(code, {})) for code in MGMT_ALL_TICKERS.values()]
+            if all(c >= MGMT_BACKFILL_TARGET_DAYS for c in counts):
+                break
+            d -= timedelta(days=1)
+            continue
+
+        day_data = _fetch_day_with_fallback(d_str, history)
+        calls += 1
+        if day_data:  # 휴장일이 아니었던 경우만 저장
+            for code, vals in day_data.items():
+                history.setdefault(code, {})[d_str] = vals
+            changed = True
         d -= timedelta(days=1)
 
     return changed
@@ -3321,7 +3388,7 @@ def update_mgmt_history_today(history: dict) -> bool:
     already_have = all(d_str in history.get(code, {}) for code in MGMT_ALL_TICKERS.values())
     if already_have:
         return False
-    day_data = _fetch_krx_day(d_str)
+    day_data = _fetch_day_with_fallback(d_str, history)
     if not day_data:
         return False
     for code, vals in day_data.items():
@@ -3356,6 +3423,11 @@ def _trading_dates(day_map: dict) -> list:
     찍혀있어서, 정지 기간을 안 뺐을 때 실제 4매매거래일짜리 미달을 14일로 오산했었음
     — 상장규정은 어디까지나 "매매거래일" 기준이라 정지일은 카운트에서 제외)."""
     return sorted(d for d, v in day_map.items() if v.get("volume", 0) > 0)
+
+def _has_naver_estimate(day_map: dict, dates: list) -> bool:
+    """dates 중 KRX가 아니라 네이버 추정치(_fetch_naver_fallback_day)로 채워진 날이
+    있는지 — 있으면 상태 문구에 투명하게 표시한다(규정 판단에 쓰이는 값이니까)."""
+    return any(day_map.get(d, {}).get("source") == "naver_est" for d in dates)
 
 def _streak_status_text(streak_dates: list, latest_dt: date):
     """
@@ -3443,6 +3515,8 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dic
             break
     cap_streak_dates.reverse()
     cap_status, expected_designation_date = _streak_status_text(cap_streak_dates, latest_dt)
+    if _has_naver_estimate(day_map, cap_streak_dates):
+        cap_status += " (일부 KRX 미응답일은 네이버 종가 기준 추정치 포함)"
     cap_streak = len(cap_streak_dates)
     cap_streak_start = cap_streak_dates[0] if cap_streak_dates else None
 
@@ -3519,6 +3593,8 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
             break
     price_streak_dates.reverse()
     price_status, expected_designation_date = _streak_status_text(price_streak_dates, latest_dt)
+    if _has_naver_estimate(day_map, price_streak_dates):
+        price_status += " (일부 KRX 미응답일은 네이버 종가 기준 추정치 포함)"
     price_streak = len(price_streak_dates)
     price_streak_start = price_streak_dates[0] if price_streak_dates else None
 
