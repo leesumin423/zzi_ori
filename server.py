@@ -3424,11 +3424,6 @@ def _trading_dates(day_map: dict) -> list:
     — 상장규정은 어디까지나 "매매거래일" 기준이라 정지일은 카운트에서 제외)."""
     return sorted(d for d, v in day_map.items() if v.get("volume", 0) > 0)
 
-def _has_naver_estimate(day_map: dict, dates: list) -> bool:
-    """dates 중 KRX가 아니라 네이버 추정치(_fetch_naver_fallback_day)로 채워진 날이
-    있는지 — 있으면 상태 문구에 투명하게 표시한다(규정 판단에 쓰이는 값이니까)."""
-    return any(day_map.get(d, {}).get("source") == "naver_est" for d in dates)
-
 def _streak_status_text(streak_dates: list, latest_dt: date):
     """
     연속 미달 매매거래일 목록(streak_dates, 오름차순 'YYYYMMDD' 문자열)을 사람이 읽을
@@ -3515,8 +3510,6 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dic
             break
     cap_streak_dates.reverse()
     cap_status, expected_designation_date = _streak_status_text(cap_streak_dates, latest_dt)
-    if _has_naver_estimate(day_map, cap_streak_dates):
-        cap_status += " (일부 KRX 미응답일은 네이버 종가 기준 추정치 포함)"
     cap_streak = len(cap_streak_dates)
     cap_streak_start = cap_streak_dates[0] if cap_streak_dates else None
 
@@ -3593,8 +3586,6 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
             break
     price_streak_dates.reverse()
     price_status, expected_designation_date = _streak_status_text(price_streak_dates, latest_dt)
-    if _has_naver_estimate(day_map, price_streak_dates):
-        price_status += " (일부 KRX 미응답일은 네이버 종가 기준 추정치 포함)"
     price_streak = len(price_streak_dates)
     price_streak_start = price_streak_dates[0] if price_streak_dates else None
 
