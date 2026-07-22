@@ -340,7 +340,7 @@ async function loadCompanyFinancials() {
     container.style.display = '';
 
     const periodEl = document.getElementById('snapshotFinPeriod');
-    if (periodEl) periodEl.textContent = `기준: ${d.period_label}`;
+    if (periodEl) periodEl.textContent = d.period_label;
 
     const epsEl = document.getElementById('snapshotEps');
     if (epsEl) epsEl.textContent = d.eps != null ? `${d.eps.toLocaleString('ko-KR')}원` : '--';
@@ -348,8 +348,8 @@ async function loadCompanyFinancials() {
     if (epsFormulaEl) {
       epsFormulaEl.textContent = d.eps == null ? '데이터 없음'
         : d.eps_is_estimated
-          ? `EPS = 순이익 ÷ 상장주식수 = ${d.net_income.toLocaleString('ko-KR')}원 ÷ ${d.shares.toLocaleString('ko-KR')}주 ≈ ${d.eps.toLocaleString('ko-KR')}원 (DART 공시에 기본주당손익이 없어 근사 계산, ${d.period_label} 기준)`
-          : `EPS(기본주당손익, DART 공시값 그대로) = ${d.eps.toLocaleString('ko-KR')}원 (${d.period_label} 기준, 연환산 아님)`;
+          ? `EPS = 순이익 ÷ 상장주식수 = ${d.net_income.toLocaleString('ko-KR')}원 ÷ ${d.shares.toLocaleString('ko-KR')}주 ≈ ${d.eps.toLocaleString('ko-KR')}원 (DART 공시에 기본주당손익이 없어 근사 계산, ${d.period_label})`
+          : `EPS(기본주당손익, DART 공시값 그대로) = ${d.eps.toLocaleString('ko-KR')}원 (${d.period_label}, 연환산 아님)`;
     }
 
     const perEl = document.getElementById('snapshotPer');
@@ -366,7 +366,7 @@ async function loadCompanyFinancials() {
     const roeFormulaEl = document.getElementById('snapshotRoeFormula');
     if (roeFormulaEl) {
       roeFormulaEl.textContent = d.roe != null
-        ? `ROE = 순이익 ÷ 자본총계 × 100 = ${d.net_income.toLocaleString('ko-KR')}원 ÷ ${d.equity.toLocaleString('ko-KR')}원 × 100 = ${d.roe}% (${d.period_label} 기준, 연환산 아님)`
+        ? `ROE = 순이익 ÷ 자본총계 × 100 = ${d.net_income.toLocaleString('ko-KR')}원 ÷ ${d.equity.toLocaleString('ko-KR')}원 × 100 = ${d.roe}% (${d.period_label}, 연환산 아님)`
         : '자본총계 데이터가 없어 계산 불가';
     }
   } catch (err) {

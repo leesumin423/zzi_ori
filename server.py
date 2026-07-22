@@ -1185,10 +1185,10 @@ def fetch_dart_financial_metrics(code: str):
 
     this_year = datetime.now().year
     candidates = [
-        (this_year, "11012", f"{this_year % 100}년 반기(1~6월 누적)"),
-        (this_year, "11013", f"{this_year % 100}년 1분기(1~3월 누적)"),
-        (this_year, "11014", f"{this_year % 100}년 3분기(1~9월 누적)"),
-        (this_year - 1, "11011", f"{(this_year - 1) % 100}년 사업보고서(연간)"),
+        (this_year, "11012", f"{this_year % 100}년 반기 기준"),
+        (this_year, "11013", f"{this_year % 100}년 1분기 기준"),
+        (this_year, "11014", f"{this_year % 100}년 3분기 기준"),
+        (this_year - 1, "11011", f"{(this_year - 1) % 100}년 사업보고서 기준"),
     ]
 
     for year, reprt_code, period_label in candidates:
