@@ -32,6 +32,27 @@
             <div class="snapshot-metric-value" id="snapshotForeignRatio">--</div>
           </div>
         </div>
+
+        <!-- EPSㆍPERㆍROE — 반기보고서가 아직 없으면 최신 분기보고서로 자동 대체
+             (dashboard.js loadCompanyFinancials 참고). 항목 클릭 시 계산 산식 토글 -->
+        <div class="snapshot-financials" id="snapshotFinancials" style="display:none;">
+          <div class="snapshot-fin-period" id="snapshotFinPeriod">기준: --</div>
+          <div class="snapshot-fin-row" data-metric="eps">
+            <span class="snapshot-fin-label">EPS</span>
+            <span class="snapshot-fin-value" id="snapshotEps">--</span>
+          </div>
+          <div class="snapshot-fin-formula" id="snapshotEpsFormula"></div>
+          <div class="snapshot-fin-row" data-metric="per">
+            <span class="snapshot-fin-label">PER</span>
+            <span class="snapshot-fin-value" id="snapshotPer">--</span>
+          </div>
+          <div class="snapshot-fin-formula" id="snapshotPerFormula"></div>
+          <div class="snapshot-fin-row" data-metric="roe">
+            <span class="snapshot-fin-label">ROE</span>
+            <span class="snapshot-fin-value" id="snapshotRoe">--</span>
+          </div>
+          <div class="snapshot-fin-formula" id="snapshotRoeFormula"></div>
+        </div>
       </div>
 
       <h2>메뉴</h2>

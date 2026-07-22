@@ -27,6 +27,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeInvestorModal();
   });
+  document.getElementById('snapshotFinancials')?.addEventListener('click', (e) => {
+    const row = e.target.closest('.snapshot-fin-row');
+    if (!row) return;
+    const metric = row.dataset.metric; // 'eps' | 'per' | 'roe'
+    const formulaId = `snapshot${metric.charAt(0).toUpperCase()}${metric.slice(1)}Formula`;
+    document.getElementById(formulaId)?.classList.toggle('show');
+  });
   document.querySelectorAll('#basisTabs .tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       basis = btn.dataset.basis;
@@ -201,6 +208,7 @@ async function loadAllData() {
   // 별도로 불러온다 (실패해도 나머지 대시보드에는 영향 없음).
   loadCommentary();
   loadStockSnapshot();
+  loadCompanyFinancials();
   loadMgmtWatch();
 }
 
@@ -313,6 +321,57 @@ async function loadStockSnapshot() {
     if (frEl) frEl.textContent = d.foreign_ratio ?? '--';
   } catch (err) {
     console.warn('종목 스냅샷 로드 실패:', err);
+  }
+}
+
+// ── (주)동양 EPSㆍPERㆍROE (스냅샷 위젯 하단) ────────────────────
+// 반기보고서가 아직 없으면 서버가 자동으로 최신 분기보고서 기준으로 내려준다
+// (server.py의 fetch_dart_financial_metrics 참고). 항목을 클릭하면 계산 산식이
+// 바로 아래에 펼쳐진다 — 클릭 핸들러는 DOMContentLoaded에서 한 번만 등록(이벤트 위임).
+async function loadCompanyFinancials() {
+  const container = document.getElementById('snapshotFinancials');
+  if (!container) return;
+  try {
+    const d = await safeFetch(`${API_BASE}?section=company_financials`);
+    if (!d.available) {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = '';
+
+    const periodEl = document.getElementById('snapshotFinPeriod');
+    if (periodEl) periodEl.textContent = `기준: ${d.period_label}`;
+
+    const epsEl = document.getElementById('snapshotEps');
+    if (epsEl) epsEl.textContent = d.eps != null ? `${d.eps.toLocaleString('ko-KR')}원` : '--';
+    const epsFormulaEl = document.getElementById('snapshotEpsFormula');
+    if (epsFormulaEl) {
+      epsFormulaEl.textContent = d.eps == null ? '데이터 없음'
+        : d.eps_is_estimated
+          ? `EPS = 순이익 ÷ 상장주식수 = ${d.net_income.toLocaleString('ko-KR')}원 ÷ ${d.shares.toLocaleString('ko-KR')}주 ≈ ${d.eps.toLocaleString('ko-KR')}원 (DART 공시에 기본주당손익이 없어 근사 계산, ${d.period_label} 기준)`
+          : `EPS(기본주당손익, DART 공시값 그대로) = ${d.eps.toLocaleString('ko-KR')}원 (${d.period_label} 기준, 연환산 아님)`;
+    }
+
+    const perEl = document.getElementById('snapshotPer');
+    if (perEl) perEl.textContent = d.per != null ? `${d.per}배` : '--';
+    const perFormulaEl = document.getElementById('snapshotPerFormula');
+    if (perFormulaEl) {
+      perFormulaEl.textContent = d.per != null
+        ? `PER = 현재가 ÷ EPS = ${d.price.toLocaleString('ko-KR')}원 ÷ ${d.eps.toLocaleString('ko-KR')}원 = ${d.per}배`
+        : 'EPS가 없거나 0 이하라 계산 불가';
+    }
+
+    const roeEl = document.getElementById('snapshotRoe');
+    if (roeEl) roeEl.textContent = d.roe != null ? `${d.roe}%` : '--';
+    const roeFormulaEl = document.getElementById('snapshotRoeFormula');
+    if (roeFormulaEl) {
+      roeFormulaEl.textContent = d.roe != null
+        ? `ROE = 순이익 ÷ 자본총계 × 100 = ${d.net_income.toLocaleString('ko-KR')}원 ÷ ${d.equity.toLocaleString('ko-KR')}원 × 100 = ${d.roe}% (${d.period_label} 기준, 연환산 아님)`
+        : '자본총계 데이터가 없어 계산 불가';
+    }
+  } catch (err) {
+    console.warn('EPS/PER/ROE 로드 실패:', err);
+    container.style.display = 'none';
   }
 }
 

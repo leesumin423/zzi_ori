@@ -1159,6 +1159,83 @@ def fetch_dart_capital(code: str):
     _dart_capital_cache[code] = None
     return None
 
+_dart_financial_cache = {}  # {종목코드: fetch_dart_financial_metrics 결과 dict 또는 None}
+
+def fetch_dart_financial_metrics(code: str):
+    """
+    EPS(주당순이익)ㆍROE 계산에 필요한 값을 DART 재무제표(개별)에서 가져온다.
+    "기준 시점 = 최신 확정 보고서"가 원칙이라, 반기보고서(11012) -> 1분기보고서(11013,
+    이번해) -> 작년 사업보고서(11011) 순으로 시도해서 처음 성공하는 걸 쓴다 — 예를 들어
+    7월엔 반기보고서(제출기한 8월 중순)가 아직 없어서 자동으로 1분기보고서로 내려간다.
+    반기보고서가 나온 뒤에는 이 함수가 자동으로 반기 기준으로 바뀐다(캐시는 서버
+    재시작 전까지만 유지되므로, 새 분기가 열리면 서버를 재시작해야 갱신됨).
+
+    - 순이익: 손익계산서(sj_div=IS)의 "…순이익"/"…순손익" 계정(주당 관련 제외)
+    - 자본총계: 재무상태표(sj_div=BS)의 "자본총계"
+    - EPS: 손익계산서에 보통주 "기본주당손익"이 직접 공시돼 있으면 그 값을 그대로
+      쓰고(회사가 가중평균유통주식수까지 반영해 계산한 값이라 더 정확), 없으면
+      순이익 ÷ 상장주식수로 근사 계산한다(fs_eps_estimated=True로 표시).
+    """
+    if code in _dart_financial_cache:
+        return _dart_financial_cache[code]
+
+    corp_code = DART_CORP_CODES.get(code)
+    if not corp_code or not DART_API_KEY:
+        return None
+
+    this_year = datetime.now().year
+    candidates = [
+        (this_year, "11012", f"{this_year % 100}년 반기(1~6월 누적)"),
+        (this_year, "11013", f"{this_year % 100}년 1분기(1~3월 누적)"),
+        (this_year, "11014", f"{this_year % 100}년 3분기(1~9월 누적)"),
+        (this_year - 1, "11011", f"{(this_year - 1) % 100}년 사업보고서(연간)"),
+    ]
+
+    for year, reprt_code, period_label in candidates:
+        try:
+            r = requests.get("https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json", params={
+                "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+                "bsns_year": str(year), "reprt_code": reprt_code, "fs_div": "OFS",
+            }, timeout=15)
+            data = r.json()
+            if data.get('status') != '000':
+                continue
+            items = data.get('list', [])
+
+            net_income = None
+            equity = None
+            eps_reported = None
+            for item in items:
+                nm = item.get('account_nm', '').strip()
+                sj = item.get('sj_div')
+                try:
+                    amount = int(item['thstrm_amount'])
+                except (KeyError, ValueError):
+                    continue
+                if sj == 'IS' and ('순이익' in nm or '순손익' in nm) and '주당' not in nm and net_income is None:
+                    net_income = amount
+                if sj == 'IS' and '보통주' in nm and '기본주당' in nm:
+                    eps_reported = amount
+                if sj == 'BS' and nm == '자본총계':
+                    equity = amount
+
+            if net_income is not None and equity:
+                result = {
+                    "period_label": period_label,
+                    "bsns_year": year,
+                    "reprt_code": reprt_code,
+                    "net_income": net_income,
+                    "equity": equity,
+                    "eps_reported": eps_reported,
+                }
+                _dart_financial_cache[code] = result
+                return result
+        except Exception as e:
+            print(f"[DEBUG] {code} DART 재무지표 조회 중 예외({year}/{reprt_code}): {e}")
+
+    _dart_financial_cache[code] = None
+    return None
+
 def _extract_date_range_section(html_text: str, section_label: str):
     """
     DART 표준 서식 문서에서 rowspan으로 묶인 '~기간' 섹션(예: 매매거래정지기간)의
@@ -3642,6 +3719,39 @@ def data_endpoint():
             "marketcap": d['current']['marketcap'],
             "volume": d['volume'],
             "foreign_ratio": d['foreign_ratio'],
+        })
+
+    if section == 'company_financials':
+        # 사이드바 동양 실시간 주가현황 위젯 하단의 EPS/PER/ROE 전용 — 동양(001520) 고정.
+        code = '001520'
+        fin = fetch_dart_financial_metrics(code)
+        if not fin:
+            return jsonify({"available": False})
+
+        d = fetch_stock(code)
+        price = int(d['current']['price'].replace(',', ''))
+        shares = int(d['shares'].replace(',', '')) if d['shares'] != 'N/A' else 0
+
+        eps = fin['eps_reported']
+        eps_is_estimated = False
+        if eps is None and shares:
+            eps = round(fin['net_income'] / shares)
+            eps_is_estimated = True
+
+        per = round(price / eps, 2) if eps and eps > 0 else None
+        roe = round(fin['net_income'] / fin['equity'] * 100, 2) if fin['equity'] else None
+
+        return jsonify({
+            "available": True,
+            "period_label": fin['period_label'],
+            "eps": eps,
+            "eps_is_estimated": eps_is_estimated,
+            "per": per,
+            "roe": roe,
+            "price": price,
+            "shares": shares,
+            "net_income": fin['net_income'],
+            "equity": fin['equity'],
         })
 
     if section == 'mgmt_watch':

@@ -132,6 +132,50 @@ html, body {
   word-break: keep-all;
   line-height: 1.3;
 }
+.snapshot-financials {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.snapshot-fin-period {
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.snapshot-fin-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.snapshot-fin-row:hover {
+  background: rgba(255,255,255,0.06);
+}
+.snapshot-fin-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.snapshot-fin-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.snapshot-fin-formula {
+  display: none;
+  font-size: 10px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 2px 0 4px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.snapshot-fin-formula.show {
+  display: block;
+}
 
 /* ── Sidebar ──────────────────────────────────────────────────── */
 .sidebar h2 {
