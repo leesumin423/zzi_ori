@@ -2593,10 +2593,18 @@ def _ftc_parse_goods_services(soup) -> dict:
     board_date = _ftc_value_for(soup, '이사회의결일')
     prior_revenue = _equity_parse_num(_ftc_value_for(soup, '직전사업연도매출액'))
     transaction_period = _ftc_value_for(soup, '거래기간')
-    text = soup.get_text(' ', strip=True)
-    section_m = re.search(r'거래금액(.*?)5\.\s*상품', text, re.S)
-    section = section_m.group(1) if section_m else ''
-    ratios = [float(x) for x in re.findall(r'([\d.]+)\s*%', section)]
+    text = re.sub(r'&cr;?', '', soup.get_text(' ', strip=True))
+    # 2020년 일부 "변경"(증가형) 문서처럼 한 공시 안에 분기 여러 개("1. 2020년도
+    # 2/4분기 변경", "2. 2020년도 3/4분기 변경", ...)가 통째로 묶여 나올 수 있다
+    # (각 분기 블록마다 "4. 동일인 등 출자 계열회사와의 상품ㆍ용역 거래금액...5.
+    # 상품ㆍ용역 거래내역"이 반복됨). 시작 앵커로 그냥 "거래금액"만 쓰면 "5. 상품ㆍ용역
+    # 거래내역" 표 안의 "거래금액" 열 헤더(같은 블록 안에 또 있음)에서 다시 매치가
+    # 시작돼 다음 블록의 "8. 기타" 사유문(예: "20%이상초과")까지 통째로 삼켜서 엉뚱한
+    # 숫자를 비율로 잘못 인식하는 문제가 있었다 — 정확한 라벨 전체를 앵커로 써야 한다.
+    ratios = [float(x) for m in re.finditer(
+                  r'동일인\s*등\s*출자\s*계열회사와의\s*상품ㆍ용역\s*거래금액(.*?)5\.\s*상품ㆍ용역\s*거래내역',
+                  text, re.S)
+              for x in re.findall(r'([\d.]+)\s*%', m.group(1))]
     if not ratios:
         # "최초"(연 1회) 서식 중 일부 연도(2020~2022년경 확인됨)는 매출액대비 값에
         # '%'를 안 붙이고 숫자만 적는다("2.6") — 정규식으로는 못 찾으니 ROWSPAN을
@@ -2802,10 +2810,19 @@ def _format_period_end_date(period_text: str) -> str:
     except ValueError:
         return ''
 
+# 관공서의 공휴일에 관한 규정 — 매년 날짜가 고정된 공휴일만(양력 기준으로 계산
+# 가능). 설날ㆍ추석ㆍ부처님오신날은 음력 기준이라 연도별 조회표 없이는 정확한
+# 날짜를 계산할 수 없고, 대체공휴일도 반영하지 않는다 — 이 두 가지는 여전히
+# 근사치로 남는 한계다(2026-07-23 사용자 피드백으로 고정공휴일만 우선 반영:
+# 금왕에프원(주) 2025.12.30 의결→2026.01.09 공시 건이 신정(1/1)을 영업일로
+# 잘못 세어 8영업일ㆍ지연 의심으로 오판정된 것을 발견).
+_FTC_FIXED_HOLIDAYS_MMDD = {(1, 1), (3, 1), (5, 5), (6, 6), (8, 15), (10, 3), (10, 9), (12, 25)}
+
 def _business_days_between(start_dot: str, end_dot: str):
-    """두 날짜 사이의 영업일 수(토ㆍ일만 제외, 공휴일은 반영 못함 — 근사치)를
-    센다. 시작일 당일은 세지 않고(이사회 의결 당일은 포함하지 않음) 종료일까지
-    며칠째인지를 반환한다. 파싱 실패ㆍ날짜 역전 시 None(=확인불가)."""
+    """두 날짜 사이의 영업일 수(토ㆍ일ㆍ날짜고정 공휴일 제외, 음력 공휴일ㆍ
+    대체공휴일은 반영 못함 — 근사치)를 센다. 시작일 당일은 세지 않고(이사회
+    의결 당일은 포함하지 않음) 종료일까지 며칠째인지를 반환한다. 파싱 실패ㆍ
+    날짜 역전 시 None(=확인불가)."""
     d1, d2 = _normalize_dot_date(start_dot), _normalize_dot_date(end_dot)
     if d1 is None or d2 is None or d2 < d1:
         return None
@@ -2813,7 +2830,7 @@ def _business_days_between(start_dot: str, end_dot: str):
     cur = d1
     while cur < d2:
         cur += timedelta(days=1)
-        if cur.weekday() < 5:  # 월~금
+        if cur.weekday() < 5 and (cur.month, cur.day) not in _FTC_FIXED_HOLIDAYS_MMDD:
             days += 1
     return days
 
