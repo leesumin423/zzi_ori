@@ -607,7 +607,7 @@ function renderFtc(payload) {
   const rangeLabel = meta.range_start ? `${meta.range_start} ~ 오늘` : '최근 1년';
 
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10">공정위 공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11">공정위 공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
     if (note) {
       note.textContent = isRecent && meta.total_count_all_years > 0
         ? `${rangeLabel} 기간에는 해당 이력이 없습니다(전체 ${meta.lookback_years ?? 10}년간 ${meta.total_count_all_years}건 있음 — "전체 이력" 탭에서 확인).`
@@ -619,10 +619,12 @@ function renderFtc(payload) {
   if (note) {
     note.textContent = isRecent
       ? `${rangeLabel} 기준 ${list.length}건(전년도 1월 1일부터 오늘까지 — 공정위 공시점검 등 연도 단위 자료 제출용). `
-        + `특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 3종만 집계했습니다 `
+        + `동양(주) 및 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ부천PFVㆍ인천PFV)의 특수관계인에대한출자ㆍ채권매도ㆍ자금차입, `
+        + `동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 4종만 집계했습니다 `
         + `(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순 — `
         + `전체 ${meta.lookback_years ?? 10}년간은 총 ${meta.total_count_all_years ?? list.length}건입니다("전체 이력" 탭 참고).`
-      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. 특수관계인에대한출자ㆍ채권매도, 동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 3종만 `
+      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. 동양(주) 및 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ부천PFVㆍ인천PFV)의 `
+        + `특수관계인에대한출자ㆍ채권매도ㆍ자금차입, 동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 4종만 `
         + `집계했습니다(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순입니다.`;
   }
 
@@ -632,6 +634,7 @@ function renderFtc(payload) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num">${idx + 1}</td>
+      <td>${item.filer ?? ''}</td>
       <td>${item.type_label ?? ''}</td>
       <td title="${escapeAttr(counterparty)}">${counterparty}</td>
       <td>${item.relation ?? ''}</td>
@@ -648,7 +651,10 @@ function renderFtc(payload) {
 // "공시기한"ㆍ"공시대상 재확인" 배지 — 자동 판정이 아니라 확인 필요 후보를
 // 색으로 눈에 띄게 표시하는 용도(초록=정상/충족, 빨강=지연/미달, 회색=확인불가).
 function ftcTimelinessBadge(item) {
-  if (item.kind === 'goods_services_change') {
+  // "변경"(상품ㆍ용역거래)은 이사회 의결일 유무로 실제 절차가 갈린다 — 없으면
+  // 감소형(45일 특례, days_after_quarter_end로 판단), 있으면 증가형(사전
+  // 의결)이라 아래 공통 영업일 로직을 그대로 탄다(filing_business_days로 판단).
+  if (item.kind === 'goods_services_change' && item.days_after_quarter_end != null) {
     if (item.filing_timeliness === 'on_time') {
       return `<span class="up" title="분기종료 후 45일(${item.filing_deadline_date}) 이내 공시(고시 제9조의2②)">✓ 준수(분기종료 후 ${item.days_after_quarter_end}일, 45일특례)</span>`;
     }
@@ -658,11 +664,12 @@ function ftcTimelinessBadge(item) {
     return `<span class="rule-cite" title="${escapeAttr(item.reverify_note ?? '거래기간(분기) 정보를 원문에서 확인하지 못해 45일 규정 준수 여부를 계산할 수 없습니다.')}">확인불가</span>`;
   }
   const days = item.filing_business_days;
+  const changeTitle = item.kind === 'goods_services_change' ? ' title="이사회 의결일이 기재된 증가형 변경 — 3영업일 규정 적용"' : '';
   if (item.filing_timeliness === 'on_time') {
-    return `<span class="up">✓ 준수(${days}영업일)</span>`;
+    return `<span class="up"${changeTitle}>✓ 준수(${days}영업일)</span>`;
   }
   if (item.filing_timeliness === 'late') {
-    return `<span class="down">⚠ 지연 의심(${days}영업일)</span>`;
+    return `<span class="down"${changeTitle}>⚠ 지연 의심(${days}영업일)</span>`;
   }
   return '<span class="rule-cite">확인불가</span>';
 }

@@ -2454,6 +2454,7 @@ FTC_REPORT_TYPES = {
     'invest': '특수관계인에대한출자',
     'bond_sale': '특수관계인에대한채권매도',
     'goods_services': '동일인등출자계열회사와의상품ㆍ용역거래',  # 파서 선택용 키 — "거래"ㆍ"변경" 공통(문서 구조가 같음)
+    'loan_borrow': '특수관계인으로부터자금차입',  # 자회사 4곳 모니터링 추가하며 발견 — 자금거래(fund_securities_asset)의 하나
 }
 # "거래"(분기공시 — 1년치 예상 거래금액을 미리 이사회 의결받는 최초 공시)와
 # "변경"(그 예상치 대비 실제 거래금액이 20% 이상 달라지면, 고시 제9조의2②에 따라
@@ -2466,14 +2467,31 @@ FTC_TYPE_LABELS = {
     'bond_sale': '특수관계인 채권매도',
     'goods_services_initial': '상품ㆍ용역거래(분기공시ㆍ이사회의결 필요)',
     'goods_services_change': '상품ㆍ용역거래 변경(사후공시ㆍ이사회의결 불요)',
+    'loan_borrow': '특수관계인 자금차입',
+}
+
+# (주)동양 본체 외에, 대규모내부거래 및 공정위 자료 제출 시 함께 확인해야 하는
+# 비상장 자회사 4곳도 각자 이름으로 공정위 공시(pblntf_ty=J)를 낸다 — 사용자가
+# 매번 DART에서 개별로 찾아야 해서 번거롭다며 이 탭에 함께 모아달라고 요청함.
+# corp_code는 DART corpCode.xml 마스터에서 회사명ㆍ주소ㆍ대규모기업집단현황공시
+# 제출 이력으로 대조 확인(동양에너지는 동명이인 회사가 있어 이걸로 구분함).
+FTC_MONITORED_ENTITIES = {
+    "동양(주)": {"corp_code": "00117337", "listed": True},
+    "동양에너지(주)": {"corp_code": "00935609", "listed": False},
+    "금왕에프원(주)": {"corp_code": "01718540", "listed": False},
+    "디씨아이티와이부천피에프브이(주)": {"corp_code": "01971228", "listed": False},
+    "디씨아이티와이인천피에프브이(주)": {"corp_code": "01971200", "listed": False},
 }
 
 def _ftc_value_for(soup, *labels) -> str:
     """공정위 공시 문서는 단판공시와 마찬가지로 ACODE 없이 순수 라벨-값 <TD> 쌍으로만
     구성된 서식이다("1. 거래상대방" <TD> 바로 다음 <TD>가 값). 번호 접두어("1. ")나
-    셀 안 공백 유무가 서식마다 달라 공백을 모두 제거하고 부분일치로 비교한다."""
+    셀 안 공백 유무가 서식마다 달라 공백을 모두 제거하고 부분일치로 비교한다.
+    옛 서식(2020~2021년경 문서에서 자주 보임)은 라벨 셀 안에서 줄바꿈을 "&cr;"이라는
+    비표준 HTML 엔티티로 넣는데, BeautifulSoup이 이를 인식하지 못해 리터럴 문자열로
+    남아 라벨 중간에 끼어들면서("이사회&cr;의결일") 부분일치가 깨진다 — 제거 후 비교."""
     for td in soup.find_all('td'):
-        norm = re.sub(r'\s+', '', td.get_text(strip=True))
+        norm = re.sub(r'&cr;?', '', re.sub(r'\s+', '', td.get_text(strip=True)))
         if any(re.sub(r'\s+', '', lbl) in norm for lbl in labels):
             nxt = td.find_next_sibling('td')
             if nxt:
@@ -2501,6 +2519,18 @@ def _ftc_parse_invest(soup) -> dict:
         'purpose': _ftc_value_for(soup, '출자목적'),
     }
 
+def _ftc_parse_loan_borrow(soup) -> dict:
+    """특수관계인으로부터 자금차입 — 자회사 4곳 모니터링 추가하며 발견한 유형
+    (예: 금왕에프원(주)이 (주)동양으로부터 단기차입). "나. 차입처"가 거래상대방,
+    "라. 차입금액"이 거래금액, "5. 이사회 의결일"은 다른 유형과 동일한 라벨."""
+    return {
+        'counterparty': _ftc_value_for(soup, '차입처'),
+        'relation': _ftc_value_for(soup, '회사와의관계'),
+        'board_date': _ftc_value_for(soup, '이사회의결일'),
+        'amount': _equity_parse_num(_ftc_value_for(soup, '차입금액')),
+        'purpose': _ftc_value_for(soup, '자금용도'),
+    }
+
 def _ftc_parse_bond_sale(soup) -> dict:
     """특수관계인에 대한 채권매도."""
     return {
@@ -2510,6 +2540,42 @@ def _ftc_parse_bond_sale(soup) -> dict:
         'amount': _equity_parse_num(_ftc_value_for(soup, '거래금액')),
         'purpose': _ftc_value_for(soup, '거래목적'),
     }
+
+def _ftc_parse_goods_services_ratios_by_grid(soup) -> list:
+    """"4. ... 상품ㆍ용역 거래금액" 표에서 분기별 "매출액대비(D/A,%)" 열 값을
+    ROWSPAN까지 반영해 완전히 편 표 그리드에서 읽는다("%" 기호가 없는 연도용
+    폴백 — _ftc_parse_goods_services()의 정규식 방식이 실패했을 때만 호출됨)."""
+    header_td = next((
+        td for td in soup.find_all('td')
+        if '매출액대비' in re.sub(r'&cr;?', '', re.sub(r'\s+', '', td.get_text(strip=True)))
+    ), None)
+    if header_td is None:
+        return []
+    header_row = header_td.find_parent('tr')
+    table = header_td.find_parent('table')
+    if header_row is None or table is None:
+        return []
+    trs = table.find_all('tr')
+    if header_row not in trs:
+        return []
+    header_idx = trs.index(header_row)
+    grid = _expand_rowspan_grid(trs)
+    col_idx = next((
+        c for c, v in grid[header_idx].items()
+        if '매출액대비' in re.sub(r'&cr;?', '', re.sub(r'\s+', '', v))
+    ), None)
+    if col_idx is None:
+        return []
+    ratios = []
+    for row in grid[header_idx + 1:]:
+        val = row.get(col_idx, '').replace(',', '').replace('%', '')
+        m = re.match(r'-?[\d.]+$', val.strip())
+        if m:
+            try:
+                ratios.append(float(val.strip()))
+            except ValueError:
+                pass
+    return ratios
 
 def _ftc_parse_goods_services(soup) -> dict:
     """동일인 등 출자 계열회사와의 상품ㆍ용역거래(변경). 이 서식은 두 가지 하위
@@ -2531,6 +2597,11 @@ def _ftc_parse_goods_services(soup) -> dict:
     section_m = re.search(r'거래금액(.*?)5\.\s*상품', text, re.S)
     section = section_m.group(1) if section_m else ''
     ratios = [float(x) for x in re.findall(r'([\d.]+)\s*%', section)]
+    if not ratios:
+        # "최초"(연 1회) 서식 중 일부 연도(2020~2022년경 확인됨)는 매출액대비 값에
+        # '%'를 안 붙이고 숫자만 적는다("2.6") — 정규식으로는 못 찾으니 ROWSPAN을
+        # 편 표 그리드에서 "매출액대비" 열 위치를 찾아 그 열의 각 데이터 행 값을 읽는다.
+        ratios = _ftc_parse_goods_services_ratios_by_grid(soup)
 
     counterparty = ''
     for td in soup.find_all('td'):
@@ -2571,26 +2642,14 @@ _FTC_PARSERS = {
     'invest': _ftc_parse_invest,
     'bond_sale': _ftc_parse_bond_sale,
     'goods_services': _ftc_parse_goods_services,
+    'loan_borrow': _ftc_parse_loan_borrow,
 }
 
-_ftc_cache = {'ts': 0.0, 'data': None, 'meta': None}
-
-def fetch_ftc_monitoring(force: bool = False) -> list:
-    """최근 10년간 공정위 공시(pblntf_ty=J) 중 계열회사간 거래 관련 3종(특수관계인
-    출자/채권매도, 동일인등출자계열회사와의 상품ㆍ용역거래)을 스캔해 접수일 최신순
-    목록으로 반환한다. 대규모기업집단현황공시ㆍ지급수단별지급기간별지급금액및
-    분쟁조정기구에관한사항은 범위에서 제외(사용자 요청)."""
-    now = datetime.now().timestamp()
-    if not force and _ftc_cache['data'] is not None and now - _ftc_cache['ts'] < FTC_CACHE_TTL:
-        return _ftc_cache['data']
-
-    corp_code = DART_CORP_CODES.get(DANPAN_TARGET_STOCK_CODE)
-    if not corp_code or not DART_API_KEY:
-        return []
-
-    end_de = datetime.now().strftime('%Y%m%d')
-    bgn_de = (datetime.now() - timedelta(days=365 * FTC_LOOKBACK_YEARS)).strftime('%Y%m%d')
-
+def _fetch_ftc_for_entity(filer_name: str, corp_code: str, filer_listed: bool, bgn_de: str, end_de: str) -> list:
+    """FTC_MONITORED_ENTITIES 중 한 회사(corp_code)의 공정위 공시(pblntf_ty=J)
+    목록을 조회ㆍ파싱해 결과 리스트로 반환한다. 각 결과에 filer(제출회사)ㆍ
+    filer_listed(공시기한 3영업일/7영업일 판단용)를 태그해 fetch_ftc_monitoring()이
+    (주)동양 및 비상장 자회사 여러 곳의 공시를 한 화면에 모을 수 있게 한다."""
     all_items = []
     page = 1
     while True:
@@ -2602,7 +2661,7 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
             }, timeout=15)
             data = r.json()
         except Exception as e:
-            print(f"[DEBUG] 공정위 공시 목록 조회 중 예외(page={page}): {e}")
+            print(f"[DEBUG] 공정위 공시 목록 조회 중 예외({filer_name}, page={page}): {e}")
             break
         if data.get('status') != '000':
             break
@@ -2644,6 +2703,8 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
                 amount_won = amt * 1_000_000
 
         results.append({
+            "filer": filer_name,
+            "filer_listed": filer_listed,
             "type_label": FTC_TYPE_LABELS[display_kind],
             "kind": display_kind,
             "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or ''),
@@ -2657,6 +2718,28 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
             "rcept_no": rcept_no,
             "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}",
         })
+    return results
+
+_ftc_cache = {'ts': 0.0, 'data': None, 'meta': None}
+
+def fetch_ftc_monitoring(force: bool = False) -> list:
+    """최근 10년간 공정위 공시(pblntf_ty=J) 중 계열회사간 거래 관련 3종(특수관계인
+    출자/채권매도, 동일인등출자계열회사와의 상품ㆍ용역거래)을 스캔해 접수일 최신순
+    목록으로 반환한다. 대규모기업집단현황공시ㆍ지급수단별지급기간별지급금액및
+    분쟁조정기구에관한사항은 범위에서 제외(사용자 요청)."""
+    now = datetime.now().timestamp()
+    if not force and _ftc_cache['data'] is not None and now - _ftc_cache['ts'] < FTC_CACHE_TTL:
+        return _ftc_cache['data']
+
+    if not DART_API_KEY:
+        return []
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=365 * FTC_LOOKBACK_YEARS)).strftime('%Y%m%d')
+
+    results = []
+    for filer_name, entity in FTC_MONITORED_ENTITIES.items():
+        results.extend(_fetch_ftc_for_entity(filer_name, entity['corp_code'], entity['listed'], bgn_de, end_de))
 
     results.sort(key=lambda r: r['disclosure_date'], reverse=True)  # 최신순
 
@@ -2734,7 +2817,8 @@ def _business_days_between(start_dot: str, end_dot: str):
             days += 1
     return days
 
-FTC_FILING_DEADLINE_BUSINESS_DAYS = 3  # 동양(주)은 상장법인 — 이사회 의결 후 3영업일 이내 공시
+FTC_FILING_DEADLINE_BUSINESS_DAYS = 3  # 상장법인(동양(주)) — 이사회 의결 후 3영업일 이내 공시
+FTC_FILING_DEADLINE_BUSINESS_DAYS_UNLISTED = 7  # 비상장법인(자회사 4곳) — 이사회 의결 후 7영업일 이내 공시
 FTC_CHANGE_FILING_DEADLINE_DAYS = 45  # 고시 제9조의2② — 상품ㆍ용역거래 변경(20% 이상 감소)은 분기종료 후 45일 이내(역일 기준) 공시
 
 def _ftc_apply_accuracy_check(results: list) -> None:
@@ -2750,30 +2834,22 @@ def _ftc_apply_accuracy_check(results: list) -> None:
        보다 20% 이상 감소"한 경우에만 발생하는 사후공시 절차이므로(원문 "8. 기타"
        사유란에도 명시됨), 공시가 존재한다는 사실 자체가 요건 충족의 근거이다 —
        금액 재계산 없이 항상 충족으로 표시한다. 그 외 유형은 원문에서 뽑은
-       거래금액(amount_won)과 동양(주)의 "현재" 자본총계·자본금 중 큰 금액으로
-       check_ftc_disclosure()를 다시 돌려본다(과거 시점 자본금이 아니라 현재
-       값을 쓰는 근사치라는 한계를 화면에도 명시해야 함)."""
-    dongyang = next((r for r in fetch_all_group_capital_info() if r['name'] == '동양(주)'), None)
-    capital_base = dongyang.get('capital_base') if dongyang else None
+       거래금액(amount_won)과 신고 회사(filer, 동양(주) 또는 자회사)의 "현재"
+       자본총계·자본금 중 큰 금액으로 check_ftc_disclosure()를 다시 돌려본다
+       (과거 시점 자본금이 아니라 현재 값을 쓰는 근사치라는 한계를 화면에도
+       명시해야 함). 공시기한의 3영업일(상장)/7영업일(비상장) 구분도 filer의
+       상장 여부(filer_listed)에 따라 회사마다 다르게 적용한다."""
+    capital_by_name = {c['name']: c.get('capital_base') for c in fetch_all_group_capital_info()}
 
     for r in results:
         r['filing_deadline_date'] = None
         r['days_after_quarter_end'] = None
+        has_board_date = _normalize_dot_date(r.get('board_date') or '') is not None
 
-        if r.get('kind') == 'goods_services_change':
+        if r.get('kind') == 'goods_services_change' and not has_board_date:
+            # 이사회 의결일이 없는 "변경" — 감소형(20% 이상 감소, 고시 제9조의2②에
+            # 따라 이사회 의결 없이 분기종료 후 45일 이내 사후공시)에 해당한다.
             r['filing_business_days'] = None
-
-            if _normalize_dot_date(r.get('board_date') or ''):
-                # 이사회 의결일이 실제로 기재된 "변경" 건 — 감소형(20% 이상 감소,
-                # 이사회 의결 없이 분기종료 후 45일 이내 사후공시)이 아니라 증가형
-                # (20% 이상 증가 "예상"되어 분기 중 미리 이사회 의결ㆍ공시하는 경우,
-                # 매뉴얼 11-2. 특례 단서)일 가능성이 있다 — 절차ㆍ기산점 자체가 달라
-                # 45일 규정을 적용하면 안 되고, 자동 판정 없이 확인 필요로 남긴다.
-                r['filing_timeliness'] = 'unknown'
-                r['reverify_is_required'] = None
-                r['reverify_note'] = "이 '변경' 공시는 이사회 의결일이 기재되어 있어, 감소형(20% 이상 감소ㆍ사후공시)이 아니라 증가형(20% 이상 증가 예상ㆍ사전 의결) 변경일 가능성이 있습니다 — 원문을 직접 확인해 주세요."
-                continue
-
             period_end = _normalize_dot_date(r.get('period_end_date') or '')
             disclosure = _normalize_dot_date(r.get('disclosure_date') or '')
             if period_end and disclosure:
@@ -2793,17 +2869,30 @@ def _ftc_apply_accuracy_check(results: list) -> None:
             r['reverify_note'] = "상품ㆍ용역거래 변경 공시는 실제 거래금액이 당초 이사회 의결금액보다 20% 이상 감소한 경우에만 발생하는 사후공시 절차입니다(고시 제9조의2②) — 공시가 존재한다는 사실 자체가 요건 충족의 근거입니다."
             continue
 
+        # 그 외 전부: 특수관계인 출자ㆍ채권매도, 상품ㆍ용역거래(초기), 그리고
+        # 이사회 의결일이 실제로 기재된 "변경"(증가형 — 20% 이상 증가가 예상되어
+        # 분기 중 미리 이사회 의결ㆍ공시한 경우, 매뉴얼 11-2. 특례 단서)은 전부
+        # "이사회 의결 후 상장 3영업일ㆍ비상장 7영업일 이내 공시" 규정 대상이라
+        # 같은 방식으로 검사한다 — 기한 일수는 filer(제출회사)의 상장 여부로 결정
+        # (동양(주)만 상장, 나머지 4개 자회사는 전부 비상장 → 7영업일).
+        # 참고: 이 기준이 과거(2020~2021년경)에는 달랐을 가능성이 사용자로부터
+        # 제기되었으나, 공정위 고시 개정 연혁에서 그 시점의 정확한 일수를 확인하지
+        # 못해 전 기간에 현재 기준(3ㆍ7영업일)을 동일하게 적용한다(다른 유형의
+        # 과거 기록에도 이미 같은 기준을 적용해온 것과 일관성 유지).
+        deadline_days = FTC_FILING_DEADLINE_BUSINESS_DAYS if r.get('filer_listed', True) else FTC_FILING_DEADLINE_BUSINESS_DAYS_UNLISTED
         business_days = _business_days_between(r.get('board_date') or '', r.get('disclosure_date') or '')
         r['filing_business_days'] = business_days
+        r['filing_deadline_business_days'] = deadline_days
         # 'on_time'/'late'/'unknown' — bool 대신 3단계로 둬서 "확인불가"가
         # "지연"으로 잘못 읽히지 않게 한다(날짜 표기가 파싱 안 되는 경우 등).
         r['filing_timeliness'] = (
             'unknown' if business_days is None
-            else 'on_time' if business_days <= FTC_FILING_DEADLINE_BUSINESS_DAYS
+            else 'on_time' if business_days <= deadline_days
             else 'late'
         )
 
         reverify = None
+        capital_base = capital_by_name.get(r.get('filer') or '동양(주)')
         if r.get('amount_won') is not None and capital_base:
             transaction_type = 'goods_services' if r.get('kind', '').startswith('goods_services') else 'fund_securities_asset'
             reverify = check_ftc_disclosure(transaction_type, r['amount_won'], capital_base, is_goods_services_target=True)
@@ -2815,6 +2904,8 @@ def _ftc_apply_accuracy_check(results: list) -> None:
             if reverify
             else "거래금액 또는 자본금 데이터가 부족해 재확인할 수 없습니다."
         )
+        if r.get('kind') == 'goods_services_change':
+            r['reverify_note'] += " (이 '변경' 건은 이사회 의결일이 기재되어 있어 증가형(20% 이상 증가 예상ㆍ사전 의결)일 가능성이 있어, 감소형 사후공시와 달리 이사회 의결 기준 공시기한 규정을 적용했습니다.)"
 
 # ─────────────────────────────────────────────────────────────
 # 3-3-6. 비상장 계열사 자본금ㆍ자본총계 — 공정위 대규모내부거래 사전검증용.
