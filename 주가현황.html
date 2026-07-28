@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>주가현황 대시보드</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- ── 좌측 사이드바 ── -->
+    <aside class="sidebar">
+      <!-- (주)동양 실시간 주가현황 — 주가/공시 탭과 무관하게 항상 상단에 표시 -->
+      <div class="stock-snapshot" id="stockSnapshot">
+        <div class="snapshot-header">
+          <span class="snapshot-trend-icon" id="snapshotTrendIcon">–</span>
+          <span class="snapshot-name">동양</span>
+        </div>
+        <div class="snapshot-price" id="snapshotPrice">-- 원</div>
+        <div class="snapshot-change" id="snapshotChange">-</div>
+        <div class="snapshot-metrics">
+          <div class="snapshot-metric">
+            <div class="snapshot-metric-label">시가총액</div>
+            <div class="snapshot-metric-value" id="snapshotMarketcap">--</div>
+          </div>
+          <div class="snapshot-metric">
+            <div class="snapshot-metric-label">거래량</div>
+            <div class="snapshot-metric-value" id="snapshotVolume">--</div>
+          </div>
+          <div class="snapshot-metric">
+            <div class="snapshot-metric-label">외인비율</div>
+            <div class="snapshot-metric-value" id="snapshotForeignRatio">--</div>
+          </div>
+        </div>
+
+        <!-- EPSㆍPERㆍROE — 반기보고서가 아직 없으면 최신 분기보고서로 자동 대체
+             (dashboard.js loadCompanyFinancials 참고). 항목 클릭 시 계산 산식 토글 -->
+        <div class="snapshot-financials" id="snapshotFinancials" style="display:none;">
+          <div class="snapshot-fin-period" id="snapshotFinPeriod">기준: --</div>
+          <div class="snapshot-fin-row" data-metric="eps">
+            <span class="snapshot-fin-label">EPS</span>
+            <span class="snapshot-fin-value" id="snapshotEps">--</span>
+          </div>
+          <div class="snapshot-fin-formula" id="snapshotEpsFormula"></div>
+          <div class="snapshot-fin-row" data-metric="per">
+            <span class="snapshot-fin-label">PER</span>
+            <span class="snapshot-fin-value" id="snapshotPer">--</span>
+          </div>
+          <div class="snapshot-fin-formula" id="snapshotPerFormula"></div>
+          <div class="snapshot-fin-row" data-metric="roe">
+            <span class="snapshot-fin-label">ROE</span>
+            <span class="snapshot-fin-value" id="snapshotRoe">--</span>
+          </div>
+          <div class="snapshot-fin-formula" id="snapshotRoeFormula"></div>
+        </div>
+      </div>
+
+      <h2>메뉴</h2>
+      <div class="tab-group" id="pageTabs">
+        <button class="tab-btn active" data-page="stock">주가</button>
+        <button class="tab-btn" data-page="disclosures">공시</button>
+      </div>
+
+      <!-- 기준시점/실시간환율은 주가 화면 전용 데이터라 공시 화면에서는 숨긴다
+           (dashboard.js의 pageTabs 클릭 핸들러가 display를 토글) -->
+      <div id="stockOnlySidebar">
+        <h2>기준 시점</h2>
+        <div class="tab-group" id="basisTabs">
+          <button class="tab-btn active" data-basis="current">현재기준</button>
+          <button class="tab-btn" data-basis="close">장마감기준</button>
+        </div>
+
+        <h2>실시간 환율 (USD/KRW)</h2>
+        <div id="exchangeRate" class="card">--</div>
+      </div>
+      <button id="refreshBtn" class="btn">Refresh</button>
+      <button id="pdfBtn" class="btn">Export PDF</button>
+      <div id="lastUpdated" class="info"></div>
+    </aside>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <main class="main">
+
+    <!-- ═══ 페이지 1: 주가현황 ═══ -->
+    <div id="page-stock">
+
+      <!-- 페이지 타이틀 -->
+      <h1 class="page-title">주가현황 <span class="market-note" id="basisNote">(현재기준)</span></h1>
+
+      <!-- 1. 지수 현황 -->
+      <section class="section" id="indices-section">
+        <h2>지수 현황</h2>
+        <div class="grid grid-2">
+          <div class="card" id="kospi-index">KOSPI: --</div>
+          <div class="card" id="kosdaq-index">KOSDAQ: --</div>
+        </div>
+      </section>
+
+      <!-- 2. 테마별 시세 -->
+      <section class="section" id="themes-section">
+        <h2>테마별 시세</h2>
+        <div class="theme-grid" id="themes-grid">
+          <!-- Theme cards injected by dashboard.js -->
+        </div>
+      </section>
+
+      <!-- 3. 상장 계열사 주가 현황 -->
+      <section class="section" id="companies-section">
+        <h2>상장 계열사 주가 현황</h2>
+        <div class="table-wrap">
+          <table id="companies-table">
+            <colgroup>
+              <col style="width:13%"><!-- 회사명 -->
+              <col style="width:12%"><!-- 주식수 -->
+              <col style="width:8%"> <!-- 자본금 -->
+              <col style="width:8%"> <!-- 전년말 주가 -->
+              <col style="width:8%"> <!-- 당일 주가 -->
+              <col style="width:11%"><!-- 전년말 시총 -->
+              <col style="width:11%"><!-- 당일 시총 -->
+              <col style="width:8%"> <!-- 등락율 -->
+              <col style="width:10%"><!-- 52주 최고 -->
+              <col style="width:10%"><!-- 52주 최저 -->
+            </colgroup>
+            <thead>
+              <tr>
+                <th>회사명</th><th>주식수(보통주)</th><th>자본금(억원)</th>
+                <th>전년말 주가</th><th>당일 주가</th>
+                <th>전년말 시가총액</th><th>당일 시가총액</th><th>등락율</th>
+                <th>52주 최고</th><th>52주 최저</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 4. 상장 시멘트사 주가 현황 -->
+      <section class="section" id="cement-section">
+        <h2>상장 시멘트사 주가 현황</h2>
+        <div class="table-wrap">
+          <table id="cement-table">
+            <colgroup>
+              <col style="width:13%"><!-- 회사명 -->
+              <col style="width:12%"><!-- 주식수 -->
+              <col style="width:8%"> <!-- 자본금 -->
+              <col style="width:8%"> <!-- 전년말 주가 -->
+              <col style="width:8%"> <!-- 당일 주가 -->
+              <col style="width:11%"><!-- 전년말 시총 -->
+              <col style="width:11%"><!-- 당일 시총 -->
+              <col style="width:8%"> <!-- 등락율 -->
+              <col style="width:10%"><!-- 52주 최고 -->
+              <col style="width:10%"><!-- 52주 최저 -->
+            </colgroup>
+            <thead>
+              <tr>
+                <th>회사명</th><th>주식수(보통주)</th><th>자본금(억원)</th>
+                <th>전년말 주가</th><th>당일 주가</th>
+                <th>전년말 시가총액</th><th>당일 시가총액</th><th>등락율</th>
+                <th>52주 최고</th><th>52주 최저</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 5. 주가 동향 코멘트 (수급 패턴 + 뉴스 스크랩 기반 자동 요약) -->
+      <section class="section" id="commentary-section">
+        <h2>주가 동향 코멘트</h2>
+        <ul id="commentary-list" class="commentary-list">
+          <li>코멘트 불러오는 중…</li>
+        </ul>
+      </section>
+
+      <!-- 6. 관리종목지정 모니터링 (동양우/동양2우B — 유가증권시장 상장규정 제64조) -->
+      <section class="section" id="mgmt-watch-section">
+        <h2>관리종목지정 모니터링</h2>
+        <p class="info" id="mgmtWatchNote"></p>
+
+        <h3 class="mgmt-watch-subtitle">1) 보통주 <span class="market-note">(동양 — 주가 미달)</span></h3>
+        <p class="info mgmt-watch-rule-note">유가증권시장 상장규정 제47조제1항제9호의2(2026.5.13 신설, <b>2026.7.1 시행</b>) —
+          종가가 1,000원 미만인 상태가 30매매거래일 연속되면 관리종목 지정 대상("동전주" 이슈). 시행일 이전 매매거래일은 연속일수에 포함하지 않음.</p>
+        <div class="table-wrap">
+          <table id="mgmt-watch-common-table">
+            <thead>
+              <tr>
+                <th>종목</th><th>기준일</th><th>종가<br>(기준일 현재)</th><th>주가 상태<br>(1,000원 기준)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <h3 class="mgmt-watch-subtitle">2) 우선주 <span class="market-note">(동양우ㆍ동양2우B — 시가총액ㆍ거래량 미달)</span></h3>
+        <p class="info mgmt-watch-rule-note">유가증권시장 상장규정 제64조제1항(2019.6.26ㆍ2020.7.22 개정, 계속 시행 중) —
+          4호 거래량 미달: 반기(1~6월/7~12월) 월평균거래량이 1만주 미만. 5호 시가총액 미달: 상장시가총액이 20억원 미만인 상태가 30매매거래일 연속되면 관리종목 지정 대상.</p>
+        <div class="table-wrap">
+          <table id="mgmt-watch-preferred-table">
+            <thead>
+              <tr>
+                <th>종목</th><th>기준일</th><th>시가총액<br>(기준일 현재)</th><th>시가총액 상태<br>(20억원 기준)</th>
+                <th>이번 반기 잠정<br>월평균거래량</th><th>거래량 상태<br>(1만주 기준)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+    <!-- ═══ /페이지 1 ═══ -->
+
+    <!-- ═══ 페이지 2: 공시 (단판공시 / 지분공시) ═══ -->
+    <div id="page-disclosures" style="display:none;">
+
+      <h1 class="page-title">공시 <span class="market-note">(동양(주))</span></h1>
+
+      <div class="tab-group" id="disclosureTabs" style="max-width:560px; margin-bottom:24px;">
+        <button class="tab-btn active" data-disclosure="summary">공시현황 요약</button>
+        <button class="tab-btn" data-disclosure="danpan">단판공시</button>
+        <button class="tab-btn" data-disclosure="ftc">공정위공시</button>
+        <button class="tab-btn" data-disclosure="equity">지분공시</button>
+      </div>
+
+      <!-- ── 공시현황 요약(동양(주) — 유형별 건수 카드 + 클릭 필터) — 첫 화면 ── -->
+      <div id="disclosure-summary">
+        <section class="section portal-overview" id="portal-overview-section">
+          <h2 id="portalOverviewTitle">공시현황 — 동양(주)</h2>
+          <p class="info" id="portalOverviewNote">불러오는 중…</p>
+          <div class="portal-summary-cards" id="portalSummaryCards"></div>
+          <div class="table-wrap">
+            <table id="portal-overview-table">
+              <colgroup>
+                <col style="width:12%"><!-- 구분 -->
+                <col style="width:34%"><!-- 제목 -->
+                <col style="width:20%"><!-- 상대방/보고자 -->
+                <col style="width:14%"><!-- 공시일 -->
+                <col style="width:10%"><!-- 원문 -->
+              </colgroup>
+              <thead>
+                <tr><th>구분</th><th>제목</th><th>상대방/보고자</th><th>공시일</th><th>원문</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── 단판공시 모니터링 ── -->
+      <div id="disclosure-danpan" style="display:none;">
+        <section class="section" id="danpan-section">
+          <h2>단일판매ㆍ공급계약 진행 현장 <button class="rule-btn" data-rule="danpan">규정 보기</button> <button class="rule-btn" data-guide="danpan">작성 가이드</button></h2>
+          <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
+          <div class="table-wrap">
+            <table id="danpan-table">
+              <colgroup>
+                <col style="width:4%">  <!-- 순번 -->
+                <col style="width:22%"><!-- 현장명 -->
+                <col style="width:13%"><!-- 계약상대방 -->
+                <col style="width:9%"> <!-- 최초계약일 -->
+                <col style="width:11%"><!-- 최근공시일 -->
+                <col style="width:12%"><!-- 계약금액 -->
+                <col style="width:8%"> <!-- 변동율 -->
+                <col style="width:15%"><!-- 공사기간 -->
+                <col style="width:6%"> <!-- 원문 -->
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>순번</th><th>현장명</th><th>계약상대방</th><th>최초계약일</th>
+                  <th>최근공시일<br>(정정횟수)</th><th>계약금액<br>(백만원)</th>
+                  <th>변동율<br>(최초대비)</th><th>공사기간</th><th>원문</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="danpan-check-section">
+          <h2>단판공시 대상여부 사전검증</h2>
+          <p class="info" style="margin-bottom:12px;">계약(예정)일자와 계약금액을 넣으면, <b>그 계약일자 시점에 실제로 적용됐을</b>
+            "최근 사업연도" 매출액 기준으로 공시 대상 여부를 계산합니다 — 오늘 기준 최신 매출액이 아니라
+            계약 당시 참조 가능했던 매출액을 씁니다(2021년부터 이어져 온 현장도 그 당시 기준으로 정확히
+            검증하기 위함). 사업부서든 누구든 로그인 없이 바로 확인할 수 있습니다.</p>
+          <div class="check-form">
+            <label>계약(예정)일자
+              <input type="date" id="checkContractDate">
+            </label>
+            <label>계약금액(원, 부가세 포함)
+              <input type="text" inputmode="numeric" id="checkAmount" placeholder="예: 5,000,000,000">
+            </label>
+            <button id="checkSubmitBtn" class="btn" style="width:auto;">판단하기</button>
+          </div>
+          <div id="checkResult"></div>
+        </section>
+      </div>
+
+      <!-- ── 지분공시(임원ㆍ주요주주 소유상황보고서 / 대량보유상황보고서) ── -->
+      <div id="disclosure-equity" style="display:none;">
+        <div class="tab-group" id="equitySubTabs" style="max-width:460px; margin-bottom:20px;">
+          <button class="tab-btn active" data-equity-sub="officer">임원ㆍ주요주주 지분공시 이력</button>
+          <button class="tab-btn" data-equity-sub="large_holding">대량보유상황보고서 이력</button>
+        </div>
+
+        <div id="equity-sub-officer">
+          <section class="section" id="equity-section">
+            <h2>임원ㆍ주요주주 지분공시 이력 <button class="rule-btn" data-rule="equity">규정 보기</button> <button class="rule-btn" data-guide="equity">작성 가이드</button></h2>
+            <p class="info" id="equityNote" style="margin-bottom:12px;">불러오는 중…</p>
+            <div class="table-wrap">
+              <table id="equity-table">
+                <colgroup>
+                  <col style="width:4%">  <!-- 순번 -->
+                  <col style="width:13%"><!-- 이름 -->
+                  <col style="width:9%"><!-- 구분 -->
+                  <col style="width:11%"><!-- 최초 매수일 -->
+                  <col style="width:13%"><!-- 최근 매수일(공시일) -->
+                  <col style="width:12%"><!-- 누적 주식수 -->
+                  <col style="width:11%"><!-- 평균단가 -->
+                  <col style="width:13%"><!-- 원문 -->
+                  <col style="width:14%"><!-- 요청서류 -->
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>순번</th><th>이름</th><th>구분</th><th>최초 매수일</th><th>최근 매수일<br>(공시일)</th>
+                    <th>누적 주식수</th><th>평균단가<br>(원)</th><th>원문<br>(최근 공시문)</th><th>요청서류</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="section" id="equity-accuracy-section">
+            <h2>지분공시 정확성 점검 <span class="rule-cite" style="font-weight:normal;">(임원 선임일ㆍ발행주식총수ㆍ주식 수 — 오류가 잦은 3개 필드만 보고서 간 대조)</span></h2>
+            <p class="info" id="equityAccuracyNote">불러오는 중…</p>
+
+            <h4>발행주식총수 변동 이력</h4>
+            <div class="table-wrap">
+              <table id="equity-accuracy-shares-table">
+                <thead><tr><th>공시일</th><th>발행주식총수</th><th>원문</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="equity-accuracy-shares-conflicts"></div>
+
+            <h4>임원 선임일 불일치</h4>
+            <div id="equity-accuracy-officer-issues"></div>
+
+            <h4>주식 수 정합성</h4>
+            <div id="equity-accuracy-share-count-issues"></div>
+          </section>
+        </div>
+
+        <div id="equity-sub-large-holding" style="display:none;">
+          <section class="section" id="large-holding-section">
+            <h2>대량보유상황보고서(5% Rule) 이력 <button class="rule-btn" data-rule="large_holding">규정 보기</button> <button class="rule-btn" data-guide="large_holding">작성 가이드</button></h2>
+            <p class="info" id="largeHoldingNote" style="margin-bottom:12px;">불러오는 중…</p>
+            <div class="table-wrap">
+              <table id="large-holding-table">
+                <colgroup>
+                  <col style="width:11%"><!-- 보고자명 -->
+                  <col style="width:14%"><!-- 신고자 -->
+                  <col style="width:13%"><!-- 구분 -->
+                  <col style="width:13%"><!-- 최초 공시일 -->
+                  <col style="width:13%"><!-- 변동 공시일 -->
+                  <col style="width:18%"><!-- 누적 주식수 -->
+                  <col style="width:18%"><!-- 원문 -->
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>보고자명</th><th>신고자</th><th>구분</th><th>최초 공시일</th><th>변동 공시일</th>
+                    <th>누적 주식수<br>(지분율)</th><th>원문</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ── 공정위공시(계열회사간 거래) 모니터링 ── -->
+      <div id="disclosure-ftc" style="display:none;">
+        <section class="section" id="ftc-section">
+          <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button> <button class="rule-btn" data-guide="ftc">작성 가이드</button></h2>
+          <p class="info" style="margin-bottom:8px;">동양(주) 본체뿐 아니라 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ
+            디씨아이티와이부천피에프브이ㆍ디씨아이티와이인천피에프브이)이 각자 이름으로 낸 공정위 공시도 함께
+            모아서 보여줍니다 — 대규모내부거래ㆍ공정위 자료 제출 시 회사마다 따로 찾아야 하는 번거로움을 줄이기 위함.</p>
+          <div class="tab-group" id="ftcRangeTabs" style="max-width:260px; margin-bottom:12px;">
+            <button class="tab-btn active" data-ftc-range="recent">최근 1년<br><span class="tab-btn-sub">(작년 1.1~오늘)</span></button>
+            <button class="tab-btn" data-ftc-range="all">전체 이력<br><span class="tab-btn-sub">(최근 10년)</span></button>
+          </div>
+          <p class="info" id="ftcNote" style="margin-bottom:12px;">불러오는 중…</p>
+          <p class="info">공시 정확성 점검 — <b>공시기한</b>은 특수관계인 출자ㆍ채권매도ㆍ자금차입ㆍ상품ㆍ용역거래(초기),
+            그리고 이사회 의결일이 기재된 상품ㆍ용역거래 변경(증가형)은 이사회 의결일로부터 실제 공시일까지 영업일수를
+            계산해 제출회사가 상장법인이면 <b>3영업일</b>, 비상장법인(자회사 4곳)이면 <b>7영업일</b> 이내인지 확인합니다.
+            상품ㆍ용역거래 변경(감소형ㆍ이사회 의결 없는 사후공시, 고시 제9조의2②)은 원문 "거래기간" 필드의 분기
+            종료일로부터 실제 공시일까지 역일수를 계산해 <b>45일 이내</b>인지 확인합니다(공휴일 미반영 근사치입니다).
+            <b>공시대상 재확인</b>은 원문의 거래금액과 제출회사의 <b>현재</b> 자본총계ㆍ자본금으로 다시 판단해본
+            결과입니다(상품ㆍ용역거래 변경(감소형)은 공시 존재 자체가 20% 이상 감소 요건 충족의 근거이므로 항상 충족으로
+            표시) — 신고 당시가 아닌 현재 자본 기준이라 참고용이며, "미달"이어도 오류가 아니라 그 사이
+            자본 규모가 달라졌을 수 있습니다.</p>
+          <div class="table-wrap">
+            <table id="ftc-table">
+              <colgroup>
+                <col style="width:4%">  <!-- 순번 -->
+                <col style="width:10%"><!-- 제출회사 -->
+                <col style="width:12%"><!-- 유형 -->
+                <col style="width:12%"><!-- 거래상대방 -->
+                <col style="width:7%"> <!-- 관계 -->
+                <col style="width:8%"> <!-- 공시일자 -->
+                <col style="width:8%"> <!-- 이사회의결일 -->
+                <col style="width:9%"> <!-- 공시기한 -->
+                <col style="width:10%"><!-- 공시대상 재확인 -->
+                <col style="width:12%"><!-- 금액/비율 -->
+                <col style="width:5%"> <!-- 원문 -->
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>순번</th><th>제출회사</th><th>유형</th><th>거래상대방</th><th>관계</th><th>공시일자</th>
+                  <th>이사회의결일</th><th>공시기한<br>(3ㆍ7영업일/45일)</th><th>공시대상<br>재확인</th>
+                  <th>거래금액<br>(매출액대비)</th><th>원문</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="ftc-check-section">
+          <h2>공정위 공시(대규모내부거래) 대상여부 사전검증</h2>
+          <p class="info" style="margin-bottom:12px;">공정거래법 제26조ㆍ시행령 제33조 기준입니다. 계열사를 고르면(비상장
+            자회사 5개사는 재무제표를 직접 조회할 수 없어 매년 내는 "기업집단현황공시"의 개별 재무상태표 기준 값을
+            가져옵니다) 자본총계ㆍ자본금이 자동입력되고, 그 외 회사는 직접 입력하면 됩니다. 거래금액과 함께 100억원
+            이상이거나 자본총계·자본금 중 큰 금액의 5%(최소 5억원) 이상인지로 판단합니다 — 상품ㆍ용역 거래는 거래상대방이
+            "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그 50% 초과 자회사)"인 경우에만 대상이라, 회사명을
+            20% 계열사 실제 목록과 자동으로 대조합니다.
+            <b>공시대상이면 이사회 의결일로부터 상장법인은 3영업일 이내, 비상장법인ㆍ공익법인은 7영업일 이내에
+            공시해야 합니다.</b></p>
+          <div class="check-form">
+            <label>거래유형
+              <select id="ftcCheckType">
+                <option value="fund_securities_asset">자금ㆍ유가증권ㆍ자산 거래</option>
+                <option value="goods_services">상품ㆍ용역 거래</option>
+              </select>
+            </label>
+            <label>계열사 선택
+              <select id="ftcCheckCompany">
+                <option value="">직접입력</option>
+              </select>
+            </label>
+            <label id="ftcCheckCompanyNameLabel">회사명 <span class="rule-cite" style="font-weight:normal;">(직접입력)</span>
+              <input type="text" id="ftcCheckCompanyName" placeholder="예: 유진기업(주)">
+            </label>
+            <label>거래금액(원)
+              <input type="text" inputmode="numeric" id="ftcCheckAmount" placeholder="예: 12,000,000,000">
+            </label>
+            <label>자본총계ㆍ자본금 중 큰 금액(원)
+              <input type="text" inputmode="numeric" id="ftcCheckCapital" placeholder="예: 300,000,000,000">
+            </label>
+            <label id="ftcCheckTargetLabel" style="display:none;">
+              <input type="checkbox" id="ftcCheckTarget" style="width:auto; margin-right:6px;">
+              거래상대방이 "동일인·동일인 친족 20%이상 출자 계열회사(또는 그 50%초과 자회사)"에 해당함
+              <button type="button" class="rule-btn" data-show-target-list="1">20% 계열사 목록 보기</button>
+            </label>
+            <p class="info" id="ftcCheckTargetAutoNote" style="display:none; margin:-8px 0 0;"></p>
+            <button id="ftcCheckSubmitBtn" class="btn" style="width:auto;">판단하기</button>
+          </div>
+          <p class="info" id="ftcCheckCompanyInfo">계열사를 선택하거나 회사명을 입력하면 자본금ㆍ자본총계 정보가 여기 표시됩니다.</p>
+          <div id="ftcCheckResult"></div>
+        </section>
+      </div>
+
+    </div>
+    <!-- ═══ /페이지 2 ═══ -->
+
+    </main>
+  </div>
+
+  <!-- ── 수급 동향 모달 (기본 숨김) ── -->
+  <div class="modal-overlay" id="investorModalOverlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title" id="investorModalTitle">수급 동향</span>
+        <button class="modal-close" id="investorModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div class="table-wrap">
+        <table id="investorModalTable">
+          <colgroup>
+            <col style="width:14%"><!-- 날짜 -->
+            <col style="width:11%"><!-- 종가 -->
+            <col style="width:11%"><!-- 등락율 -->
+            <col style="width:17%"><!-- 총거래대금 -->
+            <col style="width:16%"><!-- 개인순매매 -->
+            <col style="width:16%"><!-- 기관순매매 -->
+            <col style="width:15%"><!-- 외국인순매매 -->
+          </colgroup>
+          <thead>
+            <tr>
+              <th>날짜</th><th>종가</th><th>등락율</th><th>총거래대금<br>(백만원)</th>
+              <th>개인순매매</th><th>기관순매매</th><th>외국인순매매</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 공시 규정 안내 모달 (기본 숨김) ── -->
+  <div class="modal-overlay" id="ruleModalOverlay">
+    <div class="modal-content" style="width:640px;">
+      <div class="modal-header">
+        <span class="modal-title" id="ruleModalTitle">공시 규정</span>
+        <button class="modal-close" id="ruleModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="ruleModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ── 공시 작성 가이드 모달 (서식ㆍ기재상 유의사항ㆍ관련법규, 기본 숨김) ── -->
+  <div class="modal-overlay" id="guideModalOverlay">
+    <div class="modal-content" style="width:760px;">
+      <div class="modal-header">
+        <span class="modal-title" id="guideModalTitle">공시 작성 가이드</span>
+        <button class="modal-close" id="guideModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="guideModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="docRequestModalOverlay">
+    <div class="modal-content" style="width:520px;">
+      <div class="modal-header">
+        <span class="modal-title" id="docRequestModalTitle">요청서류</span>
+        <button class="modal-close" id="docRequestModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="docRequestModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="targetListModalOverlay">
+    <div class="modal-content" style="width:560px;">
+      <div class="modal-header">
+        <span class="modal-title">상품ㆍ용역거래 상대방 요건 — 20% 계열사 목록</span>
+        <button class="modal-close" id="targetListModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div id="targetListModalBody" class="rule-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

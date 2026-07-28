@@ -1,0 +1,779 @@
+/* styles.css – Dark-mode dashboard */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0a0a0f;
+  --surface:  #12121c;
+  --card:     #1a1a2e;
+  --border:   rgba(255,255,255,0.15);
+  --text:     #e2e2f0;
+  --muted:    #8888aa;
+  --accent:   #5b6af0;
+  --title:    #7dd3fc;           /* 제목 전용 하늘색 */
+  --up:       #ef4444;           /* 상승 = 빨강 (한국식) */
+  --down:     #3b82f6;           /* 하락 = 파랑 (한국식) */
+  --radius:   10px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── Layout ──────────────────────────────────────────────────── */
+.container {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px 28px;
+}
+
+/* ── Page Title ──────────────────────────────────────────────── */
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--title);
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  margin-bottom: 28px;
+  letter-spacing: .02em;
+}
+.market-note {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: 0;
+}
+
+/* ── (주)동양 실시간 주가현황 위젯 (사이드바 상단) ──────────────── */
+.stock-snapshot {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.snapshot-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.snapshot-trend-icon {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.snapshot-trend-icon.up   { color: var(--up); }
+.snapshot-trend-icon.down { color: var(--down); }
+.snapshot-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.snapshot-price {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .01em;
+  line-height: 1.2;
+}
+.snapshot-change {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.snapshot-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-top: 4px;
+}
+.snapshot-metric {
+  text-align: center;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 6px 2px;
+}
+.snapshot-metric-label {
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.snapshot-metric-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: keep-all;
+  line-height: 1.3;
+}
+.snapshot-financials {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.snapshot-fin-period {
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.snapshot-fin-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.snapshot-fin-row:hover {
+  background: rgba(255,255,255,0.06);
+}
+.snapshot-fin-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.snapshot-fin-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.snapshot-fin-formula {
+  display: none;
+  font-size: 10px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 2px 0 4px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.snapshot-fin-formula.show {
+  display: block;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.sidebar h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+
+#exchangeRate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+}
+.exr-label { font-size: 12px; color: var(--muted); }
+.exr-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .02em;
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.3;
+}
+.exr-change {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.btn {
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s, border-color .15s;
+  width: 100%;
+}
+.btn:hover { background: rgba(255,255,255,0.12); border-color: var(--accent); }
+
+.info { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+/* ── Basis Tabs (현재기준 / 장마감기준) ──────────────────────── */
+.tab-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tab-btn {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .15s, color .15s;
+}
+.tab-btn + .tab-btn { border-left: 1px solid var(--border); }
+.tab-btn:hover { background: rgba(255,255,255,0.1); }
+.tab-btn.active { background: var(--accent); color: #fff; }
+
+/* #ftcRangeTabs — 두 버튼 모두 동일한 높이의 2줄로 통일(라벨 길이가 달라
+   한쪽만 줄바꿈되면서 크기가 들쭉날쭉해 보이는 문제 수정) */
+#ftcRangeTabs .tab-btn {
+  min-height: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.5;
+  gap: 1px;
+}
+#ftcRangeTabs .tab-btn-sub { font-size: 10px; font-weight: 500; opacity: 0.8; }
+
+/* ── Sections ────────────────────────────────────────────────── */
+.section {
+  margin-bottom: 32px;
+}
+.section h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--title);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.mgmt-watch-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 18px 0 8px;
+}
+.mgmt-watch-subtitle:first-of-type {
+  margin-top: 4px;
+}
+.mgmt-watch-rule-note {
+  margin-bottom: 10px;
+}
+
+/* ── Index Cards ─────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.idx-name  { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.idx-value { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.idx-detail{
+  font-size: 12px;
+  color: var(--muted);
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.4;
+}
+
+/* ── Theme Grid ──────────────────────────────────────────────── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.theme-card   { text-align: center; }
+.theme-name   { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.theme-change {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+/* ── Up / Down color ─────────────────────────────────────────── */
+.up   { color: var(--up); }
+.down { color: var(--down); }
+
+/* NXT(넥스트레이드) 프리마켓ㆍ애프터마켓 시세로 대체됐을 때 표시하는 배지 */
+.nxt-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #eef2ff;
+  color: #4338ca;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* ── Table Wrapper ───────────────────────────────────────────── */
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;          /* 내부 테이블 테두리가 wrap 밖으로 안 나가게 */
+  overflow-x: auto;
+}
+
+/* ── Tables ──────────────────────────────────────────────────── */
+table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th, td {
+  padding: 8px 7px;
+  text-align: left;
+  border: 1px solid var(--border);  /* 전체 셀 테두리 (상하좌우) */
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+th {
+  background: rgba(255,255,255,0.05);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-align: center;          /* 헤더 가운데 정렬 */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+tr:hover td { background: rgba(255,255,255,0.025); }
+
+/* ── 단판공시 표: 행 높이 통일 + 인쇄 시 A4 밖으로 안 넘치게 ──────
+   현장명처럼 긴 텍스트가 줄바꿈되면 행마다 높이가 들쭉날쭉해지고 인쇄할 때
+   페이지 경계를 넘어갈 수 있어, 모든 셀을 한 줄로 고정하고 넘치는 텍스트는
+   말줄임표(…)로 자른다 — 전체 내용은 마우스를 올리면(title 툴팁) 보인다. */
+#danpan-table td, #danpan-table th,
+#equity-table td, #equity-table th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#danpan-table tbody tr, #equity-table tbody tr { page-break-inside: avoid; }
+
+/* ── 주가 동향 코멘트 ────────────────────────────────────────── */
+.commentary-list {
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.commentary-list li {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  padding-left: 14px;
+  position: relative;
+  word-break: keep-all;
+}
+.commentary-list li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--title);
+}
+
+/* ── Modal & Links ───────────────────────────────────────────── */
+.clickable-name {
+  color: var(--title);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.clickable-name:hover {
+  opacity: 0.8;
+}
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.show {
+  opacity: 1; pointer-events: auto;
+}
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 680px; max-width: 95%;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+}
+#investorModalTable { table-layout: fixed; font-size: 12px; }
+#investorModalTable th, #investorModalTable td { padding: 7px 5px; }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: -24px -24px 16px; padding: 24px 24px 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: -24px; background: var(--surface); z-index: 1;
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--title); }
+.modal-close {
+  background: none; border: none; color: var(--muted);
+  font-size: 20px; cursor: pointer;
+}
+.modal-close:hover { color: var(--text); }
+
+/* ── 공시 규정 안내 (규정 보기 버튼 + 모달 내 도식) ─────────────── */
+.rule-btn {
+  margin-left: 10px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--title);
+  background: rgba(125, 211, 252, 0.1);
+  border: 1px solid var(--title);
+  border-radius: 999px;
+  cursor: pointer;
+  vertical-align: middle;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rule-btn:hover { background: rgba(125, 211, 252, 0.2); }
+
+.rule-modal-body { font-size: 13.5px; line-height: 1.75; }
+.rule-modal-body h4 {
+  font-size: 13px; font-weight: 800; color: #0a0a0f; background: var(--title);
+  display: inline-block; padding: 3px 10px; border-radius: 4px; margin: 18px 0 10px;
+}
+.rule-modal-body h4:first-child { margin-top: 0; }
+.rule-modal-body p { margin-bottom: 8px; color: #f4f4fa; }
+.rule-modal-body .rule-cite {
+  font-size: 11px; color: var(--muted); margin-top: 4px;
+}
+.rule-modal-body ul { margin: 4px 0 8px 18px; }
+.rule-modal-body li { margin-bottom: 4px; color: #f4f4fa; }
+
+/* 도식 흐름: [매출액] → [× 비율] → [기준금액] 같은 박스+화살표 다이어그램 */
+.rule-flow {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin: 10px 0 16px;
+  flex-wrap: wrap;
+}
+.rule-flow-box {
+  flex: 1;
+  min-width: 140px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+}
+.rule-flow-box.highlight { border-color: var(--title); background: rgba(125, 211, 252, 0.08); }
+.rule-flow-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.rule-flow-value { font-size: 15px; font-weight: 700; color: var(--text); word-break: keep-all; }
+.rule-flow-box.highlight .rule-flow-value { color: var(--title); }
+.rule-flow-arrow {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--muted); padding: 0 2px;
+}
+
+/* ── 공시 작성 가이드(서식ㆍ기재상 유의사항ㆍ관련법규) ────────────── */
+.guide-fields { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin: 8px 0 16px; }
+.guide-field { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.guide-field:last-child { border-bottom: none; }
+.guide-field:nth-child(odd) { background: var(--card); }
+.guide-field-label { font-weight: 700; font-size: 12.5px; color: var(--text); }
+.guide-field-note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.guide-notes { margin: 4px 0 16px 0; padding-left: 0; list-style: none; }
+.guide-notes li { margin-bottom: 8px; padding-left: 22px; position: relative; }
+.guide-notes li::before {
+  content: attr(data-n); position: absolute; left: 0; top: 0;
+  font-size: 10px; font-weight: 700; color: var(--title);
+  border: 1px solid var(--title); border-radius: 999px;
+  width: 16px; height: 16px; line-height: 14px; text-align: center;
+}
+.law-article { border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); margin-bottom: 8px; background: var(--card); }
+.law-article summary {
+  cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 700;
+  color: #f4f4fa; list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.law-article summary::-webkit-details-marker { display: none; }
+.law-article summary::before { content: '▸'; color: var(--title); font-size: 12px; transition: transform .15s; }
+.law-article[open] summary::before { transform: rotate(90deg); }
+.law-article-text {
+  padding: 10px 14px 14px; font-size: 12.5px; line-height: 1.8; color: #f4f4fa;
+  white-space: pre-line; border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ─────────── */
+.portal-summary-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.portal-summary-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; text-align: left; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.portal-summary-card:hover { border-color: var(--accent); }
+.portal-summary-card.active { border-color: var(--accent); background: rgba(91, 106, 240, 0.14); }
+.portal-summary-card-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.portal-summary-card-count { font-size: 22px; font-weight: 700; color: var(--text); }
+.portal-summary-card-unit { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.disclosure-type-badge {
+  display: inline-block; padding: 2px 9px; font-size: 11px; font-weight: 700;
+  border-radius: 999px; white-space: nowrap;
+}
+.disclosure-type-badge.type-danpan   { background: rgba(91, 106, 240, 0.18); color: #8ea0ff; }
+.disclosure-type-badge.type-ftc      { background: rgba(251, 146, 60, 0.18); color: #fdba74; }
+.disclosure-type-badge.type-equity   { background: rgba(52, 211, 153, 0.18); color: #6ee7b7; }
+.disclosure-type-badge.type-large_holding { background: rgba(244, 114, 182, 0.18); color: #f9a8d4; }
+
+/* ── 작성 가이드 모달 내부 서브탭(공정위공시 3유형 등) ──────────── */
+.guide-subtabs { display: flex; gap: 6px; margin: 4px 0 16px; flex-wrap: wrap; }
+.guide-subtab-btn {
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  color: var(--muted); background: var(--card); border: 1px solid var(--border);
+  border-radius: 999px; cursor: pointer;
+}
+.guide-subtab-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.guide-subtab-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+
+/* ── 요청서류 체크리스트 ────────────────────────────────────────── */
+.doc-request-btn {
+  padding: 3px 10px; font-size: 11px; font-weight: 600;
+  color: var(--title); background: rgba(125, 211, 252, 0.1);
+  border: 1px solid var(--title); border-radius: 999px; cursor: pointer;
+}
+.doc-request-btn:hover { background: rgba(125, 211, 252, 0.2); }
+.doc-request-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.doc-request-list li { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.doc-request-list li:last-child { border-bottom: none; }
+.doc-request-list label { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+.doc-request-list input[type="checkbox"] { width: 16px; height: 16px; }
+
+/* ── 단판공시 대상여부 사전검증 계산기 ──────────────────────────── */
+.check-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.check-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.check-form input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 180px;
+}
+.check-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#checkResult, #ftcCheckResult { margin-top: 16px; }
+.check-verdict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -0.2px;
+}
+/* "공시 대상입니다" = 조치가 필요하다는 경고 → 강한 경고색(주황/빨강 계열).
+   "공시대상이 아닙니다" = 안전 → 초록 계열. up/down(등락 색상)과 의미가
+   반대라 전용 색상 변수를 쓴다 — 등락색을 재사용하면 "상승=공시필요"처럼
+   잘못 읽힐 수 있다. */
+.check-verdict.required {
+  background: rgba(248, 113, 113, 0.18);
+  border: 2px solid #f87171;
+  color: #fca5a5;
+}
+.check-verdict.not-required {
+  background: rgba(74, 222, 128, 0.16);
+  border: 2px solid #4ade80;
+  color: #86efac;
+}
+.check-detail {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.8;
+}
+.check-detail b { color: var(--title); }
+.check-reason {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--card);
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin: 10px 0;
+  line-height: 1.6;
+}
+.check-error {
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ── Print ───────────────────────────────────────────────────── */
+/* 이 블록은 반드시 파일 맨 끝에 있어야 한다 — 동일 우선순위(specificity)일 때
+   CSS는 소스 순서상 나중에 나온 규칙이 이기므로, 위쪽 기본 규칙(.clickable-name
+   등)보다 앞에 있으면 print 전용 값이 화면/인쇄 공통 규칙에 도로 덮어써진다. */
+@media print {
+  .modal-overlay { display: none !important; }
+
+  /* A4 세로, 여백 14mm×10mm */
+  @page { size: A4 portrait; margin: 14mm 10mm; }
+
+  /* 색상 그대로 인쇄 */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* 변수 덮어쓰기: 흰 배경에서 테두리·글자 잘 보이게 */
+  :root {
+    --bg:      #ffffff;
+    --surface: #ffffff;
+    --card:    #f4f4f8;
+    --border:  #999999;          /* 인쇄 시 진한 테두리 */
+    --text:    #111111;
+    --muted:   #555555;
+    --title:   #0369a1;          /* 인쇄 시 하늘색 → 짙은 파란색 */
+    --up:      #b91c1c;
+    --down:    #1d4ed8;
+  }
+
+  /* 사이드바 숨김, 레이아웃 블록으로 전환 */
+  .sidebar  { display: none; }
+  .container { display: block; }
+  .main { padding: 0; overflow: visible; }
+
+  /* 한 페이지에 다 들어오도록 여백 축소 */
+  .page-title { margin-bottom: 10px; }
+  .section { page-break-inside: avoid; margin-bottom: 10px; }
+  .section h2 { margin-bottom: 6px; padding-bottom: 4px; }
+
+  /* 지수 카드 / 테마 카드: 화면 대비 높이 절반 수준으로 축소 */
+  .grid, .theme-grid { gap: 6px; }
+  .card { padding: 5px 8px; }
+  .idx-name   { font-size: 8px;  margin-bottom: 1px; }
+  .idx-value  { font-size: 13px; margin-bottom: 1px; }
+  .idx-detail { font-size: 7px;  line-height: 1.2; }
+  .theme-name   { font-size: 8px;  margin-bottom: 2px; }
+  .theme-change { font-size: 11px; }
+
+  /* 테마 그리드: 인쇄 시 2×2 배치 */
+  .theme-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 지수 카드: 2칸 유지 */
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+  /* 표 폰트 축소 */
+  table { font-size: 9px; }
+  th, td { padding: 4px 5px; }
+
+  /* 회사명 클릭 링크 밑줄 제거 (인쇄본에서는 클릭 불가능하므로) */
+  .clickable-name { text-decoration: none !important; }
+
+  /* "당일 주가" 컬럼(5번째) 빨간색 강조 테두리 — 칸마다 다 두르면 안쪽 가로줄까지
+     굵어지므로, 컬럼 전체를 감싸는 바깥쪽 테두리만 굵게 (좌/우는 전 행 공통,
+     위쪽은 헤더만, 아래쪽은 마지막 행만) */
+  #companies-table th:nth-child(5), #companies-table td:nth-child(5),
+  #cement-table th:nth-child(5),    #cement-table td:nth-child(5) {
+    border-left: 2px solid var(--up) !important;
+    border-right: 2px solid var(--up) !important;
+  }
+  #companies-table th:nth-child(5),
+  #cement-table th:nth-child(5) {
+    border-top: 2px solid var(--up) !important;
+  }
+  #companies-table tbody tr:last-child td:nth-child(5),
+  #cement-table tbody tr:last-child td:nth-child(5) {
+    border-bottom: 2px solid var(--up) !important;
+  }
+
+  /* 주가 동향 코멘트 축소 */
+  .commentary-list { padding: 8px 10px; gap: 6px; }
+  .commentary-list li { font-size: 9px; line-height: 1.4; }
+
+  /* 버튼 숨김 */
+  .btn { display: none; }
+  .tab-group { display: none; }
+  .rule-btn { display: none; }
+  #danpan-check-section { display: none; }
+}
+
