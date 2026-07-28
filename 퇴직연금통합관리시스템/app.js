@@ -175,15 +175,32 @@ document.addEventListener("DOMContentLoaded", () => {
         updateDashboard();
     });
 
-    // Snapshot Select
+    // Snapshot Select (최근 3개년 · 분기별)
     document.getElementById("snapshot-select").addEventListener("change", (e) => {
         activeDate = e.target.value;
         activeInstFilter = null;   // 기준일 변경 시 필터 초기화
         activeProductFilter = null;
         filterMaturingThisYear = false;
         document.getElementById("maturing-this-year-btn").classList.remove("active");
+        const legacySelect = document.getElementById("legacy-year-select");
+        if (legacySelect) legacySelect.selectedIndex = 0;
         updateDashboard();
     });
+
+    // 이전 연도 선택 (최근 3개년 이전 · 사업연도말 위주)
+    const legacySelect = document.getElementById("legacy-year-select");
+    if (legacySelect) {
+        legacySelect.addEventListener("change", (e) => {
+            if (!e.target.value) return;
+            activeDate = e.target.value;
+            activeInstFilter = null;
+            activeProductFilter = null;
+            filterMaturingThisYear = false;
+            document.getElementById("maturing-this-year-btn").classList.remove("active");
+            document.getElementById("snapshot-select").selectedIndex = -1;
+            updateDashboard();
+        });
+    }
 
     // Search
     document.getElementById("table-search-input").addEventListener("input", () => {
@@ -235,38 +252,64 @@ document.addEventListener("DOMContentLoaded", () => {
 // ────────────────────────────────────────────────────────
 // Dashboard Init
 // ────────────────────────────────────────────────────────
+/** "YYYY-MM-DD" → "YYYY.N분기" (분기말 스냅샷). 분기말이 아닌 중간월 스냅샷은
+ *  같은 분기 안에서 라벨이 겹치지 않도록 "(M월)"을 붙여 구분한다. */
+function toQuarterLabel(dateStr) {
+    const [y, m] = dateStr.split("-").map(Number);
+    const q = Math.ceil(m / 3);
+    const isQuarterEnd = m % 3 === 0;
+    return isQuarterEnd ? `${y}.${q}분기` : `${y}.${q}분기(${m}월)`;
+}
+
 function initDashboard() {
     const snapSelect = document.getElementById("snapshot-select");
+    const legacySelect = document.getElementById("legacy-year-select");
+    const legacyGroup = document.getElementById("legacy-year-group");
     snapSelect.innerHTML = "";
+    if (legacySelect) legacySelect.innerHTML = "";
 
-    const now = new Date();
-    const oneYearAgo = new Date(now);
-    oneYearAgo.setFullYear(now.getFullYear() - 1);
-
-    // 날짜 내림차순 정렬
+    // 날짜 내림차순 정렬 (같은 해에서는 연말/최신 분기가 먼저 오도록)
     const sortedDates = Object.keys(pensionData.snapshots).sort((a, b) => b.localeCompare(a));
 
-    const recentGroup = document.createElement("optgroup");
-    recentGroup.label = "▼ 최근 1개년 (상세 조회)";
-    const histGroup = document.createElement("optgroup");
-    histGroup.label = "▼ 과거 참고 자료";
+    const allYears = [...new Set(sortedDates.map(d => parseInt(d.split("-")[0], 10)))].sort((a, b) => b - a);
+    const recentYears = allYears.slice(0, 3);   // 당해년도 포함 최근 3개년: 분기별로 전부 노출
+    const legacyYears = allYears.slice(3);       // 그 이전 연도: 사업연도말 위주로 별도 선택
 
-    sortedDates.forEach(dateStr => {
-        const snap = pensionData.snapshots[dateStr];
-        const opt = document.createElement("option");
-        opt.value = dateStr;
-        opt.textContent = snap.label;
-
-        const snapDate = new Date(dateStr);
-        if (snapDate >= oneYearAgo) {
-            recentGroup.appendChild(opt);
-        } else {
-            histGroup.appendChild(opt);
-        }
+    // 최근 3개년: 연도별 optgroup, 그룹 내부는 최신 분기(연말)가 먼저 오도록 정렬됨
+    recentYears.forEach((year, idx) => {
+        const group = document.createElement("optgroup");
+        group.label = idx === 0 ? `▼ ${year}년 (당해년도)` : `▼ ${year}년`;
+        sortedDates
+            .filter(d => d.startsWith(`${year}-`))
+            .forEach(dateStr => {
+                const opt = document.createElement("option");
+                opt.value = dateStr;
+                opt.textContent = toQuarterLabel(dateStr);
+                group.appendChild(opt);
+            });
+        if (group.children.length > 0) snapSelect.appendChild(group);
     });
 
-    if (recentGroup.children.length > 0) snapSelect.appendChild(recentGroup);
-    if (histGroup.children.length > 0) snapSelect.appendChild(histGroup);
+    // 최근 3개년 이전: "이전 연도" 드롭다운에서 사업연도말(해당 연도의 가장 늦은 스냅샷) 기준으로 선택
+    if (legacySelect && legacyGroup) {
+        if (legacyYears.length > 0) {
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "선택...";
+            legacySelect.appendChild(placeholder);
+
+            legacyYears.forEach(year => {
+                const yearDates = sortedDates.filter(d => d.startsWith(`${year}-`)); // 내림차순 정렬돼 있으므로 [0]=사업연도말(최신)
+                const opt = document.createElement("option");
+                opt.value = yearDates[0];
+                opt.textContent = `${year}년 (사업연도말)`;
+                legacySelect.appendChild(opt);
+            });
+            legacyGroup.style.display = "";
+        } else {
+            legacyGroup.style.display = "none";
+        }
+    }
 
     // 최신 기준일 기본 선택
     activeDate = sortedDates[0];

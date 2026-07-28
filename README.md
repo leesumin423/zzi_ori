@@ -7,7 +7,6 @@
 ## 📌 깃허브 리포지토리 연동 및 개발 방향 (`zzi_ori`)
 
 - **메인 프로젝트 리포지토리**: [https://github.com/leesumin423/zzi_ori](https://github.com/leesumin423/zzi_ori)
-- **AI 리포지토리**: [https://github.com/leesumin423/-AI-](https://github.com/leesumin423/-AI-)
 - **핵심 목표**:
   1. 각 담당자 PC의 개별 엑셀 파일로 파편화되어 관리되던 자금 데이터(퇴직연금 현황, 차입금 내역, 월간 보고서)를 자동 파싱 및 DB 구조화.
   2. 금융기관별 실시간 금리, 잔액, 만기 도래 현황, 가중평균 수익률 및 차입 이자 비용을 직관적인 대시보드로 시각화.
@@ -89,7 +88,7 @@
 ```
 C:\Users\tyinc\Desktop\ai 개발관련\
 ├── 퇴직연금통합관리시스템/
-│   ├── README.md               # 자금통합포털 전체 안내 문서
+│   ├── README.md               # 자금통합포털 전체 안내 문서 (본 파일)
 │   ├── 퇴직연금.MD              # 퇴직연금 시스템 상세 및 포털 연계 로드맵
 │   ├── parse_data.py           # 퇴직연금 엑셀 파서 엔진
 │   ├── run_dashboard.py        # 대시보드 Flask 웹 서버
@@ -110,6 +109,5 @@ C:\Users\tyinc\Desktop\ai 개발관련\
 
 ## 🔗 관련 문서
 
-- 📄 [퇴직연금 상세 가이드 및 포털 로드맵 (`퇴직연금.MD`)](./퇴직연금.MD)
+- 📄 [퇴직연금 상세 가이드 및 포털 로드맵 (`퇴직연금.MD`)](./퇴직연금통합관리시스템/퇴직연금.MD)
 - 🌐 [GitHub 메인 리포지토리 (`zzi_ori`)](https://github.com/leesumin423/zzi_ori)
-- 🌐 [GitHub AI 리포지토리 (`-AI-`)](https://github.com/leesumin423/-AI-)

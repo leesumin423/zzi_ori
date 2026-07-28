@@ -1,7 +1,10 @@
+import io
 import os
 import openpyxl
 import json
 from datetime import datetime, date
+
+import pension_db
 
 # Paths setup
 DATA_DIR = r"C:\Users\tyinc\Desktop\업무리스트 내역 정리\퇴직연금 관련\퇴직연금 관련"
@@ -77,8 +80,13 @@ def parse_date_value(val):
     return None
 
 def parse_sheet_data(file_path, sheet_name, base_date_str):
+    """파일 경로에서 워크북을 열어 파싱한다 — BASE_DATES(레거시 하드코딩 파일)용."""
     wb = openpyxl.load_workbook(file_path, data_only=True)
-    
+    return parse_sheet_data_from_workbook(wb, sheet_name, base_date_str)
+
+def parse_sheet_data_from_workbook(wb, sheet_name, base_date_str):
+    """이미 열린 워크북에서 파싱한다 — pension_db에 등록된 업로드 파일(bytes)용으로
+    분리했다. 실제 파싱 로직은 레거시 파일이든 업로드 파일이든 완전히 동일하다."""
     # 시트 이름 부분 일치 허용
     actual_sheet = None
     for sn in wb.sheetnames:
@@ -266,10 +274,10 @@ def analyze_snapshot(items, base_date_str, label):
         "items": items
     }
 
-def main():
-    print("Parsing all snapshots...")
+def _parse_legacy_snapshots():
+    """parse_data.py에 하드코딩된 BASE_DATES(과거 연도 등, 관리자가 다시 업로드할
+    일이 거의 없는 자료)를 파싱한다."""
     snapshots_data = {}
-    
     for base_date_str, (rel_path, sheet_name, label) in BASE_DATES.items():
         file_path = os.path.join(DATA_DIR, rel_path)
         if not os.path.exists(file_path):
@@ -282,9 +290,50 @@ def main():
             print(f"  Parsed {base_date_str} OK | 총액: {analysis['total_amount']:,}원 | 수익률: {analysis['weighted_yield']*100:.3f}% | 예상이자: {analysis['expected_interest']:,}원")
         except Exception as e:
             print(f"  Error parsing {base_date_str}: {e}")
-            
-    # YoY Comparison (연말 + 최신 반기)
-    yoy_years = ["2021-12-31", "2022-12-31", "2023-12-31", "2024-12-31", "2025-12-31", "2026-06-30"]
+    return snapshots_data
+
+
+def _parse_db_snapshots():
+    """pension_db에 등록된(관리자가 화면에서 업로드한) 기준일 엑셀을 파싱한다 —
+    같은 기준일이 BASE_DATES에도 있으면 이쪽이 우선한다(코드 수정 없이 화면에서
+    갱신할 수 있게)."""
+    snapshots_data = {}
+    for row in pension_db.list_reports():
+        report_id, base_date_str, label, sheet_hint, filename, _uploaded_at, _size = row
+        try:
+            file_bytes = pension_db.get_report_bytes(report_id)
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+            items = parse_sheet_data_from_workbook(wb, sheet_hint, base_date_str)
+            analysis = analyze_snapshot(items, base_date_str, label)
+            snapshots_data[base_date_str] = analysis
+            print(f"  Parsed (DB) {base_date_str} OK | 총액: {analysis['total_amount']:,}원 | 수익률: {analysis['weighted_yield']*100:.3f}% | 예상이자: {analysis['expected_interest']:,}원")
+        except Exception as e:
+            print(f"  Error parsing DB report {base_date_str} ({filename}): {e}")
+    return snapshots_data
+
+
+def _compute_yoy_years(all_dates):
+    """연말 기준일(YYYY-12-31)이 있는 해는 전부 넣고, 그중 없는 가장 최근 기준일(예:
+    반기말)도 마지막에 하나 추가한다 — 새 기준일이 계속 추가돼도 코드를 손대지
+    않아도 되도록 하드코딩 목록 대신 실제 존재하는 날짜에서 계산한다."""
+    if not all_dates:
+        return []
+    years = sorted({int(d.split('-')[0]) for d in all_dates})
+    yoy = [f"{y}-12-31" for y in years if f"{y}-12-31" in all_dates]
+    latest = max(all_dates)
+    if latest not in yoy:
+        yoy.append(latest)
+    return yoy
+
+
+def build_snapshots_and_yoy():
+    """레거시 BASE_DATES + pension_db 업로드분을 합쳐 최종 data.json 내용을 만든다.
+    같은 기준일이 둘 다에 있으면 DB(화면에서 업로드한 것)가 이긴다."""
+    print("Parsing all snapshots...")
+    snapshots_data = _parse_legacy_snapshots()
+    snapshots_data.update(_parse_db_snapshots())
+
+    yoy_years = _compute_yoy_years(list(snapshots_data.keys()))
     yoy_comparison = []
     
     for i, date_str in enumerate(yoy_years):
@@ -322,16 +371,21 @@ def main():
             "yield_change": yield_change
         })
         
-    output_data = {
+    return {
         "snapshots": snapshots_data,
         "yoy_comparison": yoy_comparison
     }
-    
+
+
+def main():
+    """CLI 진입점 — data.json을 한 번 만들어 디스크에 써둔다(수동 재생성용). 서버
+    (pension_server.py)는 이 함수를 쓰지 않고 build_snapshots_and_yoy()를 요청마다
+    직접 호출해 업로드가 즉시 반영되게 한다."""
+    output_data = build_snapshots_and_yoy()
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(output_data, f, ensure_ascii=False, indent=2)
-        
     print(f"\nSuccessfully wrote unified pension data to {OUTPUT_JSON}")
-    print(f"Total snapshots: {len(snapshots_data)}")
+    print(f"Total snapshots: {len(output_data['snapshots'])}")
 
 if __name__ == "__main__":
     main()
