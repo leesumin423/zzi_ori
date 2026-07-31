@@ -570,6 +570,8 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   white-space: pre-line; border-top: 1px solid var(--border);
   background: rgba(25, 31, 40, 0.04);
 }
+/* 관리종목 지정ㆍ상장폐지 기준이 되는 숫자(금액ㆍ일수ㆍ날짜ㆍ비율)를 눈에 띄게 강조 */
+.num-hl, b.num-hl { color: var(--up); font-weight: 700; }
 
 /* ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ─────────── */
 .portal-summary-cards {
