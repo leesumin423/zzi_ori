@@ -72,6 +72,40 @@ def classify_subject_bucket(institution_raw, subject_text):
     return 'other'
 
 
+# 시트 머리말이 "(단위: 억원)"이라도, 일부 법인 파일은 특정 줄만 실수로 원(WON)
+# 단위 그대로 입력해둔 경우가 실제로 있었다(예: 금왕에프원의 '증권사 및 기타'
+# 섹션 — 4.649억원짜리 대출을 "464900000"으로 입력, 나머지 섹션은 정상적으로
+# "억원" 단위였음). 대출 한 줄이 10만억원(100,000)을 넘는 건 현실적으로 불가능한
+# 규모라, 그럴 땐 원 단위로 잘못 입력된 것으로 보고 1억으로 나눠 억원으로 바꾼다.
+# 개별법인 제출용 서식(parse_individual_submission_sheet)은 애초에 통째로 원
+# 단위라 모든 값이 이 문턱을 넘어서고, 결과적으로 항상 억원으로 정상 환산된다.
+_IMPLAUSIBLE_EOK = 100_000
+
+
+def _fix_unit(value):
+    if value and abs(value) > _IMPLAUSIBLE_EOK:
+        return value / 100_000_000, True
+    return value, False
+
+
+def detect_sheet_format(ws):
+    """업로드된 시트가 두 서식 중 어느 쪽인지 헤더 텍스트로 판별한다.
+    'consolidated' = 그룹차입금보고서 형식('8.동양' 등, "금융기관" 헤더),
+    'individual' = 계열사가 개별적으로 회신하는 [참고2] 소속기업체 차입금현황 서식
+    ("법인명"+"차입처" 헤더). 둘 다 없으면 None."""
+    for r in range(1, min(ws.max_row, 10) + 1):
+        row_keys = set()
+        for c in range(1, min(ws.max_column, 15) + 1):
+            v = ws.cell(r, c).value
+            if v:
+                row_keys.add(str(v).strip().replace('\n', '').replace(' ', ''))
+        if '금융기관' in row_keys:
+            return 'consolidated'
+        if '법인명' in row_keys and '차입처' in row_keys:
+            return 'individual'
+    return None
+
+
 def parse_company_sheet(ws):
     """'8.동양' 형식 시트에서 [{institution_raw, subject, limit, balance, rate}, ...]를
     뽑는다. '계' 행(전체 소계) 이후의 관계사차입 섹션은 이 분석 범위 밖이라 제외한다."""
@@ -98,18 +132,6 @@ def parse_company_sheet(ws):
     limit_col = col_map.get('한도', inst_col + 3)
     balance_col = col_map.get('잔액', inst_col + 4)
     rate_col = col_map.get('이율') or col_map.get('금리')
-
-    # 시트 머리말이 "(단위: 억원)"이라도, 일부 법인 파일은 특정 줄만 실수로 원(WON)
-    # 단위 그대로 입력해둔 경우가 실제로 있었다(예: 금왕에프원의 '증권사 및 기타'
-    # 섹션 — 4.649억원짜리 대출을 "464900000"으로 입력, 나머지 섹션은 정상적으로
-    # "억원" 단위였음). 대출 한 줄이 10만억원(100,000)을 넘는 건 현실적으로 불가능한
-    # 규모라, 그럴 땐 원 단위로 잘못 입력된 것으로 보고 1억으로 나눠 억원으로 바꾼다.
-    _IMPLAUSIBLE_EOK = 100_000
-
-    def _fix_unit(value):
-        if value and abs(value) > _IMPLAUSIBLE_EOK:
-            return value / 100_000_000, True
-        return value, False
 
     items = []
     unit_fix_count = 0
@@ -143,6 +165,81 @@ def parse_company_sheet(ws):
         items.append({
             'institution_raw': current_inst,
             'subject': str(subj).strip() if subj else '',
+            'limit': limit_num,
+            'balance': balance_num,
+            'rate': float(rate_v) if isinstance(rate_v, (int, float)) else None,
+        })
+    return items, unit_fix_count
+
+
+def parse_individual_submission_sheet(ws):
+    """계열사가 개별적으로 회신하는 '[참고2] 소속기업체 차입금현황' 서식(예:
+    "(유진마포130)01_유진기업_차입금현황.xlsx")을 파싱한다. '8.동양' 형식(그룹차입금
+    보고서)과는 헤더/구조가 전혀 다르다:
+    - 헤더: 법인명ㆍ구분ㆍ차입처ㆍ차입한도ㆍ차입잔액ㆍ금리ㆍ시작일ㆍ만기일ㆍ담보 및
+      신용보강ㆍ비고 ("금융기관" 헤더가 아니라 "법인명"+"차입처"로 판별)
+    - '구분' 열이 은행 실무 관점(일반대/한도대)이 아니라 회계ㆍ공시 관점 카테고리
+      (금융기관 차입금/사채 외/관계사 차입금/환매조건부채권매도/콜매도/리스부채/기타)
+    - 단위가 항상 원(WON) — _fix_unit()이 억원으로 자동 환산해준다(값이 항상
+      10만억원 문턱을 넘으므로 매번 정상적으로 변환된다)
+    반환 형식은 parse_company_sheet와 동일한 [{institution_raw, subject, limit,
+    balance, rate}, ...] — 그룹 차입금 분석의 institution/subject 분류 함수를
+    그대로 재사용할 수 있게 맞춘다. '차입처'가 비어있는 빈 카테고리 행(서식에
+    미리 인쇄된 사채 외/리스부채 등 빈 자리)은 건너뛴다."""
+    header_row = None
+    col_map = {}
+    for r in range(1, min(ws.max_row, 10) + 1):
+        row_col_map = {}
+        for c in range(1, min(ws.max_column, 15) + 1):
+            v = ws.cell(r, c).value
+            if v:
+                row_col_map[str(v).strip().replace('\n', '').replace(' ', '')] = c
+        if '법인명' in row_col_map and '차입처' in row_col_map:
+            header_row, col_map = r, row_col_map
+            break
+    if header_row is None:
+        raise ValueError("'법인명/차입처' 헤더 행을 찾을 수 없습니다 — 시트 서식을 확인해주세요.")
+
+    name_col = col_map.get('법인명')
+    category_col = col_map.get('구분')
+    counterparty_col = col_map.get('차입처')
+    limit_col = col_map.get('차입한도')
+    balance_col = col_map.get('차입잔액')
+    rate_col = col_map.get('금리')
+
+    items = []
+    unit_fix_count = 0
+    current_category = None
+    for r in range(header_row + 1, ws.max_row + 1):
+        name_v = ws.cell(r, name_col).value if name_col else None
+        name_text = str(name_v).strip().replace(' ', '') if name_v is not None else ''
+        if name_text == '합계':
+            break  # 총계 행 이후는 비고/유의사항 텍스트라 집계 범위 밖
+
+        cat_v = ws.cell(r, category_col).value if category_col else None
+        cat_text = str(cat_v).strip() if cat_v is not None else ''
+        if cat_text:
+            current_category = cat_text
+
+        counterparty_v = ws.cell(r, counterparty_col).value if counterparty_col else None
+        counterparty_text = str(counterparty_v).strip() if counterparty_v is not None else ''
+
+        limit_v = limit_col and ws.cell(r, limit_col).value
+        balance_v = balance_col and ws.cell(r, balance_col).value
+        rate_v = rate_col and ws.cell(r, rate_col).value
+        limit_num = limit_v if isinstance(limit_v, (int, float)) else 0.0
+        balance_num = balance_v if isinstance(balance_v, (int, float)) else 0.0
+        if limit_num == 0 and balance_num == 0:
+            continue  # 서식에 미리 인쇄된 빈 카테고리 자리(사채 외/리스부채 등)
+
+        limit_num, fixed1 = _fix_unit(float(limit_num))
+        balance_num, fixed2 = _fix_unit(float(balance_num))
+        if fixed1 or fixed2:
+            unit_fix_count += 1
+
+        items.append({
+            'institution_raw': counterparty_text or current_category or '기타',
+            'subject': current_category or '',
             'limit': limit_num,
             'balance': balance_num,
             'rate': float(rate_v) if isinstance(rate_v, (int, float)) else None,
@@ -205,12 +302,27 @@ _UNIT_FIX_DIVISOR_OVERRIDE = {
 def load_company_items_from_bytes(file_bytes, company=None):
     """업로드된 엑셀 바이트에서 회사 상세 시트를 찾아 파싱한다. company를 주면 그
     법인명으로 끝나는 시트를 우선 찾고(find_company_sheet_name), 없으면(또는 company를
-    안 주면) 맨 마지막 시트로 폴백한다. (items, sheet_name, unit_fix_count)를 반환한다
-    — unit_fix_count는 원/억원 단위 혼재를 자동 보정한 항목 수(0이면 보정 없음)."""
+    안 주면) 맨 마지막 시트로 폴백한다 — 개별법인 제출용 서식은 시트 이름이 법인명과
+    무관("작성 기준"/"1")이라 항상 이 폴백(맨 마지막 시트)으로 자연스럽게 데이터
+    시트가 선택된다. 시트를 찾은 뒤 detect_sheet_format()으로 두 서식 중 어느 쪽인지
+    판별해 알맞은 파서로 분기한다. (items, sheet_name, unit_fix_count, sheet_format)를
+    반환한다 — unit_fix_count는 원/억원 단위 혼재를 자동 보정한 항목 수(0이면 보정
+    없음), sheet_format은 'consolidated'(그룹차입금보고서)/'individual'(개별법인
+    제출용)."""
     import io
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
     sheet_name = find_company_sheet_name(wb, company) if company else wb.sheetnames[-1]
-    items, unit_fix_count = parse_company_sheet(wb[sheet_name])
+    ws = wb[sheet_name]
+    sheet_format = detect_sheet_format(ws)
+    if sheet_format == 'individual':
+        items, unit_fix_count = parse_individual_submission_sheet(ws)
+    elif sheet_format == 'consolidated':
+        items, unit_fix_count = parse_company_sheet(ws)
+    else:
+        raise ValueError(
+            "이 시트가 어떤 서식인지 인식할 수 없습니다 — '금융기관' 헤더(그룹차입금보고서 형식) "
+            "또는 '법인명'+'차입처' 헤더(개별법인 제출용 서식) 중 하나가 있어야 합니다."
+        )
 
     override_divisor = _UNIT_FIX_DIVISOR_OVERRIDE.get(company)
     if override_divisor and unit_fix_count:
@@ -221,7 +333,7 @@ def load_company_items_from_bytes(file_bytes, company=None):
             it['limit'] = it['limit'] * rescale if it['limit'] else it['limit']
             it['balance'] = it['balance'] * rescale if it['balance'] else it['balance']
 
-    return items, sheet_name, unit_fix_count
+    return items, sheet_name, unit_fix_count, sheet_format
 
 
 def _weighted_rate(balance_rate_pairs):

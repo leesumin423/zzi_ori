@@ -2724,20 +2724,21 @@ def render_dashboard():
 
             if st.button("💾 저장", type="primary", disabled=(gl_file is None or gl_mismatch), key="gl_save"):
                 try:
-                    parsed_preview, matched_sheet, unit_fix_count = group_loan.load_company_items_from_bytes(
+                    parsed_preview, matched_sheet, unit_fix_count, sheet_format = group_loan.load_company_items_from_bytes(
                         gl_file.getvalue(), company=gl_company
                     )
                 except Exception as e:
                     st.error(f"파싱 실패: {e} — 시트 서식을 확인해주세요.")
-                    parsed_preview, matched_sheet, unit_fix_count = None, None, 0
+                    parsed_preview, matched_sheet, unit_fix_count, sheet_format = None, None, 0, None
                 if parsed_preview is not None:
                     if not parsed_preview:
                         st.error(f"'{matched_sheet}' 시트에서 차입금 항목을 하나도 찾지 못했습니다 — {gl_company} 법인의 시트가 맞는지 확인해주세요.")
                     else:
                         group_loan_db.save_report(gl_company, int(gl_year), int(gl_month), gl_file.name, gl_file.getvalue())
+                        format_label = "개별법인 제출용 서식" if sheet_format == 'individual' else "그룹차입금보고서 형식"
                         st.success(
                             f"{gl_company} {gl_year}년 {gl_month}월 데이터를 저장했습니다 "
-                            f"(시트 '{matched_sheet}'에서 {len(parsed_preview)}개 항목)."
+                            f"(시트 '{matched_sheet}' · {format_label}으로 인식 · {len(parsed_preview)}개 항목)."
                         )
                         if unit_fix_count:
                             st.warning(
@@ -2902,7 +2903,7 @@ def render_dashboard():
                 company = r[1]
                 fb = group_loan_db.get_report_bytes_by_company_month(company, y, m)
                 try:
-                    items, _matched_sheet, _unit_fix_count = group_loan.load_company_items_from_bytes(fb, company=company)
+                    items, _matched_sheet, _unit_fix_count, _sheet_format = group_loan.load_company_items_from_bytes(fb, company=company)
                     result[company] = items
                 except Exception as e:
                     st.warning(f"{company} 시트 파싱 실패: {e}")
