@@ -242,6 +242,20 @@ a { color: var(--accent); text-decoration: none; }
     padding: 24px;
     margin-bottom: 20px;
 }
+.admin-tabbar {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 12px 16px 0;
+    margin-bottom: -1px;
+}
+.admin-tab {
+    border-radius: 10px 10px 0 0;
+}
+.admin-tab.active {
+    border-bottom-color: var(--card-bg);
+}
 .admin-section h2 {
     font-size: 1.05rem;
     margin: 0 0 16px 0;
