@@ -1,10 +1,22 @@
 // dashboard.js – UI rendering for the stock dashboard
 
 // 절대 주소 사용: server.py가 항상 5000번 포트로 뜨므로, html 파일을
-// 파일탐색기에서 직접 더블클릭(file://)해서 열든, 서버 경유(http://localhost:5000)로
-// 열든 상관없이 동일하게 동작한다. (상대 경로 '/data'를 쓰면 file://로 열었을 때
-// fetch가 file:///data를 시도해 항상 실패한다.)
-const API_BASE = 'http://localhost:5000/data';
+// 파일탐색기에서 직접 더블클릭(file://)해서 열든, 서버 경유로 열든(로컬 PC에서든
+// 통합포털 iframe을 통해 다른 PC에서든) 상관없이 동일하게 동작한다.
+// (상대 경로 '/data'를 쓰면 file://로 열었을 때 fetch가 file:///data를 시도해
+//  항상 실패한다. 그렇다고 'localhost'로 고정하면, 이 페이지를 iframe으로 감싸
+//  다른 PC에서 열었을 때 그 PC 자신의 localhost:5000을 찾아버려서 깨진다 —
+//  그래서 file:// 열람만 localhost로 고정하고, 나머지는 지금 이 페이지를 실제로
+//  서비스하고 있는 호스트명을 그대로 재사용한다.)
+const API_HOST = window.location.protocol === 'file:' ? 'localhost' : window.location.hostname;
+const API_BASE = `http://${API_HOST}:5000/data`;
+
+// 공정위 공시 협조전 발송(그룹웨어 RPA)은 이 화면(주가현황, 5000번)이 아니라 통합포털
+// 허브(9000번)에 구현돼 있다 — 참조자ㆍ서식 등록, 그룹웨어 로그인이 필요한 브라우저 창
+// 띄우기가 전부 허브 쪽 코드(hub_db/groupware_rpa/ftc_disclosure_mail.py)에 있어서다.
+// 그래서 이 버튼은 API 호출이 아니라 허브의 해당 화면을 새 탭으로 그냥 연다 — 지금 보고
+// 있는 공정위공시 화면은 그대로 두고, 협조전 작성은 별도 탭에서 진행하도록.
+const HUB_FTC_SEND_URL = `http://${API_HOST}:9000/disclosure/ftc-send`;
 
 // 현재기준(current, 실시간) / 장마감기준(close, 15:30 마감 고정) 전환 상태.
 // 서버가 한 번에 두 값을 모두 내려주므로, 탭 전환은 재요청 없이 마지막으로
@@ -17,9 +29,38 @@ let lastData = { exchange: null, indices: null, companies: null, cement: null, d
 // 선택 없이 바로 보여준다. 카드를 눌러 유형별로 필터링하는 상태만 관리한다.
 let portalFilterType = null; // null이면 전체
 
+// 화면 제목 옆 "(현재기준)"/"(장마감기준)" 표시 — 장마감기준일 때는 화면에서도,
+// 인쇄(PDF)했을 때도 그 값이 어느 날짜 기준인지 바로 보이도록 날짜까지 같이 적는다.
+// 이전에는 document.title(브라우저 탭 제목/PDF 파일명)에만 날짜를 넣었는데, 그건
+// 화면이나 인쇄된 페이지 내용에는 안 보이는 값이라 "표기가 안 나온다"는 문제가 있었다.
+function basisCloseDateStr() {
+  const rawDate = lastData.mgmtWatch?.common?.[0]?.latest_date;
+  return rawDate || new Date().toISOString().slice(0, 10);
+}
+
+function updateBasisNote() {
+  const note = document.getElementById('basisNote');
+  if (!note) return;
+  note.textContent = basis === 'close'
+    ? `(장마감기준, ${basisCloseDateStr()})`
+    : `(${BASIS_LABEL[basis]})`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshBtn')?.addEventListener('click', loadAllData);
-  document.getElementById('pdfBtn')?.addEventListener('click', () => window.print());
+  document.getElementById('pdfBtn')?.addEventListener('click', () => {
+    const originalTitle = document.title;
+    if (basis === 'close') {
+      document.title = `주가현황(장마감기준 ${basisCloseDateStr().replaceAll('-', '.')})`;
+    }
+    window.print();
+    document.title = originalTitle;
+  });
+  // 허브 통합 이후로는 상단 '메뉴(주가/공시)' 전환 버튼이 필요 없다(허브의 최상단
+  // 탭이 이미 그 역할을 함) — 버튼과 라벨을 화면에서 숨긴다. 딥링크(?page=disclosures)로
+  // 특정 페이지를 여는 로직은 이 버튼을 프로그램적으로 클릭하는 방식이라 계속 동작한다.
+  document.getElementById('pageTabs')?.previousElementSibling?.style.setProperty('display', 'none');
+  document.getElementById('pageTabs')?.style.setProperty('display', 'none');
   document.getElementById('investorModalClose')?.addEventListener('click', closeInvestorModal);
   document.getElementById('investorModalOverlay')?.addEventListener('click', (e) => {
     if (e.target.id === 'investorModalOverlay') closeInvestorModal();
@@ -38,10 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       basis = btn.dataset.basis;
       document.querySelectorAll('#basisTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-      const note = document.getElementById('basisNote');
-      if (note) note.textContent = `(${BASIS_LABEL[basis]})`;
+      updateBasisNote();
       renderAll();
       renderMgmtWatch();
+      loadCommentary(); // 코멘트는 basis별로 서버가 다시 계산해야 해서 캐시된 값 재사용 불가
     });
   });
   document.querySelectorAll('#pageTabs .tab-btn').forEach(btn => {
@@ -53,6 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // 기준시점/실시간환율은 주가 데이터 전용이라 공시 화면에서는 숨긴다
       const stockOnly = document.getElementById('stockOnlySidebar');
       if (stockOnly) stockOnly.style.display = page === 'stock' ? '' : 'none';
+      // 공시 화면에서는 '동양의 주가현황' 위젯과 새로고침 버튼도 숨기고 Export만 남긴다.
+      const snapshot = document.getElementById('stockSnapshot');
+      if (snapshot) snapshot.style.display = page === 'stock' ? '' : 'none';
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.style.display = page === 'stock' ? '' : 'none';
       if (page === 'disclosures') {
         const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'summary';
         if (activeDisclosure === 'summary') loadPortalOverview();
@@ -117,6 +163,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') { closeRuleModal(); closeGuideModal(); closeDocRequestModal(); closeTargetListModal(); }
   });
   document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
+  document.getElementById('danpanMailBtn')?.addEventListener('click', sendDanpanMailNow);
+  document.getElementById('ftcDisclosureMailBtn')?.addEventListener('click', () => {
+    window.open(HUB_FTC_SEND_URL, '_blank');
+  });
   attachCommaFormatting(document.getElementById('checkAmount'));
 
   // ── 공정위 공시(대규모내부거래) 대상여부 사전검증 ───────────────────
@@ -153,6 +203,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('targetListModalOverlay')?.addEventListener('click', (e) => {
     if (e.target.id === 'targetListModalOverlay') closeTargetListModal();
   });
+
+  // 통합포털에서 이 페이지를 iframe으로 열 때 ?page=disclosures 를 붙이면
+  // '공시' 탭이 바로 열리도록 지원한다(파라미터가 없으면 기존처럼 '주가' 탭이 기본).
+  const initialPage = new URLSearchParams(window.location.search).get('page');
+  if (initialPage === 'disclosures') {
+    document.querySelector('#pageTabs .tab-btn[data-page="disclosures"]')?.click();
+  }
 
   loadAllData();
 });
@@ -245,15 +302,20 @@ function renderMgmtWatch() {
     if (!row.has_data) {
       return `<tr><td>${row.name}</td><td colspan="3">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
     }
-    const priceWarn = row.price_streak_days > 0;
     const shownDate = basis === 'current' ? row.current_date : row.latest_date;
     const shownClose = basis === 'current' ? row.current_close : row.latest_close;
+    // 시가총액/거래량과 마찬가지로 상태 문구도 basis에 따라 다르게 보여준다 — "현재기준"에서는
+    // 오늘 실시간가가 그대로 마감된다고 가정한 장중 잠정 상태(예: 1,000원 밑으로 떨어진 지
+    // 얼마째인지 미리 계산), "장마감기준"에서는 어제까지의 KRX 확정 이력 기준 상태.
+    const shownStatus = basis === 'current' ? row.current_price_status : row.price_status;
+    const shownStreak = basis === 'current' ? row.current_price_streak_days : row.price_streak_days;
+    const priceWarn = shownStreak > 0;
     return `
       <tr>
         <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
         <td>${shownDate ?? '--'}</td>
         <td>${shownClose != null ? shownClose.toLocaleString('ko-KR') : '--'}원</td>
-        <td class="${priceWarn ? 'down' : ''}">${row.price_status}</td>
+        <td class="${priceWarn ? 'down' : ''}">${shownStatus}</td>
       </tr>
     `;
   }).join('');
@@ -263,11 +325,16 @@ function renderMgmtWatch() {
       return `<tr><td>${row.name}</td><td colspan="5">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
     }
     const capWarn = row.cap_streak_days > 0;
-    const volWarn = row.volume_status === '미달 우려';
     const shownDate = basis === 'current' ? row.current_date : row.latest_date;
     const shownMktcap = basis === 'current' ? row.current_mktcap : row.latest_mktcap;
     const mktcapEok = shownMktcap != null ? Math.round(shownMktcap / 100000000).toLocaleString('ko-KR') : '--';
-    const volAvg = row.volume_avg_monthly != null ? row.volume_avg_monthly.toLocaleString('ko-KR') : '--';
+    // 시가총액과 마찬가지로 거래량도 basis에 따라 다른 값을 보여준다 — "현재기준"에서는
+    // 오늘 장중 실시간 누적거래량까지 반영한 잠정치, "장마감기준"에서는 어제까지의
+    // KRX 확정 이력만으로 계산한 값 (둘이 같은 날짜를 기준으로 함께 움직여야 한다).
+    const shownVolAvg = basis === 'current' ? row.current_volume_avg_monthly : row.volume_avg_monthly;
+    const shownVolStatus = basis === 'current' ? row.current_volume_status : row.volume_status;
+    const volWarn = shownVolStatus === '미달 우려';
+    const volAvg = shownVolAvg != null ? shownVolAvg.toLocaleString('ko-KR') : '--';
     return `
       <tr>
         <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
@@ -275,7 +342,7 @@ function renderMgmtWatch() {
         <td>${mktcapEok}억원</td>
         <td class="${capWarn ? 'down' : ''}">${row.cap_status}</td>
         <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
-        <td class="${volWarn ? 'down' : ''}">${row.volume_status}</td>
+        <td class="${volWarn ? 'down' : ''}">${shownVolStatus}</td>
       </tr>
     `;
   }).join('');
@@ -378,8 +445,11 @@ async function loadCompanyFinancials() {
 async function loadCommentary() {
   const list = document.getElementById('commentary-list');
   if (!list) return;
+  list.innerHTML = '<li>코멘트 불러오는 중…</li>';
   try {
-    const data = await safeFetch(`${API_BASE}?section=commentary`);
+    // basis(현재기준/장마감기준)에 따라 서버가 서로 다른 날짜 기준으로 서술하므로
+    // 사이드바 기준시점 전환 시에도 다시 불러와야 한다(아래 basisTabs 핸들러 참고).
+    const data = await safeFetch(`${API_BASE}?section=commentary&basis=${basis}`);
     const lines = Array.isArray(data.lines) ? data.lines : [];
     list.innerHTML = lines.length
       ? lines.map(line => `<li>${line}</li>`).join('')
@@ -574,6 +644,29 @@ function renderDanpan(payload) {
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>`;
     tbody.appendChild(tr);
   });
+}
+
+async function sendDanpanMailNow() {
+  const btn = document.getElementById('danpanMailBtn');
+  if (!btn) return;
+  if (!confirm('현재 진행현황을 등록된 수신자 전원에게 메일로 즉시 발송합니다. 계속할까요?')) return;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '발송 중…';
+  try {
+    const resp = await fetch('/send-danpan-mail', { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      alert(`발송 실패: ${data.reason || data.error || '알 수 없는 오류'}`);
+    } else {
+      alert(`${data.recipient_count}명에게 발송했습니다 (현장 ${data.site_count}건).`);
+    }
+  } catch (err) {
+    alert(`발송 요청 중 오류가 발생했습니다: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 // ── 공정위 공시(계열회사간 거래) 이력 ────────────────────────
@@ -933,9 +1026,9 @@ function renderEquity(payload) {
   }
 
   if (note) {
-    note.textContent = `총 ${list.length}명. 최근 ${meta.lookback_years ?? 10}년간 "임원ㆍ주요주주특정증권등소유상황보고서" 중 장내매수 이력만 집계했습니다 (매도ㆍ증여ㆍ주식병합 등은 제외). `
+    note.textContent = `총 ${list.length}명(임원만, 주요주주 법인은 제외 — 지주회사 등은 설립 출자 등 조회기간 이전 지분이 대부분이라 평균단가가 실제 취득총액과 맞물리지 않아 뺐습니다). 최근 ${meta.lookback_years ?? 10}년간 "임원ㆍ주요주주특정증권등소유상황보고서" 중 장내매수 이력만 집계했습니다 (매도ㆍ증여ㆍ주식병합 등은 제외). `
       + (meta.officer_roster_available
-          ? '현재 정기보고서의 임원 현황에 없는(=퇴임한) 임원은 제외했습니다(주요주주 법인은 예외). '
+          ? '현재 정기보고서의 임원 현황에 없는(=퇴임한) 임원은 제외했습니다. '
           : '정기보고서 임원 현황 조회에 실패해 퇴임 여부를 걸러내지 못했습니다 — 지난 임원이 섞여 있을 수 있습니다. ')
       + `DART 신고는 거래일로부터 최대 5영업일까지 걸릴 수 있어 아주 최근 거래는 아직 반영되지 않았을 수 있습니다.`;
   }
@@ -1137,6 +1230,15 @@ function showRuleModal(kind) {
   } else if (kind === 'ftc') {
     title.textContent = '공정위 공시 — 대규모내부거래 이사회 의결ㆍ공시';
     body.innerHTML = ruleFtcHtml();
+  } else if (kind === 'mgmt_common') {
+    title.textContent = '관리종목 모니터링 — 보통주(동양) 주가 미달';
+    body.innerHTML = ruleMgmtCommonHtml();
+  } else if (kind === 'mgmt_preferred') {
+    title.textContent = '관리종목 모니터링 — 우선주(동양우ㆍ동양2우B) 시가총액ㆍ거래량 미달';
+    body.innerHTML = ruleMgmtPreferredHtml();
+  } else if (kind === 'mgmt_volume_calc') {
+    title.textContent = '이번 반기 잠정 월평균거래량 — 산정 근거';
+    body.innerHTML = ruleMgmtVolumeCalcHtml();
   } else {
     title.textContent = '지분공시 — 소유상황 보고의무';
     body.innerHTML = ruleEquityHtml();
@@ -1285,7 +1387,7 @@ function guideDanpanHtml() {
     ${lawArticle('유가증권시장 공시규정 제43조의2 (신청에 의한 공시유보)',
       '① 유가증권시장주권상장법인은 경영상 비밀유지를 위하여 필요한 경우 다음 각 호의 신고사항 중 세칙에서 정하는 사항에 대하여 공시유보를 거래소에 신청할 수 있다. 이 경우 사전에 거래소와 협의하여야 한다.\n1. 제7조제1항제1호다목\n2. 제7조제1항제2호나목(1)\n3. 제7조제1항제4호\n\n② 거래소는 제1항의 공시유보 신청에 대하여 기업 경영 등 비밀유지와 투자자 보호와의 형평을 고려하여 공시유보가 필요하다고 인정되는 경우 이를 승인할 수 있다.\n\n③ 유가증권시장주권상장법인은 제1항 및 제2항에 따라 공시가 유보된 사항에 대하여 비밀을 준수하여야 하며, 해당 유보기간이 경과하거나 유보조건이 해제되는 경우에는 그 다음날까지 이를 신고하여야 한다.')}
     ${lawArticle('유가증권시장 공시규정 시행세칙 제18조',
-      '단판공시 서식이 인용하는 세부 시행세칙 조항으로, 정확한 조문 원문은 KRX 법규검색서비스(law.krx.co.kr)에서 최신본 확인이 필요합니다 — 이 항목만 자동 조회에 실패했습니다.')}
+      '단판공시 서식이 인용하는 세부 시행세칙 조항으로, 정확한 조문 원문은 KRX 법규서비스(rule.krx.co.kr)에서 최신본 확인이 필요합니다 — 이 항목만 자동 조회에 실패했습니다.')}
 
     <h4>4. 공시변경(재공시) 및 면제 기준</h4>
     <ul>
@@ -1562,6 +1664,130 @@ function ruleEquityHtml() {
     <a href="https://dart.fss.or.kr/info/main.do?menu=320" target="_blank" class="clickable-name">DART 기업공시 길라잡이</a>).</p>`;
 }
 
+function ruleMgmtCommonHtml() {
+  return `
+    <p>보통주(동양)는 <b>종가가 1,000원 미만인 상태가 30매매거래일 연속</b>되면 관리종목으로
+    지정됩니다 — 이른바 "동전주" 이슈에 대응해 신설된 조항입니다.</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">종가</div>
+        <div class="rule-flow-value">1,000원 미만</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">연속 매매거래일</div>
+        <div class="rule-flow-value">30일 충족</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">관리종목 지정</div>
+        <div class="rule-flow-value">사유발생일 익일</div>
+      </div>
+    </div>
+    <h4>관리종목 지정기준</h4>
+    ${lawArticle('유가증권시장 상장규정 제47조제1항제9호의2 (2026.5.13 신설, 2026.7.1 시행)',
+      '보통주권 종가가 액면가 등 세칙으로 정하는 금액(1,000원) 미만인 상태가 30매매거래일간 계속되는 경우 관리종목으로 지정한다. 다만 이 조항의 시행일(2026.7.1) 이전의 매매거래일은 연속일수 산정에 포함하지 아니한다.')}
+    <h4>상장폐지 기준</h4>
+    ${lawArticle('유가증권시장 상장규정 제48조제1항 (상장폐지기준 — 관리종목 지정사유 미해소)',
+      '관리종목으로 지정된 종목이 지정사유를 일정 유예기간 내에 해소하지 못하는 경우 상장폐지 사유에 해당한다. 시가총액ㆍ매출액 등 다른 관리종목 지정사유는 통상 "관리종목 지정 후 90일 이내 미해소" 또는 "2개 반기 연속 미달" 시 상장폐지로 이어지는 구조를 따른다.')}
+    <p class="info">주가 미달(제47조제1항제9호의2)은 2026.7.1 시행된 신설조항이라, 위와 같은 유예기간ㆍ해소기준이
+    이 조항에도 그대로 적용되는지는 시행세칙 확정 전이라 공개된 자료로 확인되지 않습니다. 실제 지정사유가
+    발생하면(30거래일 충족 임박 시) <a href="https://rule.krx.co.kr/out/index.do" target="_blank" class="clickable-name">KRX 법규서비스</a>에서
+    직접 최신 시행세칙을 확인해 주세요.</p>
+    <p class="rule-cite">근거: 유가증권시장 상장규정 제47조제1항제9호의2, 제48조.</p>`;
+}
+
+function ruleMgmtPreferredHtml() {
+  return `
+    <p>우선주(동양우ㆍ동양2우B)는 종류주권에 적용되는 별도 기준으로, <b>시가총액</b>과
+    <b>거래량</b> 두 가지를 각각 모니터링합니다.</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">상장시가총액</div>
+        <div class="rule-flow-value">20억원 미만</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">연속 매매거래일</div>
+        <div class="rule-flow-value">30일 충족</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">관리종목 지정</div>
+        <div class="rule-flow-value">사유발생일 익일</div>
+      </div>
+    </div>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">반기 월평균거래량</div>
+        <div class="rule-flow-value">1만주 미만</div>
+      </div>
+      <div class="rule-flow-arrow">→</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">관리종목 지정</div>
+        <div class="rule-flow-value">해당 반기 종료 확정 시</div>
+      </div>
+    </div>
+    <h4>관리종목 지정기준</h4>
+    ${lawArticle('유가증권시장 상장규정 제64조제1항제4호 (거래량 미달)',
+      '반기(1~6월, 7~12월)의 월평균거래량이 1만주 미만인 경우 관리종목으로 지정한다.')}
+    ${lawArticle('유가증권시장 상장규정 제64조제1항제5호 (시가총액 미달)',
+      '상장시가총액이 20억원 미만인 상태가 30매매거래일간 계속되는 경우 관리종목으로 지정한다.')}
+    <h4>상장폐지 기준</h4>
+    ${lawArticle('거래량 미달 — 2개 반기 연속 미달 시 상장폐지 (일반 구조)',
+      '보통주권(제47ㆍ48조)에 적용되는 구조를 보면, 거래량 미달로 관리종목 지정된 종목이 그 다음 반기에도 연속으로 월평균거래량 기준에 미달하면 상장폐지 사유에 해당한다. 즉 1개 반기 미달은 "지정", 2개 반기 연속 미달은 "폐지"로 이어지는 2단계 구조다.')}
+    ${lawArticle('시가총액 미달 — 관리종목 지정 후 90일 이내 미해소 시 상장폐지 (일반 구조)',
+      '보통주권(제47ㆍ48조)에 적용되는 구조를 보면, 관리종목 지정 후 90일 이내에 지정사유(시가총액 기준 이상 회복)가 해소되지 않으면 상장폐지 사유에 해당한다.')}
+    <p class="info">위 2가지는 유가증권시장 상장규정이 보통주권(제47ㆍ48조)에 적용하는 일반적인
+    "지정→유예→폐지" 구조입니다. 동양우ㆍ동양2우B가 속한 종류주권 특유 조항(제64조)이 이와
+    똑같은 유예기간(90일ㆍ2반기)을 그대로 쓰는지는 공개된 자료로 확인되지 않아, 실제 지정사유가
+    임박하면(30거래일 충족 또는 반기말 임박 시) <a href="https://rule.krx.co.kr/out/index.do" target="_blank" class="clickable-name">KRX 법규서비스</a>에서
+    제64조 최신 시행세칙을 직접 확인해 주세요.</p>
+    <p class="rule-cite">근거: 유가증권시장 상장규정 제64조제1항제4호ㆍ제5호 (2019.6.26ㆍ2020.7.22 개정, 계속 시행 중), 제48조(상장폐지기준 일반 구조 참고).</p>`;
+}
+
+function ruleMgmtVolumeCalcHtml() {
+  const label = lastData.mgmtWatch?.preferred?.[0]?.half_year_label ?? '이번 반기';
+  return `
+    <p>"이번 반기 잠정 월평균거래량"은 <b>추정치가 아니라, 이번 반기 들어 실제로 체결된 거래량을
+    그대로 누적ㆍ평균한 값</b>입니다. 반기가 끝나기 전까지는 개월수가 덜 찬 상태라 계속 "진행 중
+    잠정치"로 표시되고, 반기가 끝나면 그대로 확정치가 됩니다.</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">반기 시작일</div>
+        <div class="rule-flow-value">1/1 또는 7/1</div>
+      </div>
+      <div class="rule-flow-arrow">~</div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">최근 확정 매매거래일</div>
+        <div class="rule-flow-value">전일자(KRX 확정)</div>
+      </div>
+      <div class="rule-flow-arrow">÷</div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">경과 개월수</div>
+        <div class="rule-flow-value">반기 시작월~현재월</div>
+      </div>
+      <div class="rule-flow-arrow">=</div>
+      <div class="rule-flow-box highlight">
+        <div class="rule-flow-label">${label} 월평균거래량</div>
+        <div class="rule-flow-value">잠정치</div>
+      </div>
+    </div>
+    <h4>계산 방식</h4>
+    <ul>
+      <li><b>분자</b>: 반기 시작일부터 KRX가 이미 확정한 가장 최근 매매거래일(전일자)까지의
+        실제 일별 거래량을 그대로 합산합니다 — 추정ㆍ보간 없이 실데이터만 사용합니다.</li>
+      <li><b>분모</b>: 반기 시작월부터 기준 시점이 속한 달까지의 경과 개월수(양끝 포함)입니다.</li>
+      <li>사이드바 "현재기준" 탭에서는 오늘자가 아직 KRX 확정 이력에 반영되지 않았을 때만
+        오늘 장중 실시간 누적거래량을 임시로 더해 계산합니다. 오늘자가 이미 확정 이력에
+        들어왔으면(장마감 후) 중복 합산을 막기 위해 확정치만 사용합니다.</li>
+      <li>"장마감기준" 탭은 항상 KRX가 공식 확정한 이력만으로 계산해서, 실시간가 변동과 무관하게
+        고정된 값을 보여줍니다.</li>
+    </ul>
+    <p class="rule-cite">기준: 유가증권시장 상장규정 제64조제1항제4호(반기 월평균거래량 1만주 기준).
+    매일 자동 재계산되며, 반기가 바뀌면 분자ㆍ분모가 자동으로 새 반기 기준으로 초기화됩니다.</p>`;
+}
+
 function ruleFtcHtml() {
   return `
     <p>특수관계인(국외 계열회사는 제외)을 상대방으로 하거나 특수관계인을 위하여 <b>대통령령으로
@@ -1676,6 +1902,17 @@ async function runDanpanCheck() {
 }
 
 function renderDanpanCheckResult(r) {
+  // 유가증권시장 공시규정 제3조(적용기준)상 필요한 사업연도의 사업보고서가 아직
+  // 제출되지 않은 경우 — "무조건 전년도"로 잘못 판단하는 대신 왜 지금은 판단할 수
+  // 없는지, 몇 년도 보고서가 언제쯤 나와야 판단 가능한지를 그대로 보여준다.
+  if (r.unavailable) {
+    return `
+      <div class="check-verdict pending">아직 판단할 수 없습니다</div>
+      <div class="check-detail">
+        계약일자 <b>${r.contract_date}</b> · 계약금액(부가세 포함) <b>${fmtWon(r.amount)}원</b><br>
+        ${escapeAttr(r.reason ?? '')}
+      </div>`;
+  }
   const verdictClass = r.is_disclosure_required ? 'required' : 'not-required';
   const verdictText = r.is_disclosure_required
     ? '공시 대상입니다 — 계약체결(또는 해지)일 다음날까지 공시 필요'

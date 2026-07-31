@@ -1,27 +1,31 @@
-/* styles.css – Dark-mode dashboard */
+/* styles.css – Light-mode dashboard
+   (통합포털 허브의 톤(tyia.vercel.app 참고: 밝은 배경 + 토스 블루 #3182f6 + Pretendard)에
+   맞춰 기존 다크 테마에서 라이트 테마로 전환. 상승/하락 색상은 기존에 인쇄용으로 이미
+   검증해둔 값(아래 @media print 블록 참고)을 그대로 기본값으로 승격했다.) */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #0a0a0f;
-  --surface:  #12121c;
-  --card:     #1a1a2e;
-  --border:   rgba(255,255,255,0.15);
-  --text:     #e2e2f0;
-  --muted:    #8888aa;
-  --accent:   #5b6af0;
-  --title:    #7dd3fc;           /* 제목 전용 하늘색 */
-  --up:       #ef4444;           /* 상승 = 빨강 (한국식) */
-  --down:     #3b82f6;           /* 하락 = 파랑 (한국식) */
-  --radius:   10px;
+  --bg:       #f2f4f6;
+  --surface:  #ffffff;
+  --card:     #ffffff;
+  --border:   #e5e8eb;
+  --text:     #191f28;
+  --muted:    #6b7684;
+  --accent:   #3182f6;
+  --title:    #1b64da;           /* 제목 전용 진한 파랑 (토스 블루 계열) */
+  --up:       #dc2626;           /* 상승 = 빨강 (한국식) */
+  --down:     #1d4ed8;           /* 하락 = 파랑 (한국식, --accent와 겹치지 않게 더 진한 톤) */
+  --radius:   12px;
 }
 
 html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', 'Noto Sans KR', sans-serif;
+  font-family: 'Pretendard', 'Inter', 'Noto Sans KR', -apple-system, sans-serif;
   font-size: 14px;
   line-height: 1.6;
 }
@@ -115,7 +119,7 @@ html, body {
 }
 .snapshot-metric {
   text-align: center;
-  background: rgba(255,255,255,0.04);
+  background: rgba(25,31,40,0.04);
   border-radius: 6px;
   padding: 6px 2px;
 }
@@ -151,7 +155,7 @@ html, body {
   cursor: pointer;
 }
 .snapshot-fin-row:hover {
-  background: rgba(255,255,255,0.06);
+  background: rgba(25,31,40,0.06);
 }
 .snapshot-fin-label {
   font-size: 11px;
@@ -166,7 +170,7 @@ html, body {
   display: none;
   font-size: 10px;
   color: var(--muted);
-  background: rgba(255,255,255,0.04);
+  background: rgba(25,31,40,0.04);
   border-radius: 4px;
   padding: 6px 8px;
   margin: 2px 0 4px;
@@ -215,7 +219,7 @@ html, body {
   padding: 9px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(25,31,40,0.06);
   color: var(--text);
   cursor: pointer;
   font-size: 13px;
@@ -223,7 +227,7 @@ html, body {
   transition: background .15s, border-color .15s;
   width: 100%;
 }
-.btn:hover { background: rgba(255,255,255,0.12); border-color: var(--accent); }
+.btn:hover { background: rgba(25,31,40,0.12); border-color: var(--accent); }
 
 .info { font-size: 12px; color: var(--muted); line-height: 1.6; }
 
@@ -238,7 +242,7 @@ html, body {
   flex: 1;
   padding: 8px 6px;
   border: none;
-  background: rgba(255,255,255,0.04);
+  background: rgba(25,31,40,0.04);
   color: var(--muted);
   cursor: pointer;
   font-size: 12px;
@@ -246,7 +250,7 @@ html, body {
   transition: background .15s, color .15s;
 }
 .tab-btn + .tab-btn { border-left: 1px solid var(--border); }
-.tab-btn:hover { background: rgba(255,255,255,0.1); }
+.tab-btn:hover { background: rgba(25,31,40,0.1); }
 .tab-btn.active { background: var(--accent); color: #fff; }
 
 /* #ftcRangeTabs — 두 버튼 모두 동일한 높이의 2줄로 통일(라벨 길이가 달라
@@ -375,7 +379,7 @@ th, td {
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 th {
-  background: rgba(255,255,255,0.05);
+  background: rgba(25,31,40,0.05);
   font-weight: 600;
   font-size: 11px;
   color: var(--muted);
@@ -387,7 +391,7 @@ th {
   z-index: 1;
 }
 
-tr:hover td { background: rgba(255,255,255,0.025); }
+tr:hover td { background: rgba(25,31,40,0.025); }
 
 /* ── 단판공시 표: 행 높이 통일 + 인쇄 시 A4 밖으로 안 넘치게 ──────
    현장명처럼 긴 텍스트가 줄바꿈되면 행마다 높이가 들쭉날쭉해지고 인쇄할 때
@@ -491,19 +495,26 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   letter-spacing: 0;
 }
 .rule-btn:hover { background: rgba(125, 211, 252, 0.2); }
+.rule-btn-sm {
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 15px;
+  border-radius: 50%;
+}
 
 .rule-modal-body { font-size: 13.5px; line-height: 1.75; }
 .rule-modal-body h4 {
-  font-size: 13px; font-weight: 800; color: #0a0a0f; background: var(--title);
+  font-size: 13px; font-weight: 800; color: #ffffff; background: var(--title);
   display: inline-block; padding: 3px 10px; border-radius: 4px; margin: 18px 0 10px;
 }
 .rule-modal-body h4:first-child { margin-top: 0; }
-.rule-modal-body p { margin-bottom: 8px; color: #f4f4fa; }
+.rule-modal-body p { margin-bottom: 8px; color: var(--text); }
 .rule-modal-body .rule-cite {
   font-size: 11px; color: var(--muted); margin-top: 4px;
 }
 .rule-modal-body ul { margin: 4px 0 8px 18px; }
-.rule-modal-body li { margin-bottom: 4px; color: #f4f4fa; }
+.rule-modal-body li { margin-bottom: 4px; color: var(--text); }
 
 /* 도식 흐름: [매출액] → [× 비율] → [기준금액] 같은 박스+화살표 다이어그램 */
 .rule-flow {
@@ -549,15 +560,15 @@ tr:hover td { background: rgba(255,255,255,0.025); }
 .law-article { border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); margin-bottom: 8px; background: var(--card); }
 .law-article summary {
   cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 700;
-  color: #f4f4fa; list-style: none; display: flex; align-items: center; gap: 6px;
+  color: var(--text); list-style: none; display: flex; align-items: center; gap: 6px;
 }
 .law-article summary::-webkit-details-marker { display: none; }
 .law-article summary::before { content: '▸'; color: var(--title); font-size: 12px; transition: transform .15s; }
 .law-article[open] summary::before { transform: rotate(90deg); }
 .law-article-text {
-  padding: 10px 14px 14px; font-size: 12.5px; line-height: 1.8; color: #f4f4fa;
+  padding: 10px 14px 14px; font-size: 12.5px; line-height: 1.8; color: var(--text);
   white-space: pre-line; border-top: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(25, 31, 40, 0.04);
 }
 
 /* ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ─────────── */
@@ -579,10 +590,10 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   display: inline-block; padding: 2px 9px; font-size: 11px; font-weight: 700;
   border-radius: 999px; white-space: nowrap;
 }
-.disclosure-type-badge.type-danpan   { background: rgba(91, 106, 240, 0.18); color: #8ea0ff; }
-.disclosure-type-badge.type-ftc      { background: rgba(251, 146, 60, 0.18); color: #fdba74; }
-.disclosure-type-badge.type-equity   { background: rgba(52, 211, 153, 0.18); color: #6ee7b7; }
-.disclosure-type-badge.type-large_holding { background: rgba(244, 114, 182, 0.18); color: #f9a8d4; }
+.disclosure-type-badge.type-danpan   { background: rgba(91, 106, 240, 0.12); color: #4338ca; }
+.disclosure-type-badge.type-ftc      { background: rgba(234, 88, 12, 0.12); color: #c2410c; }
+.disclosure-type-badge.type-equity   { background: rgba(5, 150, 105, 0.12); color: #047857; }
+.disclosure-type-badge.type-large_holding { background: rgba(219, 39, 119, 0.12); color: #be185d; }
 
 /* ── 작성 가이드 모달 내부 서브탭(공정위공시 3유형 등) ──────────── */
 .guide-subtabs { display: flex; gap: 6px; margin: 4px 0 16px; flex-wrap: wrap; }
@@ -657,14 +668,21 @@ tr:hover td { background: rgba(255,255,255,0.025); }
    반대라 전용 색상 변수를 쓴다 — 등락색을 재사용하면 "상승=공시필요"처럼
    잘못 읽힐 수 있다. */
 .check-verdict.required {
-  background: rgba(248, 113, 113, 0.18);
-  border: 2px solid #f87171;
-  color: #fca5a5;
+  background: rgba(220, 38, 38, 0.10);
+  border: 2px solid #dc2626;
+  color: #b91c1c;
 }
 .check-verdict.not-required {
-  background: rgba(74, 222, 128, 0.16);
-  border: 2px solid #4ade80;
-  color: #86efac;
+  background: rgba(21, 128, 61, 0.10);
+  border: 2px solid #15803d;
+  color: #166534;
+}
+/* "아직 판단할 수 없습니다" = 대상 여부가 아니라 판단 근거(사업보고서)가 아직 없다는
+   뜻이라, 안전/경고 어느 쪽도 아닌 중립(주황·회색 계열)으로 구분한다. */
+.check-verdict.pending {
+  background: rgba(180, 130, 20, 0.10);
+  border: 2px solid #b48214;
+  color: #92660f;
 }
 .check-detail {
   font-size: 13px;
@@ -684,7 +702,7 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   line-height: 1.6;
 }
 .check-error {
-  color: #fca5a5;
+  color: #b91c1c;
   font-size: 13px;
   font-weight: 600;
 }

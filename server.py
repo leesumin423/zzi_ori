@@ -1,7 +1,10 @@
 import os
 import re
+import sys
 import json
 import io
+import time as _time_module
+import threading
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time as dtime, timedelta
@@ -47,6 +50,15 @@ def _load_krx_api_key() -> str:
     return ''
 
 KRX_API_KEY = _load_krx_api_key()
+
+# ─────────────────────────────────────────────────────────────
+# 단판공시 월별 메일링 — 발송 로직(danpan_mail.py)ㆍ수신자 목록(hub_db)ㆍSMTP 설정
+# (hub_config)이 모두 통합포털 폴더에 있어서, 여기서는 그 폴더를 sys.path에 추가해
+# 그대로 import한다(통합포털이 차입금관리의 report_shared를 재사용하는 것과 같은 방식
+# — 로직을 이 파일에 다시 베끼면 나중에 둘이 어긋날 수 있어서 원본을 그대로 쓴다).
+HUB_APP_DIR = os.path.join(BASE_DIR, '..', '통합포털')
+sys.path.insert(0, HUB_APP_DIR)
+import danpan_mail  # noqa: E402
 
 # ─────────────────────────────────────────────────────────────
 # 정적 파일 서빙 (HTML/CSS/JS) — 이 라우트 덕분에 python server.py
@@ -204,7 +216,10 @@ def fetch_index(code: str) -> dict:
     ratio = d.get('fluctuationsRatio', '0')
     direction_name = d.get('compareToPreviousPrice', {}).get('name', '')
     direction = direction_symbol(direction_name)
-    market_open = d.get('marketStatus') == 'OPEN'
+    # marketStatus(API 자체 필드)가 아니라 is_krx_open()을 쓴다 — 테마별시세/상장계열사/
+    # 주가동향/관리종목 모니터링이 전부 이 함수로 "장마감기준" 여부를 판단하므로, 지수도
+    # 같은 기준을 써야 여러 섹션이 서로 다른 시점을 기준으로 어긋나지 않는다.
+    market_open = is_krx_open()
 
     investors = fetch_investor_trend(code)
     inv_summary = investor_summary(investors)
@@ -230,8 +245,14 @@ def fetch_index(code: str) -> dict:
         )
         value_close = f"{fmt_num(confirmed_close, 2)}p {close_direction}"
         detail_close = f"{inv_summary}, {close_change_detail}" if inv_summary else close_change_detail
-    else:
+    elif not market_open:
+        # 장마감 후라면 "현재" 값 자체가 이미 그날의 확정 종가이므로 그대로 써도 안전하다.
         value_close, detail_close, close_direction = value_current, detail_current, direction
+    else:
+        # 장중인데 fchart 확정 종가 조회에 실패한 경우 — 아직 미확정인 오늘 실시간 값을
+        # "장마감기준"인 것처럼 잘못 보여주지 않도록 N/A로 표시한다.
+        na = {"value": "N/A", "detail": "확정 종가 조회 실패", "direction": ""}
+        value_close, detail_close, close_direction = na["value"], na["detail"], na["direction"]
 
     return {
         "current": {"value": value_current, "detail": detail_current, "direction": direction},
@@ -315,6 +336,16 @@ def investor_summary(investors: dict) -> str:
 # ─────────────────────────────────────────────────────────────
 # 2. 테마별 시세
 # ─────────────────────────────────────────────────────────────
+# 화면에 노출되는 순서 그대로 유지해야 하는 리스트라 dict가 아닌 튜플 리스트로 둔다.
+# /data?section=themes 응답과, 장마감 스냅샷 캡처 루프(_capture_theme_close_snapshot)가
+# 이 하나의 정의를 같이 쓴다.
+THEMES = [
+    ("시멘트/레미콘", 44),
+    ("건설대표주", 154),
+    ("증권", 151),
+    ("미디어(방송/신문)", 232),
+]
+
 def fetch_theme_rate(no: int):
     """테마 그룹 페이지에서 전일대비 등락률(%)을 float로 반환. 조회 실패 시 None."""
     url = f"https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no={no}"
@@ -339,13 +370,66 @@ def _fmt_theme_rate(rate) -> str:
 
 def _theme_market_closed_now() -> bool:
     """\uc774 \uc2dc\uc810\uc5d0 \uc870\ud68c\ud55c \ud14c\ub9c8 \ub4f1\ub77d\ub960\uc774 "\uadf8\ub0a0\uc758 \ud655\uc815\uce58"\ub85c \ucde8\uae09\ud574\ub3c4 \ub418\ub294 \uc2dc\uac04\ub300\uc778\uc9c0 \u2014
-    KRX \uc815\uaddc\uc7a5 \ub9c8\uac10(15:30) \uc774\ud6c4, \ub610\ub294 \uc8fc\ub9d0(\uc9c1\uc804 \ud3c9\uc77c \ub9c8\uac10\uce58\uac00 \uadf8\ub300\ub85c \uc720\uc9c0 \uc911)."""
-    now = datetime.now()
-    if now.weekday() >= 5:
-        return True
-    return now.time() > dtime(15, 30)
+    \uc9c0\uc218/\uc0c1\uc7a5\uacc4\uc5f4\uc0ac/\uc8fc\uac00\ub3d9\ud5a5\ucf54\uba58\ud2b8/\uad00\ub9ac\uc885\ubaa9 \ubaa8\ub2c8\ud130\ub9c1\uacfc \uac19\uc740 is_krx_open()\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4.
+    \uc774\uc804\uc5d4 \uc774 \ud568\uc218\uac00 \ub3d9\uc77c\ud55c \uacf5\uc2dd\uc744 \ub530\ub85c \uad6c\ud604\ud574\ub450\uace0 \uc788\uc5b4, \ud734\uc77c \ucc98\ub9ac \uac19\uc740 \uc218\uc815\uc774 \ud55c\ucabd\uc5d0\ub9cc
+    \ubc18\uc601\ub418\uba74 \uc139\uc158\ub9c8\ub2e4 \uc11c\ub85c \ub2e4\ub978 \uae30\uc900\uc77c\uc744 \uc7a5\ub9c8\uac10\uae30\uc900\uc73c\ub85c \uc4f0\uac8c \ub418\ub294 \ubb38\uc81c\uac00 \uc788\uc5c8\ub2e4."""
+    return not is_krx_open()
 
-_theme_daily_cache = {}  # no -> {"date": "YYYY-MM-DD", "rate": float}
+# no -> {"date": "YYYY-MM-DD", "rate": float}. 파일로 저장해두지 않으면 개발 중
+# 서버를 재시작할 때마다(하루에도 여러 번 발생) 이 캐시가 사라져서, 장마감기준이
+# 그 순간 폴백으로 "현재값"과 똑같이 나오는 문제가 있었다 — 재시작해도 그날 이미
+# 확정된 마감 등락률은 유지되도록 파일에 영속화한다.
+THEME_CACHE_FILE = os.path.join(BASE_DIR, 'theme_daily_cache.json')
+
+def _load_theme_cache() -> dict:
+    if os.path.exists(THEME_CACHE_FILE):
+        try:
+            with open(THEME_CACHE_FILE, encoding='utf-8') as f:
+                return {int(k): v for k, v in json.load(f).items()}
+        except Exception as e:
+            print(f"[DEBUG] 테마 마감등락률 캐시 로드 실패: {e}")
+    return {}
+
+def _save_theme_cache(cache: dict):
+    try:
+        with open(THEME_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[DEBUG] 테마 마감등락률 캐시 저장 실패: {e}")
+
+_theme_daily_cache = _load_theme_cache()
+
+def _capture_theme_close_snapshot():
+    """KRX 정규장 마감(15:30) 시점의 테마 등락률을 그날의 확정치로 캐시에 저장한다.
+    이 함수를 호출한 시점(그 순간의 크롤링 결과)을 그대로 확정치로 믿기 때문에, 반드시
+    장이 실제로 끝난 뒤(_theme_close_snapshot_loop가 15:30 이후에만 호출)에만 불러야
+    한다 — 장중에 이 함수를 호출하면 미확정 실시간 값이 확정치로 잘못 저장된다."""
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    for _name, no in THEMES:
+        rate = fetch_theme_rate(no)
+        if rate is not None:
+            _theme_daily_cache[no] = {"date": today_str, "rate": rate}
+    _save_theme_cache(_theme_daily_cache)
+
+def _theme_close_snapshot_loop():
+    """장마감(15:30) 직후 테마 등락률을 자동으로 캡처해두는 상시 루프.
+    이전엔 누군가 장마감 이후에 페이지를 열어야만(그 요청 처리 중에) 캐시가
+    채워졌는데, 그날 장마감 후 아무도 접속하지 않으면(예: 다음날 아침에 첫 접속)
+    "장마감기준"이 N/A로 뜨는 문제가 있었다 — 접속 여부와 무관하게 15:30 이후
+    첫 확인 시 서버가 알아서 캡처해둔다."""
+    while True:
+        try:
+            now = datetime.now()
+            today_str = now.strftime('%Y-%m-%d')
+            already_captured = all(
+                _theme_daily_cache.get(no, {}).get("date") == today_str for _name, no in THEMES
+            )
+            if now.weekday() < 5 and now.time() >= dtime(15, 30) and not already_captured:
+                _capture_theme_close_snapshot()
+                print(f"[테마 장마감 스냅샷] {today_str} 15:30 기준 캡처 완료")
+        except Exception as e:
+            print(f"[테마 장마감 스냅샷 실패] {e}")
+        _time_module.sleep(5 * 60)  # 5분마다 확인
 
 def fetch_theme_change(no: int) -> dict:
     """\ud14c\ub9c8\uc758 \ud604\uc7ac\uae30\uc900(\uc624\ub298 \uc2e4\uc2dc\uac04 \ub4f1\ub77d\ub960)\u318d\uc7a5\ub9c8\uac10\uae30\uc900(\uc9c1\uc804 \ud655\uc815 \uac70\ub798\uc77c\uc758 \ucd5c\uc885
@@ -367,13 +451,16 @@ def fetch_theme_change(no: int) -> dict:
         # \ub9c8\uac10 \ud6c4(\uc8fc\ub9d0 \ud3ec\ud568)\uc5d4 \uc9c0\uae08 \uac12\uc774 \uace7 "\uadf8\ub0a0\uc758 \ud655\uc815\uce58" \u2014 \uce90\uc2dc\ub97c \uac31\uc2e0
         if rate is not None:
             _theme_daily_cache[no] = {"date": today_str, "rate": rate}
+            _save_theme_cache(_theme_daily_cache)
         close_rate = rate
     else:
         entry = _theme_daily_cache.get(no)
         # \uce90\uc2dc\uac00 "\uc624\ub298 \ub0a0\uc9dc"\ub85c \ucc0d\ud600 \uc788\uc73c\uba74 \uc548 \ub428(\uadf8\ub7ec\uba74 \uc815\uc0c1\uc801\uc73c\ub85c\ub294 \ub9c8\uac10 \ud6c4\uc5d0\ub9cc
         # \uc0dd\uae30\ub294 \uc0c1\ud0dc\ub77c \uc55e\ub4a4\uac00 \uc548 \ub9de\ub294 \uac83) \u2014 \uc774\ub7f0 \uacbd\uc6b0\uc640 \uce90\uc2dc\uac00 \uc544\uc608 \uc5c6\ub294 \uacbd\uc6b0\uc5d4
-        # \ud3f4\ubc31\uc73c\ub85c \ud604\uc7ac\uac12\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4(\uacfc\uac70 \ub3d9\uc791\uacfc \ub3d9\uc77c, \ucd5c\uc18c\ud55c \ud1f4\ubcf4\ub294 \uc544\ub2d8).
-        close_rate = entry["rate"] if entry and entry["date"] != today_str else rate
+        # \uc624\ub298 \uc544\uc9c1 \ubbf8\ud655\uc815\uc778 \uc2e4\uc2dc\uac04 \uac12\uc744 "\uc7a5\ub9c8\uac10\uae30\uc900"\uc73c\ub85c \uc798\ubabb \ubcf4\uc5ec\uc8fc\uc9c0 \uc54a\ub3c4\ub85d
+        # None\uc73c\ub85c \ub454\ub2e4(\uacfc\uac70\uc5d4 \ud3f4\ubc31\uc73c\ub85c \ud604\uc7ac\uac12\uc744 \uadf8\ub300\ub85c \uc37c\uc73c\ub098, \uc7a5\uc911\uc5d0 \uc0c8\ub85c \ucd94\uac00\ub41c
+        # \ud14c\ub9c8\ucc98\ub7fc \uce90\uc2dc\uac00 \ube44\uc5b4\uc788\ub294 \uacbd\uc6b0 \ub2e4\ub978 \uc139\uc158\uacfc \uae30\uc900\uc77c\uc774 \uc5b4\uae0b\ub098\ub294 \uc6d0\uc778\uc774\uc5c8\ub2e4).
+        close_rate = entry["rate"] if entry and entry["date"] != today_str else None
 
     return {
         "current": _fmt_theme_rate(rate),
@@ -804,26 +891,49 @@ def _company_root(name: str) -> str:
             return name[:-len(suf)]
     return name
 
+# 회사명이 제목에 있어도 주가와 무관한 사내소식(복지/인사/기부 등)이면 코멘트용
+# "관련 기사"로 채택하지 않는다 — 예: "유진그룹, 임직원 휴가비 지급" 같은 기사.
+NEWS_IRRELEVANT_KEYWORDS = (
+    '휴가비', '복지', '포상', '봉사활동', '기부', '후원', '동정', '인사동정',
+    '신입사원', '채용설명회', '체육대회', '워크숍', '창립기념일', '장학금',
+    '사회공헌', '봉사단', '기념식',
+)
+
+# 회사명이 제목에 직접 없어도, 이 업종 키워드가 있으면 "산업 동향" 관련 기사로 인정한다
+# (레미콘 단가 인상ㆍ파업처럼 회사명 없이 업계 전체를 다루는 기사도 주가에 영향을 줄 수 있음).
+NEWS_INDUSTRY_KEYWORDS = ('레미콘', '시멘트', '골재', '건설자재', '건자재', '레미탈')
+
+
+def _is_relevant_news_title(title: str, root: str) -> bool:
+    """제목이 주가 코멘트의 '관련 기사'로 채택할 만한지 판단한다."""
+    if any(k in title for k in NEWS_IRRELEVANT_KEYWORDS):
+        return False
+    if root in title:
+        return True
+    return any(k in title for k in NEWS_INDUSTRY_KEYWORDS)
+
+
 def _match_news(news_list: list, date_str: str, display_name: str):
     """
-    date_str('YYYY.MM.DD') 당일 뉴스 중 종목명(또는 그 핵심 이름)이 제목에 들어간
-    것만 매칭한다. 같은 날짜에 이 코드로 태그된 기사가 있어도 제목에 회사명이 아예
-    없으면(예: 과거 계열사 시절 이슈 등 실제로는 무관한 기사) 매칭하지 않는다.
-    여러 건이면 이름이 제목 앞쪽에 나오는 기사를 우선한다
-    (예: "유진기업, 장 초반 15% 급등…" 같은 단독 기사가 "…혼조…유진기업·KBI메탈…"
-    같은 여러 종목 나열형 리스트 기사보다 실제 원인을 설명할 가능성이 높음).
+    date_str('YYYY.MM.DD') 당일 뉴스 중 (1) 종목명(또는 그 핵심 이름)이 제목에 들어갔거나
+    (2) 업종 키워드(레미콘ㆍ시멘트 등)가 있는 기사만 매칭한다. 휴가비ㆍ복지 등 주가와
+    무관한 사내소식은 회사명이 있어도 제외한다(_is_relevant_news_title 참고).
+    여러 건이면 회사명이 직접 들어간 기사, 그중에서도 이름이 제목 앞쪽에 나오는 기사를
+    우선한다 (예: "유진기업, 장 초반 15% 급등…" 같은 단독 기사가 "…혼조…유진기업·KBI메탈…"
+    같은 여러 종목 나열형 리스트 기사보다 실제 원인을 설명할 가능성이 높다).
     """
     root = _company_root(display_name)
     same_day = [n for n in news_list if n['date'].startswith(date_str)]
-    named = [n for n in same_day if root in n['title']]
+    named = [n for n in same_day if _is_relevant_news_title(n['title'], root)]
     if not named:
         return None
-    named.sort(key=lambda n: n['title'].find(root))
+    named.sort(key=lambda n: (root not in n['title'], n['title'].find(root) if root in n['title'] else 0))
     return named[0]
 
 def _find_related_news(news_list: list, date_str: str, display_name: str, window_days: int = 3):
-    """같은 날 매칭이 없으면, date_str 이전 window_days일 내에서도 회사명이 제목에
-    들어간 기사가 있는지 찾는다 (이름이 없는 기사는 여기서도 매칭하지 않는다)."""
+    """같은 날 매칭이 없으면, date_str 이전 window_days일 내에서도 관련 기사
+    (회사명 또는 업종 키워드)가 있는지 찾는다. _match_news와 같은 관련성 기준을 쓴다
+    (휴가비ㆍ복지 등 무관 기사는 여기서도 제외)."""
     matched = _match_news(news_list, date_str, display_name)
     if matched:
         return matched
@@ -833,7 +943,7 @@ def _find_related_news(news_list: list, date_str: str, display_name: str, window
         return None
     root = _company_root(display_name)
     for n in news_list:  # news_list는 최신순
-        if root not in n['title']:
+        if not _is_relevant_news_title(n['title'], root):
             continue
         try:
             n_date = datetime.strptime(n['date'][:10], '%Y.%m.%d')
@@ -891,11 +1001,21 @@ def _flow_summary_sentence(h: dict, price_up: bool = None) -> str:
         return f"수급 측면에서는 {sell_txt}이 순매도 우위를 보이며 {verb} 것으로 풀이된다"
     return ''
 
-def _last_trading_day_index(ohlc_asc: list):
-    """시간순(오래된→최신) 리스트에서 거래량이 있는 가장 최근 날짜의 인덱스 (비교할 전일이 있어야 하므로 index>=1)"""
+def _last_trading_day_index(ohlc_asc: list, exclude_live_today: bool = False):
+    """시간순(오래된→최신) 리스트에서 거래량이 있는 가장 최근 날짜의 인덱스 (비교할 전일이 있어야 하므로 index>=1).
+
+    exclude_live_today=True(장마감기준)이고 장이 아직 진행 중이면, 아직 끝나지 않은
+    오늘은 건너뛰고 그 직전의 '확정 종가'가 있는 날을 반환한다 — 현재기준(장중 실시간)과
+    장마감기준(직전 확정 종가)이 같은 날 서로 다른 날짜를 기준으로 서술되게 하기 위함.
+    """
+    today_str = datetime.now().strftime('%Y.%m.%d')
+    skip_today = exclude_live_today and is_krx_open()
     for i in range(len(ohlc_asc) - 1, 0, -1):
-        if ohlc_asc[i]['volume'] > 0:
-            return i
+        if ohlc_asc[i]['volume'] <= 0:
+            continue
+        if skip_today and ohlc_asc[i]['date'] == today_str:
+            continue
+        return i
     return None
 
 def _volume_anomaly_desc(ohlc_asc: list, idx: int) -> str:
@@ -962,13 +1082,17 @@ def _find_same_day_disclosure(code: str, date_str: str):
 
 def _describe_latest_trading_day(
     code: str, display_name: str, ohlc_asc: list, hist_by_date: dict, news: list,
-    kospi_rate: float = None,
+    kospi_rate: float = None, basis: str = 'current',
 ) -> str:
     """
     가장 최근 실제 거래일 하루를 '시가 → (장중 급변동 있었다면) 고점/저점 → 종가' 흐름과
     그날의 수급 우위, 관련 뉴스까지 묶어 한 문단으로 서술. 변동폭 크기와 무관하게 항상 생성.
+
+    basis='current'면 지금 이 순간(장중이면 실시간, 장마감 후면 그날 종가) 기준으로,
+    basis='close'면 항상 '가장 최근 확정된 종가일' 기준으로 서술한다 — 장중에는 두 기준이
+    서로 다른 날짜를 가리키게 된다(예: 오늘 장중에 장마감기준을 보면 어제 종가 기준 서술).
     """
-    idx = _last_trading_day_index(ohlc_asc)
+    idx = _last_trading_day_index(ohlc_asc, exclude_live_today=(basis == 'close'))
     if idx is None:
         return ''
     day = ohlc_asc[idx]
@@ -977,8 +1101,11 @@ def _describe_latest_trading_day(
         return ''
 
     # 장중(당일 실시간)인지 확인 — 아직 안 끝난 하루를 "종가...마감"이라고 부르면
-    # 이미 끝난 것처럼 오해하게 되므로 문구를 다르게 처리한다.
-    is_live_today = (day['date'] == datetime.now().strftime('%Y.%m.%d')) and is_krx_open()
+    # 이미 끝난 것처럼 오해하게 되므로 문구를 다르게 처리한다. 장마감기준은 위에서
+    # 이미 진행 중인 오늘을 걸러냈으므로 여기서는 항상 False가 된다.
+    is_live_today = (
+        basis != 'close' and day['date'] == datetime.now().strftime('%Y.%m.%d') and is_krx_open()
+    )
 
     open_pct = (day['open'] - prev_close) / prev_close * 100
     high_pct = (day['high'] - prev_close) / prev_close * 100
@@ -1035,7 +1162,16 @@ def _describe_latest_trading_day(
         kospi_dir = '상승' if kospi_rate > 0 else ('하락' if kospi_rate < 0 else '보합')
         gap = close_pct - kospi_rate
         if abs(gap) >= 3:
-            relative = f"코스피 대비 뚜렷한 {'강세' if gap > 0 else '약세'}"
+            # "강세"/"약세"는 그 자체로 등락 방향을 뜻하는 말이라, 코스피보다 덜 떨어졌을
+            # 뿐 종목 자체는 여전히 하락한 경우(gap>0인데 close_pct<0)에 "강세"라고 쓰면
+            # "주가가 올랐다"로 오해할 수 있다(실제 문의: 코스피 -10.84%, 당사 -5%인데
+            # "코스피 대비 강세"로 표시돼 혼동). 그래서 gap의 방향과 종목 자체의 등락
+            # 방향이 같을 때만 강세/약세를 쓰고, 엇갈리면(코스피보다 덜 빠졌다/덜 올랐다)
+            # "낙폭 완화"/"상승폭이 작아 부진"으로 구분한다.
+            if gap > 0:
+                relative = "코스피 대비 뚜렷한 강세" if close_pct > 0 else "코스피 대비 낙폭 완화"
+            else:
+                relative = "코스피 대비 뚜렷한 약세" if close_pct < 0 else "코스피 대비 상승폭이 작아 부진"
         else:
             relative = "코스피와 비슷한 흐름"
         parts.append(f"같은 날 코스피는 {kospi_rate:+.2f}% {kospi_dir}해 {relative}")
@@ -1060,8 +1196,8 @@ def _describe_latest_trading_day(
     matched = _find_related_news(news, day['date'], display_name)
     if matched:
         parts.append(f"관련 기사 「{matched['title']}」({matched['date']})")
-    elif not disclosure:
-        parts.append("최근 관련 뉴스ㆍ공시는 확인되지 않음")
+    else:
+        parts.append("주가 관련 기사 없음")
 
     return '. '.join(parts)
 
@@ -1532,17 +1668,25 @@ def _fetch_annual_financials(corp_code: str, bsns_year: int = None):
 
     return None
 
-def _resolve_fiscal_year_asof(corp_code: str, as_of_date):
-    """계약일자(as_of_date) 시점에 실제로 이미 DART에 제출돼있던 가장 최근
-    "사업보고서"(반기ㆍ분기보고서 제외 — "최근 사업연도"는 연간 결산 기준)를 찾아
-    그 사업연도를 반환한다. 예: 2023-06-02에 계약을 맺었다면, 그 시점에 최근
-    제출된 사업보고서가 "사업보고서 (2022.12)"였는지 확인해 2022를 반환 — 지금
-    시점(2026년)의 "최근 사업연도"가 아니라, **계약 당시** 실제로 참조 가능했던
-    매출액 기준을 재현하기 위함이다. 회사는 2021년부터 이어져 온 단판공시 현장을
-    지금도 관리하고 있어서, 오래된 계약을 사후 검증하려면 이 시점 보정이 필요하다.
-    반환값: (사업연도:int, report_nm, rcept_dt) 또는 실패 시 (None, None, None)."""
-    end_de = as_of_date.strftime('%Y%m%d')
-    bgn_de = (as_of_date - timedelta(days=800)).strftime('%Y%m%d')  # 사업보고서는 매년 1건 → 2년 넉넉히
+def _required_fiscal_year_by_rule(contract_date):
+    """유가증권시장 공시규정 제3조(적용기준): "최근 사업연도 매출액" 등은 매 사업연도
+    종료 후 3월이 경과한 날부터 그 다음 사업연도 종료 후 3월이 되는 날까지 적용한다.
+    (주)동양은 12월 결산법인이라 이 창이 매년 4월 1일에 넘어간다 —
+      · 4/1 ~ 다음해 3/31 계약: 그 해(계약연도-1) 사업연도 매출액 적용
+      · 1/1 ~ 3/31 계약: 아직 4월이 안 지났으므로 그 전전해(계약연도-2) 사업연도 적용
+    "무조건 전년도"가 아니라 이 4월 1일 기준으로 계산해야 한다 — 예: 2027-05-31
+    계약(4월 이후)은 2026 사업연도, 2027-02-15 계약(1~3월)은 2025 사업연도를 쓴다."""
+    if contract_date.month >= 4:
+        return contract_date.year - 1
+    return contract_date.year - 2
+
+
+def _find_annual_report_for_year(corp_code: str, target_fy: int, not_after_date):
+    """target_fy 사업연도의 "사업보고서"(반기ㆍ분기보고서 제외)를 찾는다. not_after_date
+    이전에 실제로 제출된 것만 인정한다(그 시점에 참조 가능했던 자료인지 확인).
+    반환: (report_nm, rcept_dt) 또는 아직 제출 안 됐으면(못 찾으면) (None, None)."""
+    end_de = not_after_date.strftime('%Y%m%d')
+    bgn_de = f"{target_fy}0101"  # 사업보고서는 사업연도 종료 후(다음해 3월경) 나옴
     try:
         r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
             "crtfc_key": DART_API_KEY, "corp_code": corp_code,
@@ -1552,25 +1696,47 @@ def _resolve_fiscal_year_asof(corp_code: str, as_of_date):
         data = r.json()
     except Exception as e:
         print(f"[DEBUG] {corp_code} 사업보고서 목록 조회 중 예외: {e}")
-        return None, None, None
+        return None, None
     if data.get('status') != '000':
-        return None, None, None
+        return None, None
 
     # 반기ㆍ분기보고서는 "사업연도" 확정 기준이 아니므로 제외, [기재정정]은 원본과
-    # 사업연도가 같으므로 어느 쪽이 걸려도 무방하지만 원본을 우선한다.
+    # 사업연도가 같으므로 어느 쪽이 걸려도 무방하지만 원본을 우선한다. report_nm에
+    # "(YYYY.12)"로 그 사업연도가 명시돼있어 target_fy와 정확히 일치하는 것만 쓴다
+    # (기간만으로 걸러내면 인접 사업연도 보고서가 섞여 들어올 수 있어서).
     candidates = [
         d for d in data.get('list', [])
         if re.match(r'^(\[기재정정\])?사업보고서', d.get('report_nm', ''))
         and d.get('rcept_dt', '') <= end_de
+        and f'({target_fy}.12)' in d.get('report_nm', '')
     ]
     if not candidates:
-        return None, None, None
+        return None, None
     candidates.sort(key=lambda d: (d.get('rcept_dt', ''), not d.get('report_nm', '').startswith('[')))
     latest = candidates[-1]
-    m = re.search(r'\((\d{4})\.\d{2}\)', latest.get('report_nm', ''))
-    if not m:
+    return latest.get('report_nm', '').strip(), latest.get('rcept_dt', '')
+
+
+def _resolve_fiscal_year_asof(corp_code: str, as_of_date):
+    """계약일자(as_of_date)에 유가증권시장 공시규정 제3조(적용기준)상 적용해야 할
+    사업연도를 계산하고(_required_fiscal_year_by_rule), 그 사업연도 사업보고서가
+    실제로(그 계약일자 또는 오늘 중 이른 시점까지) 제출됐는지 확인한다.
+
+    미래 계약일자라도 오늘 이후의 사업보고서는 실제로 존재할 수 없으므로, 조회
+    상한은 as_of_date와 오늘 중 이른 날짜로 둔다 — 그래야 "아직 제출 안 된 사업연도"를
+    정확히 "판단 불가"로 구분해낸다(예전엔 이 구분이 없어서, 예를 들어 2027년 계약
+    처럼 먼 미래 날짜를 넣어도 그냥 지금 시점 최신 사업보고서를 갖다 써서, 실제로는
+    아직 판단할 수 없는 경우까지 마치 판단되는 것처럼 나왔다).
+
+    반환값: (사업연도:int, report_nm, rcept_dt) 또는 아직 제출 안 됐으면(못 찾으면)
+    (None, None, None) — 이 경우 호출부에서 _required_fiscal_year_by_rule로 "원래는
+    몇 년도가 필요한지"를 다시 계산해 안내 메시지에 쓴다."""
+    required_fy = _required_fiscal_year_by_rule(as_of_date)
+    effective_asof = min(as_of_date, datetime.now().date())
+    report_nm, rcept_dt = _find_annual_report_for_year(corp_code, required_fy, effective_asof)
+    if report_nm is None:
         return None, None, None
-    return int(m.group(1)), latest.get('report_nm', '').strip(), latest.get('rcept_dt', '')
+    return required_fy, report_nm, rcept_dt
 
 def check_danpan_disclosure(contract_date_str: str, amount: int):
     """단판공시 사전검증 — 계약(예정)일자와 계약금액을 받아, **그 계약일자 시점에
@@ -1587,7 +1753,22 @@ def check_danpan_disclosure(contract_date_str: str, amount: int):
 
     fiscal_year, report_nm, rcept_dt = _resolve_fiscal_year_asof(corp_code, contract_date)
     if fiscal_year is None:
-        return None
+        # 규정상 필요한 사업연도의 사업보고서가 아직 제출되지 않았다 — "판단 불가"를
+        # 그냥 에러로 뭉개지 않고, 몇 년도 사업보고서가 언제쯤 나오면 판단 가능한지
+        # 구체적으로 알려준다(무조건 전년도로 잘못 판단하는 대신).
+        required_fy = _required_fiscal_year_by_rule(contract_date)
+        return {
+            "contract_date": _dots(contract_date_str),
+            "amount": amount,
+            "unavailable": True,
+            "required_fiscal_year": required_fy,
+            "reason": (
+                f"유가증권시장 공시규정 제3조(적용기준)에 따르면 이 계약일자는 {required_fy}년 사업연도 매출액을 "
+                f"기준으로 판단해야 하는데, {required_fy}년 사업연도 사업보고서가 아직 제출되지 않아 지금은 "
+                f"공시대상 여부를 판단할 수 없습니다. 사업보고서는 보통 사업연도 종료 후 90일 이내, "
+                f"즉 {required_fy + 1}년 3월경 제출됩니다 — 그 이후 다시 확인해주세요."
+            ),
+        }
 
     financials = _fetch_annual_financials(corp_code, bsns_year=fiscal_year)
     if not financials:
@@ -1806,7 +1987,12 @@ def _equity_is_buy(t: dict) -> bool:
     실제 사례) 사유 텍스트로 화이트리스트를 만드는 대신 "수량이 늘었고(qty>0)
     단가가 있다(price is not None)"로 판단한다. 무상증자ㆍ주식병합ㆍ상속ㆍ증여처럼
     대가 없이 수량만 바뀌는 사유는 취득/처분단가란이 항상 "-"(파싱하면 None)라
-    이 조합으로 자연스럽게 제외된다."""
+    이 조합으로 자연스럽게 제외된다.
+
+    "신규보고(+)"도 매수로 집계한다 — 평균단가는 "그때 매입한 시점부터 지금까지
+    누적으로 매수한 수량 대비 단가"를 구하는 것이라, 처음 보고의무가 생겼을 때
+    신고한 최초 보유분(신규보고)도 그 시점에 disclose된 단가 그대로 누적 가중평균에
+    더해야 한다(제외하면 그 이전 매수 이력이 통째로 빠져버린다)."""
     return bool(t.get('qty') and t['qty'] > 0 and t.get('price') is not None)
 
 def _equity_parse_document(html_text: str) -> dict:
@@ -2076,9 +2262,11 @@ def _equity_compute_accuracy(by_person: dict) -> dict:
 _equity_cache = {'ts': 0.0, 'data': None, 'meta': None}
 
 def fetch_equity_monitoring(force: bool = False) -> list:
-    """최근 10년간 임원ㆍ주요주주 소유상황보고서를 스캔해 주주(임원/주요주주)별
-    매수 이력(최초/최근 매수일, 누적 매수량, 평균단가)을 집계한다. 매도ㆍ증여ㆍ
-    주식병합 등 매수가 아닌 사유는 집계에서 제외한다. DART_API_KEY가 없으면
+    """최근 10년간 임원ㆍ주요주주 소유상황보고서를 스캔해 임원별 매수 이력(최초/최근
+    매수일, 누적 매수량, 평균단가)을 집계한다. 매도ㆍ증여ㆍ주식병합 등 매수가 아닌
+    사유는 집계에서 제외한다. 주요주주(법인 등)는 이 표에서 제외한다 — 지주회사처럼
+    설립 출자 등 조회기간(10년) 이전부터 쌓인 지분이 대부분이면, 최근 유상매수 건만의
+    평균단가가 전체 누적 주식수와 맞물리지 않기 때문이다. DART_API_KEY가 없으면
     빈 리스트."""
     now = datetime.now().timestamp()
     if not force and _equity_cache['data'] is not None and now - _equity_cache['ts'] < EQUITY_CACHE_TTL:
@@ -2172,20 +2360,24 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         last_parsed = docs[-1]['parsed']  # 가장 최근 공시에 적힌 신상정보(직위 등)를 채택
         is_major_shareholder = last_parsed.get('is_major_shareholder', False)
 
-        # 현재 정기보고서의 임원 현황에 없는 사람은 퇴임한 임원 — 주요주주(법인 등)는
-        # 이 표(임원 현황)에 애초에 안 잡히는 별개 카테고리라 걸러내지 않는다.
+        # 이 표는 "임원 매수단가" 모니터링이 목적이라 주요주주(법인 등)는 제외한다 —
+        # 유진기업(주) 같은 지주회사는 설립 출자 등으로 조회기간(10년) 이전부터 쌓인
+        # 지분이 대부분이라, 최근 유상매수 건만으로 낸 평균단가가 전체 누적 주식수와
+        # 맞물리지 않는다(예: 유진기업(주) 누적 28,784,296주 중 최근 10년 유상매수
+        # 공시는 6건뿐 — "주식수 × 평균단가"가 실제 취득총액과 전혀 다르게 나옴).
+        if is_major_shareholder:
+            continue
+
+        # 현재 정기보고서의 임원 현황에 없는 사람은 퇴임한 임원이므로 제외한다.
         # roster가 None이면 정기보고서 조회 자체가 실패한 것이라 필터링을 건너뛴다
         # (안 그러면 조회 실패 시 전원이 "퇴임자"로 잘못 걸러짐).
-        if roster is not None and not is_major_shareholder and name not in roster:
+        if roster is not None and name not in roster:
             continue
 
         roster_entry = (roster or {}).get(name) or {}
-        if is_major_shareholder:
-            role_label = '최대주주'
-        else:
-            # 정기보고서 임원현황의 등기구분("사내이사"/"사외이사"/"미등기")을 우선 쓰고,
-            # 그 표에 없는 예외적인 경우에만 공시 원문 자체의 등기임원여부로 대체한다.
-            role_label = roster_entry.get('reg_type') or ('등기' if '등기임원' in (last_parsed.get('registered_text') or '') else '미등기')
+        # 정기보고서 임원현황의 등기구분("사내이사"/"사외이사"/"미등기")을 우선 쓰고,
+        # 그 표에 없는 예외적인 경우에만 공시 원문 자체의 등기임원여부로 대체한다.
+        role_label = roster_entry.get('reg_type') or ('등기' if '등기임원' in (last_parsed.get('registered_text') or '') else '미등기')
 
         # "유진기업 주식회사" 같은 "OO 주식회사" 표기를 팀에서 익숙한 "OO(주)"로 정리
         display_name = name[:-5] + '(주)' if name.endswith(' 주식회사') else name
@@ -3282,7 +3474,7 @@ MANUAL_HALT_REASONS = {
     # "종목코드": "확인된 사유",
 }
 
-def generate_stock_commentary(code: str, display_name: str) -> str:
+def generate_stock_commentary(code: str, display_name: str, basis: str = 'current') -> str:
     """
     최근 10영업일 수급(개인/기관/외국인)·주가 데이터를 분석해 보고서 톤 코멘트를 생성.
     순서: ① 가장 최근 실제 거래일의 시가→(장중 급변동)→종가 흐름 + 그날 수급 우위(원인) +
@@ -3292,6 +3484,10 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     아니라 "추정"으로만 표현. 거래정지가 아니면 단순 저유동성으로 표시.
     데이터에서 직접 확인되지 않는 원인은 추정해 서술하지 않고,
     수치로 확인된 사실과 실제 뉴스 헤드라인만 근거로 사용한다.
+
+    basis='current'(현재기준)는 지금 이 순간(장중이면 실시간) 기준, basis='close'(장마감기준)는
+    항상 가장 최근 확정된 종가일 기준으로 ①을 서술한다 — 장중에 장마감기준을 보면 어제
+    (직전 확정 종가일) 기준 코멘트가 나온다.
     """
     history = fetch_stock_investor(code, days=10)
     if not history:
@@ -3306,7 +3502,9 @@ def generate_stock_commentary(code: str, display_name: str) -> str:
     news = fetch_stock_news(code, count=10)
     kospi_rate = fetch_index_rate('KOSPI')
     if ohlc_asc:
-        day_sentence = _describe_latest_trading_day(code, display_name, ohlc_asc, hist_by_date, news, kospi_rate)
+        day_sentence = _describe_latest_trading_day(
+            code, display_name, ohlc_asc, hist_by_date, news, kospi_rate, basis=basis
+        )
         if day_sentence:
             sentences.append(day_sentence)
 
@@ -3478,15 +3676,30 @@ def _fetch_live_price(code: str):
     지정대상 여부)은 이 값과 무관하게 항상 KRX 공식 확정 이력만 사용한다 —
     실시간 값 하나로 규정상 매매거래일 판단을 흔들면 안 되므로.
     """
+    live = _fetch_live_price_and_volume(code)
+    return live[0] if live else None
+
+def _fetch_live_price_and_volume(code: str):
+    """
+    실시간 현재가 + 당일 누적거래량을 함께 조회 (itemSummary API의 now/quant 필드 —
+    quant는 fetch_stock()에서도 "당일 누적 거래량(KRX 정규장 기준)"으로 이미 검증해
+    쓰고 있는 필드다). 관리종목 모니터링의 "현재기준" 탭에서 시가총액뿐 아니라
+    이번 반기 잠정 월평균거래량도 장중 실시간으로 갱신되게 하려고 추가했다 — 그 전엔
+    거래량 쪽은 항상 전일까지의 KRX 확정 이력만 쓰고 있어서, "현재기준" 탭에서도
+    "장마감기준"과 같은(어제까지의) 값이 그대로 보이는 문제가 있었다.
+    실패 시 None.
+    """
     try:
         r = requests.get(
             f"https://api.finance.naver.com/service/itemSummary.nhn?itemcode={code}",
             headers=HEADERS, timeout=10,
         )
-        price = r.json().get('now', 0)
-        return int(price) if price else None
+        d = r.json()
+        price = d.get('now', 0)
+        volume = d.get('quant', 0)
+        return (int(price) if price else None, int(volume) if volume else 0)
     except Exception as e:
-        print(f"[DEBUG] {code} 실시간 현재가(관리종목 모니터링용) 조회 중 예외: {e}")
+        print(f"[DEBUG] {code} 실시간 현재가/거래량(관리종목 모니터링용) 조회 중 예외: {e}")
         return None
 
 def _fetch_krx_day(bas_dd: str):
@@ -3726,7 +3939,7 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
         designation,
     )
 
-def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dict:
+def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_volume: int = None) -> dict:
     """
     유가증권시장 상장규정 제64조(종류주권 — 동양우/동양2우B)의 시가총액ㆍ거래량
     두 기준의 현재 상태를 계산.
@@ -3740,6 +3953,11 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dic
     비율로 시가총액을 스케일링해 "현재기준" 표시값(current_mktcap/current_date)도
     함께 계산한다 — 규정 판단(cap_status 등)에는 영향 없음, 어디까지나 화면
     표시용 실시간 근사치.
+
+    live_volume(오늘 장중 누적거래량, KRX 확정 전)이 주어지면 같은 방식으로
+    current_volume_avg_monthly도 함께 계산한다 — 이게 없으면 "현재기준" 탭에서도
+    거래량 쪽만 전일까지의 확정치가 그대로 보여서 시가총액(current_mktcap)과
+    기준 시점이 어긋나 보이는 문제가 있었다.
     """
     day_map = history.get(code, {})
     trading_dates = _trading_dates(day_map)
@@ -3757,6 +3975,8 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dic
             "current_date": None,
             "volume_avg_monthly": None,
             "volume_status": "데이터 없음",
+            "current_volume_avg_monthly": None,
+            "current_volume_status": "데이터 없음",
             "half_year_label": None,
             "history_days": 0,
         }
@@ -3790,6 +4010,21 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dic
     if live_price and latest.get("close"):
         current_mktcap = round(latest["mktcap"] / latest["close"] * live_price)
 
+    # "현재기준" 잠정 월평균거래량 — 오늘이 아직 KRX로 확정되지 않았으면(장중) 오늘의
+    # 실시간 누적거래량을 더해서 계산하고, 이미 확정 이력에 오늘이 들어있으면(장마감 후)
+    # 중복 합산을 막기 위해 확정치(half_volume_sum)를 그대로 쓴다.
+    today = date.today()
+    today_str = today.strftime('%Y%m%d')
+    current_elapsed_months = (today.year - half_start.year) * 12 + (today.month - half_start.month) + 1
+    if live_volume is not None and today_str not in day_map:
+        current_volume_sum = half_volume_sum + live_volume
+    else:
+        current_volume_sum = half_volume_sum
+    current_volume_avg_monthly = (
+        round(current_volume_sum / current_elapsed_months) if current_elapsed_months else 0
+    )
+    current_volume_status = "미달 우려" if current_volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
+
     return {
         "has_data": True,
         "cap_streak_days": cap_streak,
@@ -3802,6 +4037,8 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None) -> dic
         "current_date": date.today().strftime('%Y-%m-%d'),
         "volume_avg_monthly": volume_avg_monthly,
         "volume_status": volume_status,
+        "current_volume_avg_monthly": current_volume_avg_monthly,
+        "current_volume_status": current_volume_status,
         "half_year_label": half_label,
         "history_days": len(trading_dates),
     }
@@ -3817,7 +4054,12 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
     포함하지 않는다 — 규정 시행 전에는 애초에 적용될 수 없는 조항이었으므로.
 
     live_price가 주어지면(사이드바 "현재기준" 탭용) current_close/current_date로
-    그대로 담아 반환한다 — 규정 판단(price_status 등)에는 영향 없음, 화면 표시용.
+    그대로 담아 반환한다. 규정상 최종 판단(price_status/price_streak_days)은 항상 KRX
+    확정 종가 이력만 쓰고 live_price와 무관하지만, 그것과 별개로 current_price_status를
+    추가로 계산한다 — "현재기준" 탭에서 오늘 실시간가가 이미 1,000원 밑인데 옆에 그냥
+    "정상"만 뜨면(어제까지는 정상이었으니 확정 이력상 맞는 말이지만) 왜 정상인지 혼란을
+    준다. current_price_status는 "오늘 이 가격 그대로 마감되면"을 가정한 장중 잠정치를
+    보여줘서 이 간극을 메운다 — 실제 지정 여부 판단에는 전혀 쓰이지 않는 표시 전용 값.
     """
     day_map = history.get(code, {})
     trading_dates = _trading_dates(day_map)
@@ -3833,6 +4075,8 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
             "latest_date": None,
             "current_close": None,
             "current_date": None,
+            "current_price_status": "데이터 없음",
+            "current_price_streak_days": 0,
             "history_days": 0,
         }
 
@@ -3852,6 +4096,28 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
     price_streak = len(price_streak_dates)
     price_streak_start = price_streak_dates[0] if price_streak_dates else None
 
+    # "현재기준" 장중 잠정 상태 — 오늘이 아직 KRX로 확정되지 않았으면(오늘 날짜가
+    # day_map에 없으면) live_price가 지금 이 가격 그대로 마감된다고 가정해서 미리
+    # 계산한다. 오늘이 이미 확정 이력에 있으면(장마감 후) 확정치와 똑같이 맞춘다.
+    today = date.today()
+    today_str = today.strftime('%Y%m%d')
+    if today_str in day_map:
+        current_price_status = price_status
+        current_price_streak_days = price_streak
+    elif live_price is not None:
+        if live_price < MGMT_PRICE_THRESHOLD and today_str >= MGMT_PRICE_RULE_EFFECTIVE_DATE:
+            projected_dates = price_streak_dates + [today_str]
+        else:
+            projected_dates = []
+        projected_status, _ = _streak_status_text(projected_dates, today)
+        current_price_streak_days = len(projected_dates)
+        current_price_status = (
+            f"장중 잠정(미확정) — {projected_status}" if projected_dates else "정상(장중)"
+        )
+    else:
+        current_price_status = price_status
+        current_price_streak_days = price_streak
+
     return {
         "has_data": True,
         "price_streak_days": price_streak,
@@ -3862,6 +4128,8 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
         "latest_date": _fmt_date(latest_date_str),
         "current_close": live_price,
         "current_date": date.today().strftime('%Y-%m-%d'),
+        "current_price_status": current_price_status,
+        "current_price_streak_days": current_price_streak_days,
         "history_days": len(trading_dates),
     }
 
@@ -3882,12 +4150,6 @@ def data_endpoint():
     if section == 'themes':
         # 리스트(name, no) 순서 그대로 노출됨 — dict를 쓰면 Flask의 JSON_SORT_KEYS
         # 기본값(True) 때문에 키가 가나다순으로 재정렬되어 순서가 무시된다.
-        THEMES = [
-            ("시멘트/레미콘", 44),
-            ("건설대표주", 154),
-            ("증권", 151),
-            ("미디어(방송/신문)", 232),
-        ]
         result = [{"name": name, **fetch_theme_change(no)} for name, no in THEMES]
         return jsonify(result)
 
@@ -3950,19 +4212,22 @@ def data_endpoint():
         if changed:
             _save_mgmt_history(history)
 
-        # "현재기준" 표시용 실시간 현재가 — 3종목뿐이라 병렬로 가볍게 조회
+        # "현재기준" 표시용 실시간 현재가ㆍ당일 누적거래량 — 3종목뿐이라 병렬로 가볍게 조회
         with ThreadPoolExecutor(max_workers=len(MGMT_ALL_TICKERS)) as executor:
-            live_prices = dict(zip(
+            live_results = dict(zip(
                 MGMT_ALL_TICKERS.values(),
-                executor.map(_fetch_live_price, MGMT_ALL_TICKERS.values()),
+                executor.map(_fetch_live_price_and_volume, MGMT_ALL_TICKERS.values()),
             ))
+        live_prices = {code: (v[0] if v else None) for code, v in live_results.items()}
+        live_volumes = {code: (v[1] if v else None) for code, v in live_results.items()}
 
         common_rows = [
             {"name": name, "code": code, **compute_price_status(code, history, live_prices.get(code))}
             for name, code in MGMT_COMMON_TICKERS.items()
         ]
         preferred_rows = [
-            {"name": name, "code": code, **compute_mgmt_status(code, history, live_prices.get(code))}
+            {"name": name, "code": code,
+             **compute_mgmt_status(code, history, live_prices.get(code), live_volumes.get(code))}
             for name, code in MGMT_WATCH_TICKERS.items()
         ]
         return jsonify({"available": True, "common": common_rows, "preferred": preferred_rows})
@@ -4018,9 +4283,13 @@ def data_endpoint():
         return jsonify(fetch_stock_investor(code))
 
     if section == 'commentary':
-        # 인쇄(PDF) 시 표 아래 남는 여백에 넣을 주가 동향 코멘트 — 동양/유진기업 대상
+        # 화면의 '주가 동향 코멘트' 섹션 — 동양/유진기업 대상. basis(current/close)에 따라
+        # 현재기준은 지금 이 순간, 장마감기준은 가장 최근 확정 종가일 기준으로 서술한다.
+        basis = request.args.get('basis', 'current')
+        if basis not in ('current', 'close'):
+            basis = 'current'
         TARGETS = [("동양", "001520"), ("유진기업", "023410")]
-        lines = [generate_stock_commentary(code, name) for name, code in TARGETS]
+        lines = [generate_stock_commentary(code, name, basis=basis) for name, code in TARGETS]
         return jsonify({"lines": lines})
 
     if section == 'danpan':
@@ -4107,8 +4376,46 @@ def data_endpoint():
     return jsonify({"error": f"unknown section: {section}"}), 400
 
 
+@app.route('/send-danpan-mail', methods=['POST'])
+def send_danpan_mail():
+    """단판공시 화면의 '📧 메일 보내기' 버튼 — 지금 이 화면에 보이는 현장 목록을
+    그대로 즉시 발송한다(매월 1일 자동발송과 같은 발송 로직을 그대로 재사용)."""
+    sites = fetch_danpan_monitoring()
+    result = danpan_mail.send_monthly_mail(sites, triggered_by='manual')
+    if not result.get('ok'):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+def _danpan_auto_mail_loop():
+    """매월 1일에 단판공시 진행현황을 자동 발송한다. 정확히 자정에 실행되는 OS
+    스케줄러가 아니라 이 서버 프로세스 안에서 도는 상시 점검 루프라서, 서버가 1일
+    당일에 꺼져 있었더라도 그 달 안에 다시 켜지기만 하면(예: 1일에 못 켜지고 3일에
+    켜짐) 그 달치를 한 번은 놓치지 않고 보낸다 — hub_db.was_danpan_mail_sent_for로
+    같은 달에 중복 발송되는 것만 막는다."""
+    while True:
+        try:
+            if datetime.now().day >= 1 and not danpan_mail.already_sent_this_month():
+                sites = fetch_danpan_monitoring()
+                result = danpan_mail.send_monthly_mail(sites, triggered_by='auto')
+                if result.get('ok'):
+                    print(f"[단판공시 자동발송] {result['recipient_count']}명에게 발송 (현장 {result['site_count']}건)")
+                else:
+                    print(f"[단판공시 자동발송 건너뜀] {result.get('reason')}")
+        except Exception as e:
+            print(f"[단판공시 자동발송 실패] {e}")
+        _time_module.sleep(6 * 60 * 60)  # 6시간마다 확인
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
+    # debug=True는 코드 변경 시 자동 재시작을 위해 reloader를 쓰는데, reloader는 감시용
+    # 부모 프로세스와 실제 서빙용 자식 프로세스 이렇게 두 번 이 파일을 실행한다. 그래서
+    # 자동발송 스레드는 WERKZEUG_RUN_MAIN이 설정된(=실제 서빙하는) 자식 프로세스에서만
+    # 켜서 메일이 두 번 발송되는 걸 막는다.
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        threading.Thread(target=_danpan_auto_mail_loop, daemon=True).start()
+        threading.Thread(target=_theme_close_snapshot_loop, daemon=True).start()
     # threaded=True: 프론트엔드가 여러 섹션(/data?section=...)을 동시에 요청하는데,
     # 이게 없으면 개발서버가 요청을 한 번에 하나씩만 처리해서 그만큼 더 느려진다.
     app.run(host='0.0.0.0', port=port, debug=True, threaded=True)

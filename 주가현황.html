@@ -177,9 +177,9 @@
         <h2>관리종목지정 모니터링</h2>
         <p class="info" id="mgmtWatchNote"></p>
 
-        <h3 class="mgmt-watch-subtitle">1) 보통주 <span class="market-note">(동양 — 주가 미달)</span></h3>
-        <p class="info mgmt-watch-rule-note">유가증권시장 상장규정 제47조제1항제9호의2(2026.5.13 신설, <b>2026.7.1 시행</b>) —
-          종가가 1,000원 미만인 상태가 30매매거래일 연속되면 관리종목 지정 대상("동전주" 이슈). 시행일 이전 매매거래일은 연속일수에 포함하지 않음.</p>
+        <h3 class="mgmt-watch-subtitle">1) 보통주 <span class="market-note">(동양 — 주가 미달)</span>
+          <button class="rule-btn" data-rule="mgmt_common">규정 보기</button>
+        </h3>
         <div class="table-wrap">
           <table id="mgmt-watch-common-table">
             <thead>
@@ -191,15 +191,16 @@
           </table>
         </div>
 
-        <h3 class="mgmt-watch-subtitle">2) 우선주 <span class="market-note">(동양우ㆍ동양2우B — 시가총액ㆍ거래량 미달)</span></h3>
-        <p class="info mgmt-watch-rule-note">유가증권시장 상장규정 제64조제1항(2019.6.26ㆍ2020.7.22 개정, 계속 시행 중) —
-          4호 거래량 미달: 반기(1~6월/7~12월) 월평균거래량이 1만주 미만. 5호 시가총액 미달: 상장시가총액이 20억원 미만인 상태가 30매매거래일 연속되면 관리종목 지정 대상.</p>
+        <h3 class="mgmt-watch-subtitle">2) 우선주 <span class="market-note">(동양우ㆍ동양2우B — 시가총액ㆍ거래량 미달)</span>
+          <button class="rule-btn" data-rule="mgmt_preferred">규정 보기</button>
+        </h3>
         <div class="table-wrap">
           <table id="mgmt-watch-preferred-table">
             <thead>
               <tr>
                 <th>종목</th><th>기준일</th><th>시가총액<br>(기준일 현재)</th><th>시가총액 상태<br>(20억원 기준)</th>
-                <th>이번 반기 잠정<br>월평균거래량</th><th>거래량 상태<br>(1만주 기준)</th>
+                <th>이번 반기 잠정<br>월평균거래량 <button class="rule-btn rule-btn-sm" data-rule="mgmt_volume_calc" title="산정근거 보기">?</button></th>
+                <th>거래량 상태<br>(1만주 기준)</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -249,7 +250,9 @@
       <!-- ── 단판공시 모니터링 ── -->
       <div id="disclosure-danpan" style="display:none;">
         <section class="section" id="danpan-section">
-          <h2>단일판매ㆍ공급계약 진행 현장 <button class="rule-btn" data-rule="danpan">규정 보기</button> <button class="rule-btn" data-guide="danpan">작성 가이드</button></h2>
+          <h2>단일판매ㆍ공급계약 진행 현장 <button class="rule-btn" data-rule="danpan">규정 보기</button> <button class="rule-btn" data-guide="danpan">작성 가이드</button>
+            <button id="danpanMailBtn" class="rule-btn" style="float:right;">📧 메일 보내기</button>
+          </h2>
           <p class="info" id="danpanNote" style="margin-bottom:12px;">불러오는 중…</p>
           <div class="table-wrap">
             <table id="danpan-table">
@@ -382,7 +385,9 @@
       <!-- ── 공정위공시(계열회사간 거래) 모니터링 ── -->
       <div id="disclosure-ftc" style="display:none;">
         <section class="section" id="ftc-section">
-          <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button> <button class="rule-btn" data-guide="ftc">작성 가이드</button></h2>
+          <h2>공정위 공시(계열회사간 거래) 이력 <button class="rule-btn" data-rule="ftc">규정 보기</button> <button class="rule-btn" data-guide="ftc">작성 가이드</button>
+            <button id="ftcDisclosureMailBtn" class="rule-btn" style="float:right;">📧 협조전 발송하기</button>
+          </h2>
           <p class="info" style="margin-bottom:8px;">동양(주) 본체뿐 아니라 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ
             디씨아이티와이부천피에프브이ㆍ디씨아이티와이인천피에프브이)이 각자 이름으로 낸 공정위 공시도 함께
             모아서 보여줍니다 — 대규모내부거래ㆍ공정위 자료 제출 시 회사마다 따로 찾아야 하는 번거로움을 줄이기 위함.</p>
