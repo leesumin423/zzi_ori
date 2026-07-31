@@ -56,7 +56,13 @@ _GET_LINK_JS = """
   // 플래그, 카테고리 등) 첫 번째 <a>를 그냥 집으면 엉뚱한 링크(예: 보낸사람 정보)를
   // 클릭하게 된다. 실제 "제목/본문 열기" 링크는 보통 name="aSubject" 처럼 subject를
   // 가리키는 이름을 쓰므로 이를 최우선으로 찾는다.
+  // 실제 eugenes.co.kr 그룹웨어(전자결재 완료함) 화면을 열어보니, "열람"이라는 별도
+  // 액션 링크가 제목 링크보다 DOM상 먼저 나와서 그걸 클릭해버리면 인라인 미리보기만
+  // 뜨고 상세화면 URL은 안 바뀌는 문제가 있었다 — 실제 제목 링크는
+  // class="taTit" 이거나 onclick="onClickPopButton(...)"(새 팝업창을 여는 함수)로
+  // 식별할 수 있어서 이를 최우선으로 찾는다.
   const subjectLink = el.querySelector(
+    'a.taTit, a[onclick*="onClickPopButton"], ' +
     'a[name="aSubject"], a[id*="aSubject" i], a[name*="subject" i], a[id*="subject" i]'
   );
   if (subjectLink) return subjectLink;

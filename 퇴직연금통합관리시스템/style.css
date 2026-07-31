@@ -1,29 +1,29 @@
-/* style.css - Premium Glassmorphism Theme for Pension Dashboard */
+/* style.css - Premium Light Glassmorphism Theme for Pension Dashboard */
 
 :root {
-    --bg-color: #080c14;
-    --card-bg: rgba(16, 22, 38, 0.6);
-    --card-border: rgba(255, 255, 255, 0.06);
-    --card-glow: rgba(59, 130, 246, 0.15);
-    
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    
+    --bg-color: #eef2f8;
+    --card-bg: #ffffff;
+    --card-border: rgba(15, 23, 42, 0.08);
+    --card-glow: rgba(59, 130, 246, 0.12);
+
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+
     --accent: #3b82f6;
-    --accent-light: #60a5fa;
-    --accent-glow: rgba(59, 130, 246, 0.3);
-    
+    --accent-light: #2563eb;
+    --accent-glow: rgba(59, 130, 246, 0.25);
+
     --success: #10b981;
-    --success-light: #34d399;
-    --success-glow: rgba(16, 217, 129, 0.2);
-    
+    --success-light: #059669;
+    --success-glow: rgba(16, 185, 129, 0.18);
+
     --warning: #f59e0b;
     --danger: #ef4444;
-    
+
     --font-header: 'Outfit', 'Noto Sans KR', sans-serif;
     --font-body: 'Inter', 'Noto Sans KR', sans-serif;
-    
+
     --blur-intensity: 16px;
     --transition-speed: 0.3s;
 }
@@ -36,10 +36,9 @@
 
 body {
     background-color: var(--bg-color);
-    background-image: 
-        radial-gradient(at 0% 0%, rgba(29, 78, 216, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(9, 79, 114, 0.15) 0px, transparent 50%),
-        radial-gradient(at 50% 50%, rgba(8, 12, 20, 1) 0px, rgba(8, 12, 20, 0.9) 100%);
+    background-image:
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.07) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.06) 0px, transparent 50%);
     background-attachment: fixed;
     color: var(--text-primary);
     font-family: var(--font-body);
@@ -54,14 +53,14 @@ body {
     height: 8px;
 }
 ::-webkit-scrollbar-track {
-    background: rgba(8, 12, 20, 0.5);
+    background: rgba(15, 23, 42, 0.04);
 }
 ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.15);
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(15, 23, 42, 0.25);
 }
 
 .dashboard-container {
@@ -82,7 +81,7 @@ body {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     backdrop-filter: blur(var(--blur-intensity));
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.08);
 }
 
 .header-logo {
@@ -110,7 +109,7 @@ body {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.5px;
-    background: linear-gradient(to right, #ffffff, #e2e8f0);
+    background: linear-gradient(to right, #0f172a, #334155);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -143,7 +142,7 @@ body {
 }
 
 .dropdown-control {
-    background: rgba(15, 23, 42, 0.8);
+    background: #f8fafc;
     border: 1px solid var(--card-border);
     color: var(--text-primary);
     padding: 0.6rem 2.5rem 0.6rem 1.2rem;
@@ -180,7 +179,7 @@ body {
     display: block;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.8);
+    background: #f8fafc;
     border: 1px solid var(--card-border);
     border-radius: 20px;
     position: relative;
@@ -256,7 +255,7 @@ body {
     border-radius: 16px;
     padding: 1.5rem;
     backdrop-filter: blur(var(--blur-intensity));
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px 0 rgba(15, 23, 42, 0.06);
     display: flex;
     align-items: center;
     gap: 1.5rem;
@@ -282,29 +281,29 @@ body {
 
 .kpi-card:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+    border-color: rgba(15, 23, 42, 0.14);
+    box-shadow: 0 12px 32px 0 rgba(15, 23, 42, 0.10);
 }
 
-#kpi-total-assets:hover { box-shadow: 0 12px 40px 0 rgba(59, 130, 246, 0.15); }
-#kpi-weighted-yield:hover { box-shadow: 0 12px 40px 0 rgba(16, 185, 129, 0.15); }
-#kpi-expected-interest:hover { box-shadow: 0 12px 40px 0 rgba(245, 158, 11, 0.15); }
+#kpi-total-assets:hover { box-shadow: 0 12px 32px 0 rgba(59, 130, 246, 0.15); }
+#kpi-weighted-yield:hover { box-shadow: 0 12px 32px 0 rgba(16, 185, 129, 0.15); }
+#kpi-expected-interest:hover { box-shadow: 0 12px 32px 0 rgba(245, 158, 11, 0.15); }
 
 .kpi-icon-wrapper {
     width: 54px;
     height: 54px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(15, 23, 42, 0.03);
+    border: 1px solid rgba(15, 23, 42, 0.06);
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-secondary);
 }
 
-#kpi-total-assets .kpi-icon-wrapper { color: var(--accent-light); background: rgba(59, 130, 246, 0.08); }
-#kpi-weighted-yield .kpi-icon-wrapper { color: var(--success-light); background: rgba(16, 185, 129, 0.08); }
-#kpi-expected-interest .kpi-icon-wrapper { color: var(--warning); background: rgba(245, 158, 11, 0.08); }
+#kpi-total-assets .kpi-icon-wrapper { color: var(--accent); background: rgba(59, 130, 246, 0.10); }
+#kpi-weighted-yield .kpi-icon-wrapper { color: var(--success-light); background: rgba(16, 185, 129, 0.10); }
+#kpi-expected-interest .kpi-icon-wrapper { color: #d97706; background: rgba(245, 158, 11, 0.10); }
 
 .kpi-info h2 {
     font-size: 0.85rem;
@@ -335,7 +334,7 @@ body {
 }
 
 .text-accent {
-    background: linear-gradient(135deg, #38bdf8, #34d399);
+    background: linear-gradient(135deg, #2563eb, #059669);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -349,8 +348,8 @@ body {
     font-weight: 500;
 }
 
-.trend-up { color: var(--success-light); }
-.trend-down { color: var(--danger); }
+.trend-up { color: #059669; }
+.trend-down { color: #dc2626; }
 .trend-neutral { color: var(--text-muted); }
 
 /* Charts Layout */
@@ -371,13 +370,13 @@ body {
     border: 1px solid var(--card-border);
     border-radius: 16px;
     backdrop-filter: blur(var(--blur-intensity));
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px 0 rgba(15, 23, 42, 0.05);
     padding: 1.5rem;
     transition: border-color var(--transition-speed);
 }
 
 .glass-card:hover {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(15, 23, 42, 0.14);
 }
 
 .chart-container {
@@ -439,7 +438,7 @@ body {
 
 .search-input {
     width: 100%;
-    background: rgba(15, 23, 42, 0.6);
+    background: #f8fafc;
     border: 1px solid var(--card-border);
     border-radius: 8px;
     padding: 0.6rem 1rem 0.6rem 2.2rem;
@@ -452,7 +451,7 @@ body {
 .search-input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 10px var(--accent-glow);
-    background: rgba(15, 23, 42, 0.8);
+    background: #ffffff;
 }
 
 .search-icon {
@@ -479,7 +478,7 @@ table {
 }
 
 thead th {
-    background: rgba(15, 23, 42, 0.5);
+    background: rgba(15, 23, 42, 0.035);
     color: var(--text-secondary);
     font-weight: 600;
     padding: 0.85rem 1.2rem;
@@ -491,12 +490,12 @@ thead th {
 }
 
 tbody tr {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.05);
     transition: background var(--transition-speed);
 }
 
 tbody tr:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(15, 23, 42, 0.02);
 }
 
 tbody td {
@@ -521,16 +520,16 @@ tbody td.amount-cell {
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
-.inst-nh { background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); color: #34d399; }
-.inst-kdb { background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-.inst-woori { background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.2); color: #22d3ee; }
-.inst-ibk { background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.2); color: #c084fc; }
-.inst-kdbbank { background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.2); color: #f472b6; }
-.inst-samsung { background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.inst-nh { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25); color: #059669; }
+.inst-kdb { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.25); color: #2563eb; }
+.inst-woori { background: rgba(6, 182, 212, 0.08); border-color: rgba(6, 182, 212, 0.25); color: #0e7490; }
+.inst-ibk { background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25); color: #7c3aed; }
+.inst-kdbbank { background: rgba(236, 72, 153, 0.08); border-color: rgba(236, 72, 153, 0.25); color: #db2777; }
+.inst-samsung { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25); color: #b45309; }
 
 /* Footer */
 .main-footer {
@@ -548,21 +547,21 @@ tbody td.amount-cell {
     body {
         padding: 1rem;
     }
-    
+
     .kpi-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .charts-row {
         grid-template-columns: 1fr;
     }
-    
+
     .main-header {
         flex-direction: column;
         gap: 1.5rem;
         align-items: flex-start;
     }
-    
+
     .header-controls {
         width: 100%;
         justify-content: space-between;
@@ -575,8 +574,8 @@ tbody td.amount-cell {
     font-size: 0.68rem;
     font-weight: 400;
     color: var(--accent-light);
-    background: rgba(59, 130, 246, 0.12);
-    border: 1px solid rgba(59, 130, 246, 0.25);
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.22);
     border-radius: 20px;
     padding: 0.15rem 0.55rem;
     margin-left: 0.5rem;
@@ -599,9 +598,9 @@ tbody td.amount-cell {
     gap: 0.3rem;
     font-size: 0.75rem;
     font-weight: 500;
-    color: #fbbf24;
+    color: #b45309;
     background: rgba(251, 191, 36, 0.12);
-    border: 1px solid rgba(251, 191, 36, 0.3);
+    border: 1px solid rgba(251, 191, 36, 0.35);
     border-radius: 20px;
     padding: 0.2rem 0.65rem;
     animation: fadeIn 0.2s ease;
@@ -612,8 +611,8 @@ tbody td.amount-cell {
     font-size: 0.72rem;
     font-weight: 500;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.10);
     border-radius: 6px;
     padding: 0.25rem 0.7rem;
     cursor: pointer;
@@ -622,8 +621,8 @@ tbody td.amount-cell {
 }
 .filter-clear-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(15, 23, 42, 0.08);
+    border-color: rgba(15, 23, 42, 0.18);
 }
 
 /* ── 실적배당 배지 ── */
@@ -631,9 +630,9 @@ tbody td.amount-cell {
     display: inline-block;
     font-size: 0.65rem;
     font-weight: 600;
-    color: #a78bfa;
+    color: #7c3aed;
     background: rgba(167, 139, 250, 0.12);
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    border: 1px solid rgba(167, 139, 250, 0.35);
     border-radius: 4px;
     padding: 0.05rem 0.35rem;
     margin-left: 0.3rem;
@@ -652,8 +651,8 @@ tbody td.amount-cell {
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.03);
+    border: 1px solid rgba(15, 23, 42, 0.10);
     border-radius: 20px;
     padding: 0.4rem 0.95rem;
     cursor: pointer;
@@ -672,10 +671,10 @@ tbody td.amount-cell {
 }
 
 .pill-toggle-btn.active {
-    color: #0f172a;
-    background: #60a5fa;
-    border-color: #60a5fa;
-    box-shadow: 0 0 12px rgba(96, 165, 250, 0.4);
+    color: #ffffff;
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
     font-weight: 600;
 }
 
@@ -731,7 +730,7 @@ tbody td.amount-cell {
     width: 10px;
     height: 10px;
     border-radius: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(15, 23, 42, 0.15);
     flex-shrink: 0;
 }
 
@@ -757,13 +756,13 @@ tbody td.amount-cell {
     font-size: 0.62rem;
     font-weight: 500;
     color: var(--accent-light);
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.25);
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.22);
     border-radius: 20px;
     padding: 0.1rem 0.45rem;
     margin-left: 0.4rem;
     vertical-align: middle;
-    opacity: 0.75;
+    opacity: 0.85;
     transition: opacity 0.2s ease;
 }
 
@@ -785,7 +784,7 @@ tbody td.amount-cell {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
+    background: rgba(15, 23, 42, 0.45);
     backdrop-filter: blur(4px);
     z-index: 1000;
     display: flex;
@@ -805,7 +804,7 @@ tbody td.amount-cell {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
 }
 
 .modal-header {
@@ -825,8 +824,8 @@ tbody td.amount-cell {
 }
 
 .modal-close-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.05);
+    border: 1px solid rgba(15, 23, 42, 0.10);
     border-radius: 6px;
     color: var(--text-secondary);
     width: 30px;
@@ -839,9 +838,9 @@ tbody td.amount-cell {
     justify-content: center;
 }
 .modal-close-btn:hover {
-    background: rgba(239, 68, 68, 0.15);
+    background: rgba(239, 68, 68, 0.12);
     border-color: rgba(239, 68, 68, 0.3);
-    color: #f87171;
+    color: #dc2626;
 }
 
 .modal-body {
@@ -852,8 +851,8 @@ tbody td.amount-cell {
 
 /* ── 계산 공식 박스 ── */
 .calc-formula-box {
-    background: rgba(59, 130, 246, 0.07);
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.18);
     border-radius: 10px;
     padding: 1rem 1.25rem;
     margin-bottom: 1.5rem;
@@ -898,7 +897,7 @@ tbody td.amount-cell {
 }
 
 .calc-table thead tr {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(15, 23, 42, 0.03);
     border-bottom: 1px solid var(--card-border);
 }
 
@@ -915,21 +914,21 @@ tbody td.amount-cell {
 .calc-table tbody td {
     padding: 0.55rem 0.8rem;
     color: var(--text-secondary);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.04);
     vertical-align: middle;
 }
 
 .calc-table tbody tr:hover td {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(15, 23, 42, 0.02);
     color: var(--text-primary);
 }
 
 .calc-table tfoot td {
     padding: 0.65rem 0.8rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(15, 23, 42, 0.12);
     color: var(--text-primary);
     font-weight: 600;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(15, 23, 42, 0.02);
 }
 
 /* ── 운용 증감 비교 섹션 ── */
@@ -942,15 +941,15 @@ tbody td.amount-cell {
 .rate-anomaly-box {
     margin: 0.75rem 0 1.25rem;
     padding: 1rem 1.25rem;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.25);
     border-radius: 10px;
 }
 
 .rate-anomaly-title {
     font-size: 0.82rem;
     font-weight: 700;
-    color: #f87171;
+    color: #dc2626;
     margin-bottom: 0.6rem;
     display: flex;
     align-items: center;
@@ -958,13 +957,13 @@ tbody td.amount-cell {
 }
 
 .rate-anomaly-box--ok {
-    background: rgba(16, 185, 129, 0.08);
-    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.06);
+    border-color: rgba(16, 185, 129, 0.25);
 }
-.rate-anomaly-title--ok { color: #34d399; }
+.rate-anomaly-title--ok { color: #059669; }
 
 .rate-anomaly-box--neutral {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(15, 23, 42, 0.025);
     border-color: var(--card-border);
 }
 .rate-anomaly-title--neutral { color: var(--text-secondary); }
@@ -982,7 +981,7 @@ tbody td.amount-cell {
     flex-wrap: wrap;
     gap: 0.3rem 0.6rem;
     padding: 0.4rem 0.6rem;
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(15, 23, 42, 0.03);
     border-radius: 6px;
 }
 
@@ -991,7 +990,7 @@ tbody td.amount-cell {
 }
 
 .rate-anomaly-row .rate-old { color: #94a3b8; text-decoration: line-through; }
-.rate-anomaly-row .rate-new { color: #fbbf24; font-weight: 700; }
+.rate-anomaly-row .rate-new { color: #b45309; font-weight: 700; }
 
 .compare-grid {
     display: grid;
@@ -1031,23 +1030,22 @@ tbody td.amount-cell {
     letter-spacing: 0.03em;
     text-align: left;
     border-bottom: 1px solid var(--card-border);
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(15, 23, 42, 0.02);
     white-space: nowrap;
 }
 
 .compare-table tbody td {
     padding: 0.45rem 0.6rem;
     color: var(--text-secondary);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.04);
     white-space: nowrap;
 }
 
 .compare-table tbody tr:hover td {
-    background: rgba(255, 255, 255, 0.025);
+    background: rgba(15, 23, 42, 0.025);
     color: var(--text-primary);
 }
 
-.compare-table .trend-up   { color: #34d399; font-weight: 600; }
-.compare-table .trend-down { color: #f87171; font-weight: 600; }
+.compare-table .trend-up   { color: #059669; font-weight: 600; }
+.compare-table .trend-down { color: #dc2626; font-weight: 600; }
 .compare-table .trend-neutral { color: var(--text-muted); }
-

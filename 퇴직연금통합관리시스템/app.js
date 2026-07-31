@@ -112,14 +112,14 @@ const smartOutsideLabelsPlugin = {
             ctx.beginPath();
             ctx.moveTo(anchorX, anchorY);
             ctx.lineTo(textX, labelY);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
             ctx.lineWidth = 1;
             ctx.stroke();
 
             ctx.textAlign = side === 'right' ? 'left' : 'right';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#f1f5f9';
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+            ctx.fillStyle = '#0f172a';
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
             ctx.shadowBlur = 3;
             ctx.fillText(fullText, textX + padX, labelY);
         });
@@ -696,10 +696,10 @@ function renderMaturityChart(snap) {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' } },
+                x: { grid: { color: 'rgba(15,23,42,0.06)' }, ticks: { color: '#94a3b8' } },
                 y: {
                     type: 'linear', position: 'left',
-                    grid: { color: 'rgba(255,255,255,0.03)' },
+                    grid: { color: 'rgba(15,23,42,0.06)' },
                     ticks: {
                         color: '#94a3b8',
                         callback: v => v.toLocaleString() + "억"
@@ -775,10 +775,10 @@ function renderYoYChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' } },
+                x: { grid: { color: 'rgba(15,23,42,0.06)' }, ticks: { color: '#94a3b8' } },
                 y: {
                     type: 'linear', position: 'left',
-                    grid: { color: 'rgba(255,255,255,0.03)' },
+                    grid: { color: 'rgba(15,23,42,0.06)' },
                     ticks: {
                         color: '#94a3b8',
                         callback: v => v.toLocaleString() + "억"

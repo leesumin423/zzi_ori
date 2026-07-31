@@ -52,6 +52,10 @@ Thumbs.db
 .streamlit/secrets.toml
 차입금관리/.streamlit/secrets.toml
 
+# 퇴직연금 관리자 비밀번호가 그대로 들어있는 설정 파일 — 반드시
+# pension_config.example.py를 pension_config.py로 복사한 뒤 그 복사본에만 값을 채우세요.
+퇴직연금통합관리시스템/pension_config.py
+
 # 로그/캐시(실행할 때마다 새로 생김)
 *.log
 theme_daily_cache.json
