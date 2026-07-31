@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 자금관리</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📝 자금 · 자금계획 협조전</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님</span>
+      {% if user.is_admin %}<a href="{{ url_for('admin_cashflow_mail') }}">⚙️ 수신자ㆍ서식 설정</a>{% endif %}
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        월간보고서 "자금수지" 3개월 자금계획 제출 요청은 메일이 아니라 <strong>그룹웨어 협조전</strong>으로
+        주고받는 업무입니다. 아래 "협조전 임시저장" 버튼을 누르면 화면이 보이는 브라우저 창이 뜨고
+        <strong>지금 이 버튼을 누른 사람이 직접 그룹웨어에 로그인</strong>합니다(로그인 정보는 포털에 저장되지
+        않습니다). 로그인 후에는 제목ㆍ참조자ㆍ본문ㆍ첨부서식 3종을 자동으로 채워 <strong>임시저장</strong>까지만
+        하고 멈춥니다 — 실제 제출(기안)은 그룹웨어 창에서 내용을 확인한 뒤 직접 눌러주세요.
+      </p>
+      {% if last_sent %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">
+          마지막 임시저장: {{ last_sent[0] }} 기준 ({{ last_sent[1] }}, 참조자 {{ last_sent[2] }}명,
+          {{ '자동' if last_sent[3] == 'auto' else '수동' }})
+        </p>
+      {% else %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">아직 임시저장 이력이 없습니다.</p>
+      {% endif %}
+
+      <h2 style="font-size:1rem;">참조자 목록 ({{ recipients|length }}명)</h2>
+      {% if not recipients %}
+        <p style="color:var(--text-secondary);">
+          등록된 참조자가 없습니다 — {% if user.is_admin %}<a href="{{ url_for('admin_cashflow_mail') }}">수신자ㆍ서식 설정</a>{% else %}관리자{% endif %}에서 먼저 등록해주세요.
+        </p>
+      {% else %}
+        <ul style="color:var(--text-primary); font-size:0.88rem; line-height:1.9; columns:2; margin:0 0 12px;">
+          {% for r in recipients %}
+            <li>{{ r[2] or '-' }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <h2 style="font-size:1rem;">첨부 서식 ({{ templates|length }}/{{ template_slots|length }})</h2>
+      <ul style="color:var(--text-primary); font-size:0.88rem; line-height:1.9; margin:0 0 16px;">
+        {% for slot, label in template_slots %}
+          {% set t = templates.get(slot) %}
+          <li>{{ label }}: {% if t %}{{ t.filename }}{% else %}<span style="color:var(--danger);">미등록</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+
+      <form method="post" action="{{ url_for('admin_cashflow_mail_send_now') }}">
+        <button type="submit" class="btn-sm approve" style="padding:10px 20px; font-size:0.95rem;"
+                {% if not recipients or not templates %}disabled{% endif %}>📝 협조전 임시저장</button>
+      </form>
+      <p style="color:var(--text-secondary); font-size:0.78rem; margin-top:8px;">
+        버튼을 누르면 새 브라우저 창이 뜹니다 — 그 창에서 직접 로그인해주세요.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

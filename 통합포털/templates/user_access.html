@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 개인별 접근권한</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>🔑 개인별 화면 접근권한</div>
+    <div class="hub-user">
+      <a href="{{ url_for('admin_team_access') }}">팀별 설정</a>
+      <a href="{{ url_for('admin') }}">← 관리자 화면으로</a>
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        임원ㆍ팀장처럼 소속 팀 설정과 상관없이 <strong>이 사람만 예외로</strong> 화면을 열어주거나 좁힐 때 씁니다.
+        여기서 설정한 사람은 소속 팀의 접근권한 설정을 무시하고 이 표에 체크된 화면만(또는 전부) 봅니다.
+        따로 설정하지 않은 사람은 지금처럼 소속 팀 설정을 그대로 따릅니다. 관리자 계정은 이 설정과 무관하게
+        항상 전체 화면을 보므로 목록에 없습니다.
+      </p>
+
+      {% if not users %}
+        <p style="color:var(--text-secondary);">설정할 수 있는(관리자가 아닌) 사용자가 없습니다.</p>
+      {% else %}
+        <table class="admin-table team-access-table">
+          <thead>
+            <tr>
+              <th>이름</th>
+              <th>팀</th>
+              {% for sec in sections %}<th>{{ sec.label }}</th>{% endfor %}
+              <th>상태</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+              {% set uid = u[0] %}
+              {% set team = u[5] %}
+              {% set personal = current.get(uid) %}
+              {% set team_allowed = team_current.get(team) %}
+              {% set effective = personal if personal is not none else team_allowed %}
+              {% set fid = 'user_form_' ~ uid %}
+              <tr>
+                <td style="font-weight:700;">{{ u[2] or u[1] }}</td>
+                <td style="color:var(--text-secondary); font-size:0.85rem;">{{ team or '(팀 없음)' }}</td>
+                {% for sec in sections %}
+                  <td style="text-align:center;">
+                    <input type="checkbox" form="{{ fid }}" name="sections" value="{{ sec.id }}"
+                           {% if effective is none or sec.id in effective %}checked{% endif %}>
+                  </td>
+                {% endfor %}
+                <td>
+                  {% if personal is not none %}
+                    <span class="badge pending">개인설정됨</span>
+                  {% elif team_allowed is not none %}
+                    <span class="badge">팀 설정 따름(제한됨)</span>
+                  {% else %}
+                    <span class="badge admin">전체허용</span>
+                  {% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                  <form id="{{ fid }}" method="post" action="{{ url_for('admin_user_access_save') }}" style="display:inline">
+                    <input type="hidden" name="user_id" value="{{ uid }}">
+                    <input type="hidden" name="mode" value="restricted">
+                    <button type="submit" class="btn-sm approve">개인설정 저장</button>
+                  </form>
+                  {% if personal is not none %}
+                    <form method="post" action="{{ url_for('admin_user_access_save') }}" style="display:inline">
+                      <input type="hidden" name="user_id" value="{{ uid }}">
+                      <input type="hidden" name="mode" value="follow_team">
+                      <button type="submit" class="btn-sm">팀 설정 따르기</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

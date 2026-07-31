@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — {{ cat.label }} 수정</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>💰 자금 · {{ cat.label }} 수정</div>
+    <div class="hub-user">
+      {% if report_label %}<span>{{ report_label }} 기준</span>{% endif %}
+      <a href="{{ url_for('finance_view', category=category, report_id=report_id) }}">← 취소</a>
+      <button id="saveBtn" class="btn-sm approve" style="padding:7px 16px; font-size:0.85rem;">💾 저장</button>
+    </div>
+  </header>
+
+  <div class="admin-wrap" style="max-width: 100%;">
+    <div id="saveMsg" class="flash info" style="display:none;"></div>
+    <p style="color:var(--text-secondary); font-size:0.85rem;">
+      💡 Excel에서 표를 복사(Ctrl+C)한 뒤, 아래 표에서 붙여넣을 시작 셀을 클릭하고 Ctrl+V 하면
+      여러 행·열을 한 번에 붙여넣을 수 있습니다. 셀을 직접 클릭해 값을 고쳐도 됩니다.
+      병합된 셀은 좌상단 칸에만 값을 입력하면 됩니다.
+    </p>
+    <div class="report-scroll" id="editWrap">{{ table_html | safe }}</div>
+  </div>
+
+  <script>
+    const REPORT_ID = {{ report_id }};
+    const table = document.querySelector('#editWrap table.report-sheet-edit');
+    const saveBtn = document.getElementById('saveBtn');
+    const saveMsg = document.getElementById('saveMsg');
+
+    // 병합 셀은 rowspan/colspan으로 표시되고 실제 data-row/data-col은 좌상단 칸에만 있어서,
+    // 붙여넣기 대상 좌표(row,col)로 바로 찾을 수 있게 미리 맵을 만들어둔다.
+    function buildCellMap() {
+      const map = new Map();
+      table.querySelectorAll('td[data-row]').forEach(td => {
+        map.set(`${td.dataset.row}_${td.dataset.col}`, td);
+      });
+      return map;
+    }
+
+    table.addEventListener('paste', (e) => {
+      const targetCell = e.target.closest('td[data-row]');
+      if (!targetCell) return;
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (!text) return;
+      const rows = text.replace(/\r/g, '').split('\n').filter((_, i, arr) => !(i === arr.length - 1 && arr[i] === ''));
+      const startRow = parseInt(targetCell.dataset.row, 10);
+      const startCol = parseInt(targetCell.dataset.col, 10);
+      const cellMap = buildCellMap();
+      rows.forEach((rowText, ri) => {
+        const cols = rowText.split('\t');
+        cols.forEach((val, ci) => {
+          const cell = cellMap.get(`${startRow + ri}_${startCol + ci}`);
+          if (cell) cell.textContent = val;
+        });
+      });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const values = {};
+      table.querySelectorAll('td[data-row]').forEach(td => {
+        values[`${td.dataset.row}_${td.dataset.col}`] = td.textContent;
+      });
+      const maxRow = table.dataset.maxRow;
+      const maxCol = table.dataset.maxCol;
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      try {
+        const resp = await fetch(window.location.pathname.replace(/\/edit$/, '/save'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ max_row: maxRow, max_col: maxCol, values, report_id: REPORT_ID }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          saveMsg.textContent = '저장했습니다. 잠시 후 조회 화면으로 이동합니다.';
+          saveMsg.className = 'flash success';
+          saveMsg.style.display = 'block';
+          const viewPath = window.location.pathname.replace(/\/edit$/, '');
+          setTimeout(() => { window.location.href = viewPath + '?report_id=' + REPORT_ID; }, 900);
+        } else {
+          throw new Error(data.error || '저장 실패');
+        }
+      } catch (err) {
+        saveMsg.textContent = '저장 중 오류: ' + err.message;
+        saveMsg.className = 'flash error';
+        saveMsg.style.display = 'block';
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 저장';
+      }
+    });
+  </script>
+</body>
+</html>

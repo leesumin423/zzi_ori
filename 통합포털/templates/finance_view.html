@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — {{ cat.label }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>💰 자금 · {{ cat.label }}</div>
+    <div class="hub-user">
+      {% if all_reports %}
+        <select class="report-month-select"
+                onchange="window.location.href='{{ url_for('finance_view', category=category) }}?report_id=' + this.value">
+          {% for r in all_reports %}
+            <option value="{{ r[0] }}" {% if r[0] == selected_report_id %}selected{% endif %}>{{ r[3] }} 기준</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+      {% if user.is_admin and cat.editable %}
+        <a href="{{ url_for('finance_edit', category=category, report_id=selected_report_id) }}">✏️ 수정</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="admin-wrap" style="max-width: 100%;">
+    {% if subnav %}
+      <nav class="report-subnav">
+        {% for item in subnav %}
+          <a class="{{ 'active' if item.category == category else '' }}"
+             href="{{ url_for('finance_view', category=item.category) }}">{{ item.label }}</a>
+        {% endfor %}
+        <a class="report-subnav-print" href="{{ url_for('finance_view', category='all') }}">🖨 전체 출력(표지부터)</a>
+      </nav>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category_, message in messages %}
+        <div class="flash {{ category_ }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if invest_summary is not none %}
+      <div class="invest-summary-bar">
+        <div class="invest-summary-card">
+          <div class="lbl">가용자금 총 운용액</div>
+          <div class="val">
+            {% if invest_summary.available %}{{ "{:,.0f}".format(invest_summary.available.amount / 100000000) }}억원{% else %}-{% endif %}
+          </div>
+          <div class="sub">
+            {% if invest_summary.available and invest_summary.available.rate is not none %}평균금리 {{ "%.2f"|format(invest_summary.available.rate * 100) }}%{% else %}금리 정보 없음{% endif %}
+          </div>
+        </div>
+        <div class="invest-summary-card">
+          <div class="lbl">비가용자금 총 운용액</div>
+          <div class="val">
+            {% if invest_summary.unavailable %}{{ "{:,.0f}".format(invest_summary.unavailable.amount / 100000000) }}억원{% else %}-{% endif %}
+          </div>
+          <div class="sub">
+            {% if invest_summary.unavailable and invest_summary.unavailable.rate is not none %}평균금리 {{ "%.2f"|format(invest_summary.unavailable.rate * 100) }}%{% else %}금리 정보 없음{% endif %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if lend_affiliate_summary is not none %}
+      <div class="admin-section" style="margin-bottom:16px;">
+        <h2>🏢 대여금 현황 — 계열사ㆍ비계열사 구분 (기말 대여금 기준)</h2>
+        <p style="color:var(--text-secondary); font-size:0.82rem; margin-top:-8px;">
+          거래선을 공시 탭이 이미 조회해둔 (주)동양 소속 기업집단 계열사 전체 목록과 대조해서
+          나눈 값입니다 — 목록에 있으면 계열사, 없으면 비계열사로 봅니다.
+        </p>
+        <div class="invest-summary-bar">
+          <div class="invest-summary-card">
+            <div class="lbl">계열사 대여금(기말)</div>
+            <div class="val">{{ "{:,.0f}".format(lend_affiliate_summary.affiliate_total / 100000000) }}억원</div>
+          </div>
+          <div class="invest-summary-card">
+            <div class="lbl">비계열사 대여금(기말)</div>
+            <div class="val">{{ "{:,.0f}".format(lend_affiliate_summary.non_affiliate_total / 100000000) }}억원</div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if ftc_review is not none %}
+      <div class="admin-section" style="margin-bottom:16px;">
+        <h2>⚖️ 공정위 공시 검토 (증가액 기준)</h2>
+        <p style="color:var(--text-secondary); font-size:0.82rem; margin-top:-8px;">
+          거래선별 증가액(기말 잔액은 판단에서 제외)을 공시 탭과 동일한 기준(공정거래법
+          제26조 — 거래금액 100억원 이상, 또는 자본총계·자본금 중 큰 금액의 5%(최소 5억원)
+          이상)으로 판단합니다.
+          {% if ftc_capital_base %}
+            기준 자본(자본총계·자본금 중 큰 값): {{ "{:,}".format(ftc_capital_base) }}원
+            (공시 탭에서 조회한 (주)동양 최신 수치).
+          {% else %}
+            <strong>(주)동양 자본총계를 지금 조회하지 못해 100억원 절대기준만 확인했습니다
+            — 주가현황 서버가 켜져 있는지 확인해주세요.)</strong>
+          {% endif %}
+        </p>
+        {% if ftc_review %}
+          <table class="admin-table">
+            <thead><tr><th>거래선</th><th>증가액</th><th>판단 근거</th></tr></thead>
+            <tbody>
+              {% for row in ftc_review %}
+                <tr>
+                  <td>{{ row.name }}</td>
+                  <td>{{ "{:,}".format(row.increase) }}원</td>
+                  <td><span class="badge pending">공시대상 검토 필요</span> {{ row.reason }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p style="color:var(--text-secondary); font-size:0.85rem;">공시대상 기준을 충족하는 거래선이 없습니다.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if sheet_pages %}
+      <div class="no-print" style="margin-bottom:14px;">
+        <button type="button" class="btn-sm approve" onclick="window.print()" style="padding:9px 16px;">🖨 인쇄하기 / PDF 저장</button>
+      </div>
+      {% for page in sheet_pages %}
+        <div class="print-a4-page{% if page.title == '표지' %} print-a4-page-cover{% endif %}">
+          {% if sheet_pages|length > 1 %}
+            <div class="print-a4-title{% if page.title == '표지' %} print-a4-title-cover-hide{% endif %}">{{ page.title }}</div>
+          {% endif %}
+          <div class="print-a4-scale-wrap">{{ page.html | safe }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="admin-section">
+        <p style="color:var(--text-secondary);">아직 등록된 월간보고서가 없습니다. 아래에서 먼저 업로드해주세요.</p>
+      </div>
+    {% endif %}
+
+    {% if user.is_admin %}
+      <div class="admin-section" style="margin-top:20px;">
+        <h2>📤 월간보고서 전체 업로드(관리자)</h2>
+        <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px;">
+          표지·자금수지·어음현황 시트를 포함한 월간보고서 원본 전체를 이 화면에서도 등록할 수 있습니다
+          (등록하면 {{ cat.label }} 포함 모든 항목에 반영됩니다).
+        </p>
+        <form method="post" action="{{ url_for('finance_upload', category=category) }}"
+              enctype="multipart/form-data" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+          <div>
+            <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">연도</label>
+            <input type="number" name="year" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:100px;">
+          </div>
+          <div>
+            <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">월</label>
+            <input type="number" name="month" min="1" max="12" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:80px;">
+          </div>
+          <div>
+            <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">엑셀 파일(.xlsx)</label>
+            <input type="file" name="report_file" accept=".xlsx" required>
+          </div>
+          <button type="submit" class="btn-sm approve" style="padding:9px 16px;">업로드</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+
+  <script>
+    // 화면에서는 표를 원래 크기(14px) 그대로 보여주고(넓으면 카드 안에서 좌우 스크롤),
+    // 인쇄/PDF 저장 시에만 A4 가로 폭에 맞춰 표 전체를 축소한다. 예전엔 beforeprint
+    // 이벤트가 뜰 때 JS로 직접 transform을 걸었는데, 인쇄/PDF 내보내기 경로에 따라
+    // 이 이벤트가 타이밍대로 안 걸리는 경우가 있어(실제로 표가 페이지 경계를 넘어가며
+    // 깨지는 사례 확인) 페이지를 불러오는 시점에 스케일 값만 미리 계산해서
+    // CSS 커스텀 속성(--print-scale 등)에 저장해두고, 실제 축소는 style.css의
+    // "@media print { .print-a4-scale-wrap { transform: scale(var(--print-scale)) } }"
+    // 규칙 하나로만 건다 — 이건 브라우저가 인쇄를 시작하는 순간 항상 적용되는
+    // 순수 CSS라 JS 이벤트 타이밍과 무관하게 안정적으로 걸린다.
+    var MM_TO_PX = 96 / 25.4;
+    var A4_LANDSCAPE_CONTENT_PX = 281 * MM_TO_PX; // A4 가로 297mm - 좌우 여백 8mm씩
+
+    function computePrintScaleVars() {
+      document.querySelectorAll('.print-a4-scale-wrap').forEach(function (wrap) {
+        var table = wrap.querySelector('table');
+        if (!table) return;
+        wrap.style.setProperty('--print-scale', '1');
+        wrap.style.removeProperty('--print-natural-width');
+        wrap.style.removeProperty('--print-natural-height');
+        var naturalWidth = table.scrollWidth;
+        var naturalHeight = table.scrollHeight;
+        // 엑셀 원본에 이미 사람이 확인해둔 인쇄배율(페이지 설정 > 확대/축소)이 있으면
+        // 그 값을 그대로 쓴다 — 폭 기준으로 새로 계산하는 것보다 항상 더 정확하다
+        // (report_shared.render_sheet_html이 table[data-excel-scale]로 실어보냄).
+        var excelScale = parseFloat(table.dataset.excelScale);
+        var scale;
+        if (!isNaN(excelScale) && excelScale > 0) {
+          scale = excelScale;
+        } else {
+          scale = naturalWidth > A4_LANDSCAPE_CONTENT_PX ? A4_LANDSCAPE_CONTENT_PX / naturalWidth : 1;
+        }
+        wrap.style.setProperty('--print-scale', String(scale));
+        wrap.style.setProperty('--print-natural-width', naturalWidth + 'px');
+        wrap.style.setProperty('--print-natural-height', (naturalHeight * scale) + 'px');
+      });
+    }
+
+    window.addEventListener('load', computePrintScaleVars);
+    window.addEventListener('resize', computePrintScaleVars);
+    // 인쇄 미리보기 창 크기 등으로 막판에 달라질 수 있는 경우를 대비해 한 번 더 계산한다
+    // (이 이벤트가 못 뜨는 경로가 있어도 load 시점 값이 이미 저장돼 있어 안전하다).
+    window.addEventListener('beforeprint', computePrintScaleVars);
+  </script>
+</body>
+</html>

@@ -1,0 +1,503 @@
+/* 통합포털 스타일 — tyia.vercel.app(내부회계 PORTAL) 로그인 화면에서 확인한
+   색상·폰트·라운드 톤을 참고해 맞췄습니다 (밝은 배경 + 토스 블루 액센트). */
+
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+:root {
+    --bg: #f2f4f6;
+    --card-bg: #ffffff;
+    --border: #e5e8eb;
+    --accent: #3182f6;
+    --accent-dark: #1b64da;
+    --accent-bg: rgba(49, 130, 246, 0.08);
+    --text-primary: #191f28;
+    --text-secondary: #6b7684;
+    --text-muted: #8b95a1;
+    --success: #12b886;
+    --danger: #f04452;
+    --radius: 12px;
+    --font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font);
+    min-height: 100vh;
+}
+
+a { color: var(--accent); text-decoration: none; }
+
+/* ---- 헤더 / 상단 탭바 ---- */
+.hub-header {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.hub-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+.hub-brand .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+}
+.hub-user {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.hub-user a.logout {
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+.hub-user a.logout:hover { background: var(--bg); }
+.report-month-select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-family: var(--font);
+}
+
+.hub-tabbar {
+    display: flex;
+    gap: 8px;
+    padding: 14px 24px 0 24px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+.hub-tab {
+    padding: 10px 20px;
+    border-radius: 20px 20px 0 0;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: transparent;
+}
+.hub-tab.active {
+    color: var(--accent-dark);
+    background: var(--accent-bg);
+    border-color: var(--border);
+    border-bottom-color: var(--card-bg);
+}
+
+.hub-subtabbar {
+    padding: 10px 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+}
+.hub-subtab {
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 0.85rem;
+    background: var(--card-bg);
+    border-color: var(--border);
+}
+.hub-subtab.active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+}
+
+.hub-frame-wrap {
+    height: calc(100vh - 64px - 53px);
+    background: var(--card-bg);
+    position: relative;
+}
+.hub-frame-wrap iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+.hub-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    padding: 24px;
+}
+.hub-placeholder-icon { font-size: 2.4rem; margin-bottom: 12px; }
+
+/* ---- 로그인 / 접근요청 공용 카드 레이아웃 ---- */
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--card-bg);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(25, 31, 40, 0.08);
+    padding: 40px 36px;
+}
+.auth-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin-bottom: 4px;
+}
+.auth-subtitle {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin-bottom: 28px;
+}
+.auth-field { margin-bottom: 16px; }
+.auth-field label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.auth-field input, .auth-field textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-primary);
+}
+.auth-field input:focus, .auth-field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--card-bg);
+}
+.auth-field textarea { resize: vertical; min-height: 72px; }
+
+.btn-primary {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: white;
+    font-weight: 700;
+    font-size: 0.98rem;
+    cursor: pointer;
+}
+.btn-primary:hover { background: var(--accent-dark); }
+
+.auth-links {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.flash {
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 0.86rem;
+    margin-bottom: 18px;
+}
+.flash.error { background: rgba(240, 68, 82, 0.08); color: var(--danger); }
+.flash.success { background: rgba(18, 184, 134, 0.08); color: var(--success); }
+.flash.info { background: var(--accent-bg); color: var(--accent-dark); }
+
+/* ---- 관리자 화면 ---- */
+.admin-wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+}
+.admin-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+.admin-section h2 {
+    font-size: 1.05rem;
+    margin: 0 0 16px 0;
+}
+table.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+table.admin-table th, table.admin-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+table.admin-table th {
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.badge.admin { background: var(--accent-bg); color: var(--accent-dark); }
+.badge.pending { background: rgba(255, 176, 32, 0.12); color: #b26a00; }
+
+.inline-form { display: inline-block; margin-right: 6px; }
+.btn-sm {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn-sm.approve { color: var(--success); border-color: var(--success); }
+.btn-sm.reject, .btn-sm.danger { color: var(--danger); border-color: var(--danger); }
+.btn-sm:hover { background: var(--bg); }
+
+.approve-form input {
+    width: 130px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    margin-right: 6px;
+}
+
+.credential-box {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.88rem;
+    margin-bottom: 18px;
+}
+.credential-box code {
+    background: rgba(0,0,0,0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.credential-box.test-mode {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    margin-top: -6px;
+}
+.credential-box.test-mode pre {
+    white-space: pre-wrap;
+    background: rgba(25, 31, 40, 0.05);
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-top: 6px;
+    font-size: 0.82rem;
+    font-family: var(--font);
+}
+.field-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* ---- 월간보고서 서브내비(대여/운용/자금수지/어음현황 + 전체출력) ---- */
+.report-subnav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+.report-subnav a {
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border: 1px solid transparent;
+}
+.report-subnav a:hover {
+    background: var(--bg);
+}
+.report-subnav a.active {
+    background: var(--accent-bg);
+    color: var(--accent-dark);
+    border-color: var(--accent);
+}
+.report-subnav-print {
+    margin-left: auto;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border) !important;
+}
+
+/* ---- 자금(대여/운용) 엑셀 서식 그대로 조회/수정 화면 ---- */
+.report-scroll {
+    overflow-x: auto;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+}
+table.report-sheet, table.report-sheet-edit {
+    border-collapse: collapse;
+    font-size: 14px;
+    white-space: nowrap;
+}
+table.report-sheet td, table.report-sheet-edit td {
+    padding: 6px 10px;
+    color: var(--text-primary);
+}
+table.report-sheet-edit td[contenteditable="true"] {
+    cursor: text;
+    outline: none;
+}
+table.report-sheet-edit td[contenteditable="true"]:focus {
+    background: var(--accent-bg);
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+table.report-sheet-edit td[contenteditable="true"]:hover {
+    background: rgba(49, 130, 246, 0.05);
+}
+
+/* ---- 운용 탭 상단 요약 대시바 (가용/비가용 자금 총 운용액·금리) ---- */
+.invest-summary-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.invest-summary-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+}
+.invest-summary-card .lbl {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.invest-summary-card .val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+.invest-summary-card .sub {
+    font-size: 0.82rem;
+    color: var(--accent-dark);
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+/* ---- 자금 뷰 화면(대여/운용/자금수지관리/어음현황): 화면은 원본 크기(가독성 우선),
+   인쇄/PDF만 A4 가로 폭에 맞춰 축소한다(finance_view.html의 beforeprint 스케일링).
+   화면에서는 글자 크기를 줄이지 않는 대신, 표가 넓으면 카드 안에서만 좌우 스크롤된다. */
+.print-a4-page {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 0 auto 22px auto;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.print-a4-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #111827;
+    border-bottom: 2px solid #111827;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+}
+.print-a4-scale-wrap {
+    transform-origin: top left;
+}
+.print-a4-scale-wrap table.report-sheet {
+    color: #111827;
+}
+/* 표지는 시트 자체가 텍스트 몇 줄만 왼쪽 위에 있고 나머지는 빈칸이라, 인쇄했을 때
+   그대로 두면 페이지 대부분이 허전해 보인다 — 화면 글자를 키우고 세로 가운데
+   정렬해서 실제 인쇄용 표지처럼 보이게 한다(내용/구조는 원본 그대로, 스타일만). */
+.print-a4-page-cover {
+    display: flex;
+    align-items: center;
+    min-height: 120mm;
+}
+.print-a4-page-cover .print-a4-scale-wrap table.report-sheet {
+    font-size: 22px;
+}
+
+@media print {
+    .hub-header, .flash, .admin-section, .no-print,
+    .report-subnav, .print-a4-title-cover-hide {
+        display: none !important;
+    }
+    @page {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+    body {
+        background: #ffffff;
+    }
+    .admin-wrap {
+        max-width: none;
+        padding: 0;
+    }
+    .print-a4-page {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        max-width: none;
+        margin: 0;
+        padding: 4px;
+        overflow: visible;
+        page-break-after: always;
+    }
+    .print-a4-page:last-child {
+        page-break-after: auto;
+    }
+    /* 인쇄 스케일은 JS가 페이지 로드 시 미리 계산해 --print-scale 등으로 저장해두고,
+       실제 축소는 이 규칙 하나로만 건다 — beforeprint 이벤트가 타이밍상 안 걸리는
+       인쇄/PDF 경로가 있어도(사례 확인됨) 이 CSS 자체는 인쇄가 시작되면 항상
+       적용되므로 화면이 잘리거나 페이지 경계를 넘어가는 문제가 안 생긴다. */
+    .print-a4-scale-wrap {
+        transform: scale(var(--print-scale, 1));
+        width: var(--print-natural-width, auto) !important;
+        height: var(--print-natural-height, auto) !important;
+    }
+    table.report-sheet td, table.report-sheet-edit td {
+        padding: 2px 5px;
+    }
+}

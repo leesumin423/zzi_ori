@@ -25,3 +25,26 @@ mgmt_watch_history.json
 # OS
 .DS_Store
 Thumbs.db
+
+# ── 차입금관리 / 통합포털 (2026-07 zzi_ori 편입) ───────────────────────
+# 실제 회사 재무 데이터가 담긴 로컬 DB/엑셀/캐시 — 절대 커밋하지 않음
+차입금관리/data/
+차입금관리/*.xlsx
+차입금관리/credit_ratings.json
+차입금관리/historical_rates.json
+차입금관리/loan_details.json
+차입금관리/kpi_inputs.json
+차입금관리/개발로그/
+통합포털/data/
+
+# 통합포털 관리자 비밀번호·SMTP 정보가 그대로 들어있는 설정 파일 — 반드시
+# hub_config.example.py를 hub_config.py로 복사한 뒤 그 복사본에만 값을 채우세요.
+통합포털/hub_config.py
+
+# Streamlit 관리자 비밀번호
+.streamlit/secrets.toml
+차입금관리/.streamlit/secrets.toml
+
+# 로그/캐시(실행할 때마다 새로 생김)
+*.log
+theme_daily_cache.json

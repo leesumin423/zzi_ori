@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(주)동양 통합 자금포털 — 로그인</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-title">통합 자금포털</div>
+      <div class="auth-subtitle">주가 · 공시 · 자금(차입) · 퇴직연금을 한 곳에서 확인하세요.</div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="post">
+        <div class="auth-field">
+          <label for="username">아이디</label>
+          <input type="text" id="username" name="username" required autofocus>
+        </div>
+        <div class="auth-field">
+          <label for="password">비밀번호</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn-primary">로그인</button>
+      </form>
+
+      <div class="auth-links">
+        계정이 없으신가요? <a href="{{ url_for('request_access') }}">접근 요청하기</a><br>
+        <a href="{{ url_for('forgot_password') }}">비밀번호를 잊으셨나요?</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 팀별 접근권한</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>🔐 팀별 화면 접근권한</div>
+    <div class="hub-user">
+      <a href="{{ url_for('admin_user_access') }}">개인별 설정</a>
+      <a href="{{ url_for('admin') }}">← 관리자 화면으로</a>
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        팀마다 체크된 화면만 포털 상단 탭에 보입니다. <strong>관리자 계정은 이 설정과 무관하게 항상 전체 화면을 봅니다.</strong>
+        아직 한 번도 저장하지 않은 팀은 "전체허용" 상태로, 지금처럼 4개 화면을 모두 그대로 봅니다.
+      </p>
+
+      {% if not teams %}
+        <p style="color:var(--text-secondary);">아직 팀 정보가 있는 계정이 없습니다 — 사용자가 '내 정보'에서 팀을 입력하면 여기 나타납니다.</p>
+      {% else %}
+        <table class="admin-table team-access-table">
+          <thead>
+            <tr>
+              <th>팀</th>
+              {% for sec in sections %}<th>{{ sec.label }}</th>{% endfor %}
+              <th>상태</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for team in teams %}
+              {% set allowed = current.get(team) %}
+              {% set fid = 'team_form_' ~ loop.index %}
+              <tr>
+                <td style="font-weight:700;">{{ team }}</td>
+                {% for sec in sections %}
+                  <td style="text-align:center;">
+                    <input type="checkbox" form="{{ fid }}" name="sections" value="{{ sec.id }}"
+                           {% if allowed is none or sec.id in allowed %}checked{% endif %}>
+                  </td>
+                {% endfor %}
+                <td>
+                  {% if allowed is none %}
+                    <span class="badge admin">전체허용</span>
+                  {% else %}
+                    <span class="badge pending">제한됨</span>
+                  {% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                  <form id="{{ fid }}" method="post" action="{{ url_for('admin_team_access_save') }}" style="display:inline">
+                    <input type="hidden" name="team" value="{{ team }}">
+                    <input type="hidden" name="mode" value="restricted">
+                    <button type="submit" class="btn-sm approve">저장</button>
+                  </form>
+                  {% if allowed is not none %}
+                    <form method="post" action="{{ url_for('admin_team_access_save') }}" style="display:inline">
+                      <input type="hidden" name="team" value="{{ team }}">
+                      <input type="hidden" name="mode" value="all">
+                      <button type="submit" class="btn-sm">전체허용으로</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

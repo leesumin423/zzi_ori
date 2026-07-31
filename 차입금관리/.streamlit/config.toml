@@ -1,0 +1,20 @@
+[server]
+# 같은 사내망(LAN)의 다른 PC에서도 접속할 수 있도록 모든 네트워크 인터페이스에서 대기합니다.
+# 이 PC의 IP(예: ipconfig로 확인한 192.168.x.x)와 포트로 동료들이 접속합니다: http://<이 PC의 IP>:8501
+address = "0.0.0.0"
+port = 8501
+headless = true
+# app.py 파일이 저장되면 프로세스를 새로 켜지 않고 그 자리에서 자동으로 다시 실행합니다.
+# 이게 없으면 코드 수정할 때마다 서버를 껐다 켜야 해서, 그 사이(몇 초) 접속 중이던
+# 사람들 화면이 전부 "연결 끊김"으로 끊기고 다시 붙어야 했다(실제로 이 문제로 접속이
+# 계속 불안정하다는 피드백을 받음). runOnSave면 같은 프로세스가 계속 떠 있는 채로
+# 코드만 다시 실행되니 접속이 끊기지 않는다.
+runOnSave = true
+
+[theme]
+base = "light"
+primaryColor = "#3182f6"
+backgroundColor = "#f2f4f6"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#191f28"
+font = "sans serif"

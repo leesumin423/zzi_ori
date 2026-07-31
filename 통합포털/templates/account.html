@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 내 정보</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>내 정보</div>
+    <div class="hub-user">
+      <a href="{{ url_for('portal') }}">← 포털로 돌아가기</a>
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap" style="max-width: 480px;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <h2>계정 정보</h2>
+      <table class="admin-table">
+        <tbody>
+          <tr><th style="width:100px;">이름</th><td>{{ user.display_name or '-' }}</td></tr>
+          <tr><th>아이디</th><td>{{ user.username }}</td></tr>
+          <tr><th>권한</th><td>{% if user.is_admin %}<span class="badge admin">관리자</span>{% else %}뷰어{% endif %}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="admin-section">
+      <h2>팀 / 메일 수정</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px;">
+        팀은 나중에 항목별로 화면 접근 권한(뷰 제한)을 나눌 때 기준이 되니 정확히 입력해주세요.
+        메일은 그룹웨어 규칙(아이디@{{ default_email.split('@')[1] }})으로 자동 채워져 있고,
+        메일링(계정 발급/비밀번호 재설정 등)에 이 값이 그대로 쓰입니다.
+      </p>
+      <form method="post" action="{{ url_for('account_profile') }}">
+        <div class="auth-field">
+          <label for="team">팀</label>
+          <input type="text" id="team" name="team" value="{{ user.team or '' }}" required placeholder="예: 자금팀">
+        </div>
+        <div class="auth-field">
+          <label for="email">메일</label>
+          <input type="email" id="email" name="email" value="{{ user.email or default_email }}" required>
+        </div>
+        <button type="submit" class="btn-primary">저장</button>
+      </form>
+    </div>
+
+    <div class="admin-section">
+      <h2>비밀번호 변경</h2>
+      <form method="post">
+        <div class="auth-field">
+          <label for="current_password">현재 비밀번호</label>
+          <input type="password" id="current_password" name="current_password" required>
+        </div>
+        <div class="auth-field">
+          <label for="new_password">새 비밀번호</label>
+          <input type="password" id="new_password" name="new_password" required minlength="4">
+        </div>
+        <div class="auth-field">
+          <label for="confirm_password">새 비밀번호 확인</label>
+          <input type="password" id="confirm_password" name="confirm_password" required minlength="4">
+        </div>
+        <button type="submit" class="btn-primary">비밀번호 변경</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

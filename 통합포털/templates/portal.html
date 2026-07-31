@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>(주)동양 통합 자금포털</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>(주)동양 통합 자금포털</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님{% if user.team %} · {{ user.team }}{% endif %}</span>
+      <a href="{{ url_for('account') }}">👤 내 정보</a>
+      {% if user.is_admin %}<a href="{{ url_for('admin') }}">⚙️ 관리자</a>{% endif %}
+      {% if can_manage_danpan_mail and not user.is_admin %}<a href="{{ url_for('admin_danpan_mail') }}">📧 단판공시 메일링 설정</a>{% endif %}
+      {% if can_manage_cashflow_mail and not user.is_admin %}<a href="{{ url_for('admin_cashflow_mail') }}">📧 자금계획 메일링 설정</a>{% endif %}
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div style="padding: 12px 24px 0 24px; background: var(--card-bg);">
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <nav class="hub-tabbar" id="hubTabbar"></nav>
+  <nav class="hub-tabbar hub-subtabbar" id="hubSubtabbar" style="display:none;"></nav>
+
+  <div class="hub-frame-wrap">
+    <iframe id="hubFrame" title="포털 화면"></iframe>
+    <div id="hubPlaceholder" class="hub-placeholder" style="display:none;"></div>
+  </div>
+
+  <script>
+    const TABS = {{ tabs | tojson }};
+
+    const tabbar = document.getElementById('hubTabbar');
+    const subtabbar = document.getElementById('hubSubtabbar');
+    const frame = document.getElementById('hubFrame');
+    const placeholder = document.getElementById('hubPlaceholder');
+
+    function showLeaf(leaf) {
+      if (leaf.type === 'iframe') {
+        frame.style.display = '';
+        placeholder.style.display = 'none';
+        frame.src = leaf.url;
+      } else {
+        frame.style.display = 'none';
+        frame.src = 'about:blank';
+        placeholder.style.display = 'flex';
+        placeholder.innerHTML = '<div><div class="hub-placeholder-icon">🛠️</div><div>' + leaf.message + '</div></div>';
+      }
+    }
+
+    function renderSubtabs(group) {
+      if (group.type !== 'group') {
+        subtabbar.style.display = 'none';
+        subtabbar.innerHTML = '';
+        return;
+      }
+      subtabbar.style.display = 'flex';
+      subtabbar.innerHTML = '';
+      group.children.forEach(function (child, i) {
+        const btn = document.createElement('button');
+        btn.className = 'hub-tab hub-subtab' + (i === 0 ? ' active' : '');
+        btn.textContent = child.label;
+        btn.addEventListener('click', function () {
+          subtabbar.querySelectorAll('.hub-tab').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          showLeaf(child);
+        });
+        subtabbar.appendChild(btn);
+      });
+      showLeaf(group.children[0]);
+    }
+
+    function selectTop(tab, btn) {
+      tabbar.querySelectorAll('.hub-tab').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      if (tab.type === 'group') {
+        renderSubtabs(tab);
+      } else {
+        subtabbar.style.display = 'none';
+        subtabbar.innerHTML = '';
+        showLeaf(tab);
+      }
+    }
+
+    TABS.forEach(function (tab, i) {
+      const btn = document.createElement('button');
+      btn.className = 'hub-tab' + (i === 0 ? ' active' : '');
+      btn.textContent = tab.label;
+      btn.addEventListener('click', function () { selectTop(tab, btn); });
+      tabbar.appendChild(btn);
+    });
+
+    if (TABS.length) {
+      selectTop(TABS[0], tabbar.querySelector('.hub-tab'));
+    }
+  </script>
+</body>
+</html>

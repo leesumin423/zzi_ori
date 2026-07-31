@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 자금 데이터 관리</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>💰 자금 · 데이터 관리</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님</span>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category_, message in messages %}
+        <div class="flash {{ category_ }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <h2>✏️ 표에서 직접 수정</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px;">
+        대여·운용·차입은 화면에서 바로 표를 수정(Excel 붙여넣기 지원)할 수 있습니다.
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn-sm approve" href="{{ url_for('finance_edit', category='lend') }}" style="padding:9px 16px; text-decoration:none;">💸 대여 수정</a>
+        <a class="btn-sm approve" href="{{ url_for('finance_edit', category='invest') }}" style="padding:9px 16px; text-decoration:none;">📈 운용 수정</a>
+        <a class="btn-sm approve" href="{{ url_for('finance_edit', category='borrow') }}" style="padding:9px 16px; text-decoration:none;">🏦 차입 수정</a>
+      </div>
+      <p style="color:var(--text-secondary); font-size:0.8rem; margin-top:10px; margin-bottom:0;">
+        표지·자금수지(사업본부 통합 등)·어음현황은 서식이 복잡해 화면 수정 대신
+        아래에서 원본 엑셀 전체를 다시 업로드하는 방식으로 갱신해주세요.
+      </p>
+    </div>
+
+    <div class="admin-section">
+      <h2>📤 월간보고서 등록 / 교체</h2>
+      <form method="post" action="{{ url_for('finance_admin_upload') }}"
+            enctype="multipart/form-data" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">연도</label>
+          <input type="number" name="year" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:100px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">월</label>
+          <input type="number" name="month" min="1" max="12" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:80px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">엑셀 파일(.xlsx)</label>
+          <input type="file" name="report_file" accept=".xlsx" required>
+        </div>
+        <button type="submit" class="btn-sm approve" style="padding:9px 16px;">업로드</button>
+      </form>
+    </div>
+
+    <div class="admin-section">
+      <h2>📋 등록된 월간보고서 (📥 출력 / 🗑 삭제)</h2>
+      {% if not reports %}
+        <p style="color:var(--text-secondary); font-size:0.85rem;">등록된 월간보고서가 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead><tr><th>연도</th><th>월</th><th>파일명</th><th>등록일시</th><th>크기</th><th>관리</th></tr></thead>
+          <tbody>
+            {% for r in reports %}
+              <tr>
+                <td>{{ r[1] }}</td>
+                <td>{{ r[2] }}</td>
+                <td>{{ r[4] }}</td>
+                <td>{{ r[5] }}</td>
+                <td>{{ (r[6] / 1024) | round(1) }}KB</td>
+                <td>
+                  <a class="btn-sm" href="{{ url_for('finance_admin_download', report_id=r[0]) }}" style="text-decoration:none;">📥 출력</a>
+                  <form class="inline-form" method="post" action="{{ url_for('finance_admin_delete', report_id=r[0]) }}"
+                        onsubmit="return confirm('{{ r[1] }}년 {{ r[2] }}월 데이터를 삭제할까요?');">
+                    <button type="submit" class="btn-sm danger">🗑 삭제</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

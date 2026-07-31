@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 관리자</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>관리자 — 사용자 승인/관리</div>
+    <div class="hub-user">
+      <a href="{{ url_for('portal') }}">← 포털로 돌아가기</a>
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if new_credential %}
+      <div class="credential-box">
+        ✅ 새 계정이 생성됐습니다. 아래 정보를 요청자에게 전달해주세요(다시 표시되지 않습니다):<br>
+        아이디: <code>{{ new_credential.username }}</code> &nbsp; 비밀번호: <code>{{ new_credential.password }}</code>
+        {% if new_credential.email %} &nbsp; 메일: <code>{{ new_credential.email }}</code>{% endif %}
+      </div>
+      {% if new_credential_mail and new_credential_mail.test_mode %}
+        <div class="credential-box test-mode">
+          ✉️ <strong>테스트 모드</strong>: 실제 메일 서버가 설정되지 않아 아래 내용이 실제로는 발송되지 않았습니다.
+          (나중에 <code>hub_config.py</code>의 SMTP 정보를 채우면 실제 발송으로 전환됩니다.)<br>
+          받는사람: <code>{{ new_credential_mail.to }}</code><br>
+          제목: {{ new_credential_mail.subject }}<br>
+          <pre>{{ new_credential_mail.body }}</pre>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div class="admin-section">
+      <h2>🔐 화면 접근권한</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        팀마다 주가ㆍ공시ㆍ자금ㆍ퇴직연금 중 어떤 화면을 볼 수 있는지 설정합니다(예: 회계팀은 주가ㆍ공시만).
+        아직 설정하지 않은 팀은 지금처럼 전체 화면을 그대로 봅니다. 임원ㆍ팀장처럼 소속 팀 설정과
+        상관없이 특정 사람만 예외로 열어줘야 하면 개인별 설정에서 따로 지정할 수 있고, 개인별 설정이
+        팀 설정보다 우선 적용됩니다.
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn-sm approve" href="{{ url_for('admin_team_access') }}" style="padding:9px 16px; text-decoration:none;">🔐 팀별 설정</a>
+        <a class="btn-sm approve" href="{{ url_for('admin_user_access') }}" style="padding:9px 16px; text-decoration:none;">🔑 개인별 설정</a>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>📧 단판공시 메일링 설정</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        단일판매ㆍ공급계약체결(단판공시) 진행현황을 매월 1일 자동으로, 또는 주가현황 화면의
+        "메일 보내기" 버튼으로 즉시 발송합니다. 발신자는 박시환(자금팀) 계정으로 고정되고,
+        받는사람ㆍ현장별 담당부서는 아래에서 관리합니다. 전체 관리자가 아니어도 공시 담당자
+        등 특정 사람에게 이 설정 화면만 따로 열어줄 수 있습니다("담당자 지정" 참고).
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn-sm approve" href="{{ url_for('admin_danpan_mail') }}" style="padding:9px 16px; text-decoration:none;">📧 수신자 설정</a>
+        <a class="btn-sm approve" href="{{ url_for('admin_danpan_mail_access') }}" style="padding:9px 16px; text-decoration:none;">🔑 담당자 지정</a>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>📧 자금계획(3개월 자금수지) 메일링 설정</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        월간보고서 "자금수지" 3개월 자금계획 서식(레미콘ㆍ건자재ㆍ동양공통 / 플랜트 / 건설)을
+        관련 부서에 매월 1일 자동으로, 또는 즉시 발송합니다. 발신자ㆍ담당자가 아직 정해지지
+        않았으면 "담당자 지정"에서 관리자가 지정해주면, 지정된 사람이 아래 수신자ㆍ서식
+        관리와 발송을 직접 할 수 있습니다.
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn-sm approve" href="{{ url_for('admin_cashflow_mail') }}" style="padding:9px 16px; text-decoration:none;">📧 수신자/서식 설정</a>
+        <a class="btn-sm approve" href="{{ url_for('admin_cashflow_mail_access') }}" style="padding:9px 16px; text-decoration:none;">🔑 담당자 지정</a>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>📧 공정위 공시(대규모내부거래) 협조전 설정</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        공시대상기업집단 대규모내부거래 상품ㆍ용역거래 취합 요청 협조전의 참조자ㆍ첨부 서식 2종을
+        관리합니다. 실제 발송(임시저장)은 주가현황 공시 → 공정위공시 화면에서 담당자가 직접
+        합니다. 발신자ㆍ담당자가 아직 정해지지 않았으면 "담당자 지정"에서 관리자가 지정해주면,
+        지정된 사람이 아래 수신자ㆍ서식 관리와 발송을 직접 할 수 있습니다.
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn-sm approve" href="{{ url_for('admin_ftc_disclosure_mail') }}" style="padding:9px 16px; text-decoration:none;">📧 수신자/서식 설정</a>
+        <a class="btn-sm approve" href="{{ url_for('admin_ftc_disclosure_mail_access') }}" style="padding:9px 16px; text-decoration:none;">🔑 담당자 지정</a>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>➕ 계정 직접 생성</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px;">동료가 접근 요청을 따로 보내지 않아도, 여기서 바로 아이디/비밀번호를 만들어줄 수 있습니다.</p>
+      <form method="post" action="{{ url_for('admin_create_user') }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이름</label>
+          <input type="text" name="new_display_name" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:140px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">그룹웨어 아이디</label>
+          <input type="text" name="new_username" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:140px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">팀명</label>
+          <input type="text" name="new_team" required style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:120px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">비밀번호(비우면 자동생성)</label>
+          <input type="text" name="new_password" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:160px;">
+        </div>
+        <button type="submit" class="btn-sm approve" style="padding:9px 16px;">계정 생성</button>
+      </form>
+    </div>
+
+    <div class="admin-section">
+      <h2>대기 중인 접근 요청 ({{ pending|length }}건)</h2>
+      {% if not pending %}
+        <p style="color:var(--text-secondary); font-size:0.88rem;">대기 중인 요청이 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead>
+            <tr><th>이름</th><th>요청 아이디</th><th>팀</th><th>사유</th><th>요청일시</th><th>처리</th></tr>
+          </thead>
+          <tbody>
+            {% for r in pending %}
+              <tr>
+                <td>{{ r[2] }}</td>
+                <td>{{ r[1] }}</td>
+                <td>{{ r[7] or '-' }}</td>
+                <td>{{ r[3] or '-' }}</td>
+                <td>{{ r[5] }}</td>
+                <td>
+                  <form class="inline-form approve-form" method="post" action="{{ url_for('admin_approve', request_id=r[0]) }}">
+                    <input type="text" name="password" placeholder="비밀번호(비우면 자동생성)">
+                    <button type="submit" class="btn-sm approve">승인</button>
+                  </form>
+                  <form class="inline-form" method="post" action="{{ url_for('admin_reject', request_id=r[0]) }}">
+                    <button type="submit" class="btn-sm reject">거절</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+
+    <div class="admin-section">
+      <h2>계정 목록 ({{ users|length }}명)</h2>
+      <table class="admin-table">
+        <thead>
+          <tr><th>이름</th><th>아이디</th><th>팀</th><th>권한</th><th>생성일</th><th>관리</th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td>{{ u[2] or '-' }}</td>
+              <td>{{ u[1] }}</td>
+              <td>{{ u[5] or '-' }}</td>
+              <td>{% if u[3] %}<span class="badge admin">관리자</span>{% else %}뷰어{% endif %}</td>
+              <td>{{ u[4] }}</td>
+              <td>
+                <form class="inline-form" method="post" action="{{ url_for('admin_toggle_admin', user_id=u[0]) }}">
+                  <button type="submit" class="btn-sm">{% if u[3] %}관리자 해제{% else %}관리자로 지정{% endif %}</button>
+                </form>
+                <form class="inline-form" method="post" action="{{ url_for('admin_delete_user', user_id=u[0]) }}" onsubmit="return confirm('{{ u[1] }} 계정을 삭제할까요?');">
+                  <button type="submit" class="btn-sm danger">삭제</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if decided %}
+    <div class="admin-section">
+      <h2>처리 이력</h2>
+      <table class="admin-table">
+        <thead>
+          <tr><th>이름</th><th>아이디</th><th>결과</th><th>처리일시</th></tr>
+        </thead>
+        <tbody>
+          {% for r in decided %}
+            <tr>
+              <td>{{ r[2] }}</td>
+              <td>{{ r[1] }}</td>
+              <td>{% if r[4] == 'approved' %}승인{% else %}거절{% endif %}</td>
+              <td>{{ r[6] }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>

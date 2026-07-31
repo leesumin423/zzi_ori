@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 단판공시 메일링 설정</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📧 단판공시 메일링 설정</div>
+    <div class="hub-user">
+      {% if user.is_admin %}
+        <a href="{{ url_for('admin') }}">← 관리자 화면으로</a>
+      {% else %}
+        <a href="{{ url_for('portal') }}">← 포털로 돌아가기</a>
+      {% endif %}
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        "당월 단일판매ㆍ공급계약 변동내역 요청드립니다" 메일을 아래 수신자에게 보냅니다(현장별
+        현황을 표로 정리해 전달). 발신자는
+        <strong>박시환(자금팀)</strong> 계정으로 고정입니다. 매월 1일 자동 발송되며, 주가현황 화면의
+        "📧 메일 보내기" 버튼으로 그 자리에서 즉시 보낼 수도 있습니다.
+      </p>
+      {% if last_sent %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">
+          마지막 발송: {{ last_sent[0] }} 기준 ({{ last_sent[1] }}, 수신자 {{ last_sent[2] }}명,
+          {{ '자동' if last_sent[4] == 'auto' else '수동' }})
+        </p>
+      {% else %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">아직 발송 이력이 없습니다.</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('admin_danpan_mail_add') }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이메일</label>
+          <input type="email" name="email" required placeholder="name@tongyanginc.co.kr" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:240px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이름(선택)</label>
+          <input type="text" name="label" placeholder="예: 김상우 팀장" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:160px;">
+        </div>
+        <button type="submit" class="btn-sm approve" style="padding:9px 16px;">추가</button>
+      </form>
+
+      {% if not recipients %}
+        <p style="color:var(--text-secondary);">아직 등록된 수신자가 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead><tr><th>이름</th><th>이메일</th><th></th></tr></thead>
+          <tbody>
+            {% for r in recipients %}
+              <tr>
+                <td>{{ r[2] or '-' }}</td>
+                <td>{{ r[1] }}</td>
+                <td style="white-space:nowrap;">
+                  <form method="post" action="{{ url_for('admin_danpan_mail_delete', recipient_id=r[0]) }}" style="display:inline">
+                    <button type="submit" class="btn-sm">삭제</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('admin_danpan_mail_send_now') }}" style="margin-top:16px;"
+            onsubmit="return confirm('등록된 수신자ㆍ참조자 전원에게 지금 바로 실제 메일을 발송합니다. 계속할까요?');">
+        <button type="submit" class="btn-sm approve" style="padding:9px 16px;"
+                {% if not recipients %}disabled{% endif %}>📧 지금 바로 발송</button>
+      </form>
+    </div>
+
+    <div class="admin-section">
+      <h2>👔 고정 참조(CC) — 예: 자금팀 담당팀장</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        특정 현장과 무관하게 매번 참조로 받아야 하는 사람을 등록합니다(위 수신자 목록과 별개로,
+        메일의 To가 아니라 Cc로 받습니다).
+      </p>
+      <form method="post" action="{{ url_for('admin_danpan_mail_fixed_cc_add') }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이메일</label>
+          <input type="email" name="email" required placeholder="name@tongyanginc.co.kr" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:240px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이름(선택)</label>
+          <input type="text" name="label" placeholder="예: 자금팀 김팀장" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:160px;">
+        </div>
+        <button type="submit" class="btn-sm approve" style="padding:9px 16px;">추가</button>
+      </form>
+      {% if not fixed_cc %}
+        <p style="color:var(--text-secondary);">아직 등록된 고정 참조자가 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead><tr><th>이름</th><th>이메일</th><th></th></tr></thead>
+          <tbody>
+            {% for c in fixed_cc %}
+              <tr>
+                <td>{{ c[2] or '-' }}</td>
+                <td>{{ c[1] }}</td>
+                <td style="white-space:nowrap;">
+                  <form method="post" action="{{ url_for('admin_danpan_mail_fixed_cc_delete', cc_id=c[0]) }}" style="display:inline">
+                    <button type="submit" class="btn-sm">삭제</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+
+    <div class="admin-section">
+      <h2>🏗 현장별 담당부서 관리</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        DART 공시에는 담당부서 정보가 없어서, 메일에 표시할 현장별 담당부서ㆍ담당자를
+        여기서 직접 입력해둡니다(받는 사람이 본인 현장을 바로 알아보고 회신할 수 있도록).
+        입력하지 않은 현장은 메일에 담당부서가 "-"로 표시됩니다. "참조(CC) 이메일"에 그
+        부서 상위자(부서장 등)를 넣으면, 이 현장이 이번 달 메일에 포함될 때 그 사람도
+        Cc로 함께 받습니다.
+      </p>
+      {% if sites_error %}
+        <p style="color:#c0392b; font-size:0.85rem;">{{ sites_error }}</p>
+      {% elif not sites %}
+        <p style="color:var(--text-secondary);">현재 관리 중인 현장이 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead><tr><th>현장명</th><th>담당부서</th><th>담당자</th><th>참조(CC) 이메일</th><th>비고</th><th></th></tr></thead>
+          <tbody>
+            {% for s in sites %}
+              {% set meta = site_meta.get(s.site_name, {}) %}
+              {% set fid = 'meta_form_' ~ loop.index %}
+              <tr>
+                <td>{{ s.site_name }}</td>
+                <td><input form="{{ fid }}" type="text" name="department" value="{{ meta.department or '' }}" placeholder="예: 개발영업팀" style="width:120px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;"></td>
+                <td><input form="{{ fid }}" type="text" name="manager" value="{{ meta.manager or '' }}" placeholder="예: 김도현" style="width:90px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;"></td>
+                <td><input form="{{ fid }}" type="email" name="cc_email" value="{{ meta.cc_email or '' }}" placeholder="예: 부서장 메일" style="width:170px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;"></td>
+                <td><input form="{{ fid }}" type="text" name="note" value="{{ meta.note or '' }}" placeholder="비고" style="width:130px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;"></td>
+                <td>
+                  <form id="{{ fid }}" method="post" action="{{ url_for('admin_danpan_mail_site_meta_save') }}" style="display:inline">
+                    <input type="hidden" name="site_name" value="{{ s.site_name }}">
+                    <button type="submit" class="btn-sm approve">저장</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

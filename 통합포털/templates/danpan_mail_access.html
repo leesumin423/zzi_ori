@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 단판공시 메일링 담당자 지정</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📧 단판공시 메일링 담당자 지정</div>
+    <div class="hub-user">
+      <a href="{{ url_for('admin') }}">← 관리자 화면으로</a>
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        전체 관리자 권한 없이 <strong>단판공시 메일링 설정(수신자ㆍ현장별 담당부서ㆍ즉시 발송)</strong>만
+        직접 관리할 수 있는 담당자를 지정합니다(예: 공시 담당자). 여기서 지정된 사람은 계정 승인ㆍ
+        사용자 관리 등 다른 관리자 화면은 볼 수 없고, 오직 단판공시 메일링 설정 화면만 열립니다.
+        전체 관리자 계정은 이 설정과 무관하게 항상 접근 가능하므로 목록에 없습니다.
+      </p>
+
+      {% if not users %}
+        <p style="color:var(--text-secondary);">지정할 수 있는(관리자가 아닌) 사용자가 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead><tr><th>이름</th><th>아이디</th><th>팀</th><th>상태</th><th></th></tr></thead>
+          <tbody>
+            {% for u in users %}
+              {% set uid = u[0] %}
+              {% set granted = uid in granted_ids %}
+              <tr>
+                <td style="font-weight:700;">{{ u[2] or u[1] }}</td>
+                <td style="color:var(--text-secondary); font-size:0.85rem;">{{ u[1] }}</td>
+                <td style="color:var(--text-secondary); font-size:0.85rem;">{{ u[5] or '(팀 없음)' }}</td>
+                <td>
+                  {% if granted %}
+                    <span class="badge admin">메일링 담당자</span>
+                  {% else %}
+                    <span class="badge">-</span>
+                  {% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                  {% if granted %}
+                    <form method="post" action="{{ url_for('admin_danpan_mail_access_revoke', user_id=uid) }}" style="display:inline">
+                      <button type="submit" class="btn-sm">권한 회수</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{{ url_for('admin_danpan_mail_access_grant', user_id=uid) }}" style="display:inline">
+                      <button type="submit" class="btn-sm approve">담당자로 지정</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

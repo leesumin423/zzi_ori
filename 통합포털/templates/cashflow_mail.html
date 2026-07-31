@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 자금계획 협조전 설정</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📧 자금계획 협조전 설정</div>
+    <div class="hub-user">
+      {% if user.is_admin %}
+        <a href="{{ url_for('admin') }}">← 관리자 화면으로</a>
+      {% else %}
+        <a href="{{ url_for('portal') }}">← 포털로 돌아가기</a>
+      {% endif %}
+      <a class="logout" href="{{ url_for('logout') }}">로그아웃</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        여기서는 참조자(부서/이름)ㆍ첨부 서식 3종ㆍ담당자 지정 같은 <strong>설정</strong>만 합니다.
+        실제로 협조전을 임시저장까지 만드는 "실행"은 포털의 <strong>자금 탭 → 📝 자금관리</strong>
+        화면에서 담당자가 직접 합니다(그룹웨어에 로그인해야 하므로 관리자 화면이 아니라 그때그때
+        접속한 담당자의 화면에서 실행되어야 합니다).
+      </p>
+      {% if last_sent %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">
+          마지막 임시저장: {{ last_sent[0] }} 기준 ({{ last_sent[1] }}, 참조자 {{ last_sent[2] }}명,
+          {{ '자동' if last_sent[3] == 'auto' else '수동' }})
+        </p>
+      {% else %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">아직 임시저장 이력이 없습니다.</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('admin_cashflow_mail_add') }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이름/부서명(그룹웨어 참조자 검색에 씀)</label>
+          <input type="text" name="label" required placeholder="예: 전략기획팀" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:220px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:0.78rem; color:var(--text-secondary); margin-bottom:4px;">이메일(선택, 참고용)</label>
+          <input type="email" name="email" placeholder="name@tongyanginc.co.kr" style="padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:220px;">
+        </div>
+        <button type="submit" class="btn-sm approve" style="padding:9px 16px;">추가</button>
+      </form>
+
+      {% if not recipients %}
+        <p style="color:var(--text-secondary);">아직 등록된 참조자가 없습니다.</p>
+      {% else %}
+        <table class="admin-table">
+          <thead><tr><th>이름/부서명</th><th>이메일(참고)</th><th></th></tr></thead>
+          <tbody>
+            {% for r in recipients %}
+              <tr>
+                <td>{{ r[2] or '-' }}</td>
+                <td>{{ r[1] or '-' }}</td>
+                <td style="white-space:nowrap;">
+                  <form method="post" action="{{ url_for('admin_cashflow_mail_delete', recipient_id=r[0]) }}" style="display:inline">
+                    <button type="submit" class="btn-sm">삭제</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+
+    <div class="admin-section">
+      <h2>📎 자금계획 서식 3종</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+        서식 파일 안의 "◈ YYYY년 MM월 ~ MM월 자금계획" 같은 날짜 범위는 <strong>자동으로 갱신되지
+        않습니다</strong> — 매달 발송 전에 담당자가 서식 파일을 직접 열어 날짜를 최신 3개월로
+        고친 뒤 여기서 재업로드해주세요. 재업로드하면 이전 파일을 덮어씁니다.
+      </p>
+      <table class="admin-table">
+        <thead><tr><th>구분</th><th>현재 등록된 파일</th><th>등록/교체</th></tr></thead>
+        <tbody>
+          {% for slot, label in template_slots %}
+            {% set t = templates.get(slot) %}
+            <tr>
+              <td style="font-weight:700; white-space:nowrap;">{{ label }}</td>
+              <td style="font-size:0.85rem; color:var(--text-secondary);">
+                {% if t %}
+                  {{ t.filename }}<br>
+                  <span style="font-size:0.78rem;">{{ t.uploaded_at }}{% if t.uploaded_by %} · {{ t.uploaded_by }}{% endif %}</span>
+                {% else %}
+                  등록된 파일이 없습니다
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('admin_cashflow_mail_template_upload') }}" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:center;">
+                  <input type="hidden" name="slot" value="{{ slot }}">
+                  <input type="file" name="template_file" accept=".xlsx,.xls" required>
+                  <button type="submit" class="btn-sm approve">업로드</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
