@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>퇴직연금 대시보드 — 데이터 관리</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --border: #e2e5ea; --text: #1a1f2b;
+    --text-sub: #6b7280; --accent: #2563eb; --danger: #dc2626; --success: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+  header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 1.1rem; margin: 0; }
+  header a { color: var(--text-sub); text-decoration: none; font-size: 0.85rem; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+  .section h2 { font-size: 1rem; margin: 0 0 14px 0; }
+  .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 0.88rem; }
+  .flash.error { background: #fee2e2; color: #991b1b; }
+  .flash.success { background: #dcfce7; color: #166534; }
+  .flash.info { background: #dbeafe; color: #1e40af; }
+  label { display: block; font-size: 0.78rem; color: var(--text-sub); margin-bottom: 4px; }
+  input[type=text], input[type=date], input[type=password], input[type=file] {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; width: 100%;
+  }
+  .field { margin-bottom: 12px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row .field { flex: 1; min-width: 160px; }
+  button { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.88rem; }
+  button.danger { background: #fff; color: var(--danger); border-color: var(--danger); padding: 5px 10px; font-size: 0.8rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-sub); font-weight: 600; font-size: 0.78rem; }
+  .hint { font-size: 0.78rem; color: var(--text-sub); margin-top: -6px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🧓 퇴직연금 대시보드 — 데이터 관리</h1>
+    <a href="/">← 대시보드로</a>
+  </header>
+
+  <div class="wrap">
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+
+    {% if not authed %}
+      <div class="section">
+        <h2>🔒 관리자 비밀번호</h2>
+        <form method="post" action="/admin">
+          <div class="field">
+            <label>비밀번호</label>
+            <input type="password" name="password" autofocus>
+          </div>
+          <button type="submit">확인</button>
+        </form>
+      </div>
+    {% else %}
+      <div class="section">
+        <h2>➕ 기준일 데이터 등록 / 교체</h2>
+        <p class="hint">
+          "시트명 힌트"는 엑셀 안에서 이 기준일 표가 있는 시트 이름의 일부입니다(예: 이번 6월말
+          자료라면 "1. 퇴직연금현황(2026.06월 말" 처럼 기존 파일들과 같은 패턴으로 적어주세요).
+          저장 전에 실제로 파싱되는지 먼저 확인하고, 실패하면 저장하지 않고 오류를 보여줍니다.
+        </p>
+        <form method="post" action="/admin/upload" enctype="multipart/form-data">
+          <div class="row">
+            <div class="field">
+              <label>기준일</label>
+              <input type="date" name="base_date" required>
+            </div>
+            <div class="field">
+              <label>화면 표시용 라벨</label>
+              <input type="text" name="label" placeholder="예: 2026년 7월말" required>
+            </div>
+          </div>
+          <div class="field">
+            <label>시트명 힌트</label>
+            <input type="text" name="sheet_hint" placeholder="예: 1. 퇴직연금현황(2026.07월 말" required>
+          </div>
+          <div class="field">
+            <label>엑셀 파일(.xlsx)</label>
+            <input type="file" name="excel_file" accept=".xlsx" required>
+          </div>
+          <button type="submit">저장</button>
+        </form>
+      </div>
+
+      <div class="section">
+        <h2>📋 등록된 기준일 목록</h2>
+        {% if not reports %}
+          <p class="hint">화면에서 등록한 기준일이 아직 없습니다(과거 자료는 코드에 내장된 것을 계속 씁니다).</p>
+        {% else %}
+          <table>
+            <thead><tr><th>기준일</th><th>라벨</th><th>시트명 힌트</th><th>파일명</th><th>등록일시</th><th></th></tr></thead>
+            <tbody>
+              {% for r in reports %}
+                <tr>
+                  <td>{{ r[1] }}</td>
+                  <td>{{ r[2] }}</td>
+                  <td>{{ r[3] }}</td>
+                  <td>{{ r[4] }}</td>
+                  <td>{{ r[5] }}</td>
+                  <td>
+                    <form method="post" action="/admin/delete/{{ r[0] }}" style="display:inline"
+                          onsubmit="return confirm('{{ r[1] }} 데이터를 삭제할까요?');">
+                      <button type="submit" class="danger">삭제</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+
+      <form method="post" action="/admin/logout">
+        <button type="submit" style="background:#fff; color:var(--text-sub); border-color:var(--border);">로그아웃</button>
+      </form>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,10 @@
+.env
+.state/
+logs/
+debug_dumps/
+reports/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
