@@ -79,8 +79,10 @@ const smartOutsideLabelsPlugin = {
         });
 
         // 5) 지시선 + 텍스트 그리기
-        //    - 조각→라벨을 중간 꺾임점 없이 "직선 하나"로 잇는다. 중간에 꺾임점을 따로 두면
-        //      라벨이 밀린 방향에 따라 선이 갔다가 되돌아오는 ㅅ자 모양이 생기기 때문.
+        //    - 조각→라벨을 anchor→꺾임점(elbow, 자기 각도로 짧게)→텍스트 순 2구간으로
+        //      잇는다(아래 bendX 계산부 참고). 라벨이 안 밀렸으면 사실상 일직선처럼
+        //      보이고, 옆 라벨과 겹쳐서 밀렸을 때만 꺾인 모양이 뚜렷해져 어느 조각과
+        //      이어지는 선인지 헷갈리지 않는다.
         //    - "도형 밖으로 나가야 한다"가 최우선 규칙이다. 텍스트 시작점은 항상 anchorX
         //      기준 바깥쪽으로 고정하고(절대 도형 안쪽으로 들어오지 않음), 캔버스 폭이
         //      부족하면 글꼴 크기를 줄여서 최대한 맞추되, 그래도 안 맞으면 캔버스 가장자리가
@@ -109,8 +111,16 @@ const smartOutsideLabelsPlugin = {
             // 도형 바깥쪽(anchorX 기준)에서 시작 — 캔버스 clamp보다 이 제약이 항상 우선한다
             const textX = side === 'right' ? Math.max(anchorX, it.elbowX) : Math.min(anchorX, it.elbowX);
 
+            // 조각 가장자리(anchor) → 자기 각도로 짧게 뻗은 꺾임점(elbowX, 다만 세로
+            // 위치는 겹침 보정이 끝난 labelY로) → 텍스트 시작점까지 수평선, 이렇게
+            // 2구간으로 그린다. 라벨이 안 밀렸으면(labelY가 원래 위치와 같으면)
+            // 사실상 거의 일직선으로 보이고, 겹쳐서 밀렸으면 확실한 "꺾인선"으로
+            // 보여 어느 조각과 이어지는지 헷갈리지 않는다(예전엔 anchor에서 밀린
+            // 라벨까지 대각선 하나로 이어서, 옆 조각 라벨과 선이 교차해 보였다).
+            const bendX = side === 'right' ? Math.max(it.elbowX, anchorX) : Math.min(it.elbowX, anchorX);
             ctx.beginPath();
             ctx.moveTo(anchorX, anchorY);
+            ctx.lineTo(bendX, labelY);
             ctx.lineTo(textX, labelY);
             ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
             ctx.lineWidth = 1;
@@ -491,7 +501,7 @@ function renderInstitutionChart(snap) {
                         const d = snap.institution_distribution[index];
                         const percentage = (d.ratio * 100).toFixed(1) + "%";
                         const okUnit = (d.amount / 100000000).toFixed(1);
-                        return { title: d.institution, sub: `${okUnit}억(${percentage})` };
+                        return { title: d.institution, sub: `${okUnit}억원(${percentage})` };
                     }
                 }
             }
@@ -596,7 +606,7 @@ function renderProductChart(snap) {
                         const item = dist[index];
                         const percentage = (item.ratio * 100).toFixed(1) + "%";
                         const okUnit = (item.amount / 100000000).toFixed(1);
-                        return { title: item.product_type, sub: `${okUnit}억(${percentage})` };
+                        return { title: item.product_type, sub: `${okUnit}억원(${percentage})` };
                     }
                 }
             }
