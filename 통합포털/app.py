@@ -40,7 +40,7 @@ app.secret_key = hub_config.SECRET_KEY
 # 퇴직연금 iframe URL에 붙이는 캐시버스터 — 그 앱의 index.html/style.css/app.js를
 # 고칠 때마다 이 값을 올려주면(예: 날짜 문자열) 브라우저가 예전 index.html을
 # 계속 캐시해서 통합포털에서 새 화면이 안 보이는 문제를 막을 수 있다.
-PENSION_ASSET_VERSION = '20260803e'
+PENSION_ASSET_VERSION = '20260803g'
 
 # 대여/운용은 단일 시트·단순 표라 화면에서 직접 조회+수정(editable=True)이 가능하고,
 # 자금수지(표지 포함)·어음현황·전체(표지부터 전체출력)는 다단 헤더/대량 병합셀에 시트도

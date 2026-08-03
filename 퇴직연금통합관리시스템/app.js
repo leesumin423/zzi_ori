@@ -9,8 +9,11 @@ Chart.defaults.set('plugins.datalabels', {
 });
 
 // Custom plugin: 파이/도넛 조각의 외곽 라벨을 각 조각 바로 옆(자기 각도 방향)에 짧은 선으로 표기.
-// - 좌/우는 그 조각의 실제 각도(중심 기준 왼쪽/오른쪽) 그대로 고정한다. 반대편으로 넘기는
-//   시도는 오히려 더 어색해 보인다는 피드백에 따라 하지 않는다.
+// - 기본은 그 조각의 실제 각도(중심 기준 왼쪽/오른쪽)를 따르되, 작은 조각 여러 개가
+//   한쪽에 몰려있으면(예: 국민ㆍ산업ㆍ삼성생명ㆍ하나은행이 전부 왼쪽에 연달아 있던
+//   경우) 라벨이 크게 밀리면서 지시선끼리 교차해 보인다 — 이럴 땐 세로(12/6시)에
+//   가장 가까운, 즉 반대쪽으로 넘겨도 각도상 가장 자연스러운 조각부터 균형이 맞을
+//   때까지 반대쪽으로 옮긴다(아래 "1-1) 좌우 쏠림 완화" 참고).
 // - 같은 쪽 라벨끼리 실제로 겹칠 때만, 순서를 유지한 채 "필요한 만큼만" 세로로 밀어낸다.
 // - 비중이 아주 작은 조각(기본 2% 미만)은 외곽 라벨을 생략한다(범례/툴팁으로 확인 가능).
 const smartOutsideLabelsPlugin = {
@@ -26,6 +29,7 @@ const smartOutsideLabelsPlugin = {
 
         const total = dataset.data.reduce((acc, val) => acc + val, 0) || 1;
         const minRatio = opts.minRatio != null ? opts.minRatio : 0.02;
+        const edgeGap = 6;          // 도넛 테두리와 지시선 시작점 사이 여백(선이 도형에 딱 붙어 보이지 않도록)
         const lineLength = 16;      // 조각 바로 바깥으로 뻗는 짧은 지시선 길이
         const lineHeight = 13;
         const blockHeight = lineHeight + 7; // 라벨 1개당 필요한 세로 공간(한 줄 + 여백)
@@ -44,14 +48,39 @@ const smartOutsideLabelsPlugin = {
             const sin = Math.sin(midAngle);
             items.push({
                 info,
+                cos,
+                ratio,
                 side: cos >= 0 ? 'right' : 'left',
-                anchorX: arc.x + cos * arc.outerRadius,
-                anchorY: arc.y + sin * arc.outerRadius,
-                elbowX: arc.x + cos * (arc.outerRadius + lineLength),
-                elbowY: arc.y + sin * (arc.outerRadius + lineLength)
+                anchorX: arc.x + cos * (arc.outerRadius + edgeGap),
+                anchorY: arc.y + sin * (arc.outerRadius + edgeGap),
+                elbowX: arc.x + cos * (arc.outerRadius + edgeGap + lineLength),
+                elbowY: arc.y + sin * (arc.outerRadius + edgeGap + lineLength)
             });
         });
         if (items.length === 0) return;
+
+        // 1-1) 좌우 쏠림 완화: 개수 차이가 2개 이상이면, 많은 쪽에서 세로(12/6시)에
+        // 가장 가까운(|cos|가 가장 작은 = 반대쪽으로 넘겨도 가장 자연스러운) "작은"
+        // 조각부터 하나씩 반대쪽으로 옮겨 균형을 맞춘다. 밀집된 작은 조각들이 한쪽에
+        // 몰려 라벨끼리 크게 밀리며 지시선이 서로 엇갈려 보이는 문제를 줄이는 게
+        // 목적이라, 옮기는 대상은 비중이 작은 조각으로만 한정한다(비중 큰 조각을
+        // 반대쪽으로 넘기면 지시선이 도넛을 가로질러 훨씬 더 어색해 보인다).
+        const flipEligibleRatio = 0.1;
+        let left = items.filter(it => it.side === 'left');
+        let right = items.filter(it => it.side === 'right');
+        while (Math.abs(left.length - right.length) > 1) {
+            const fromLeft = left.length > right.length;
+            const from = fromLeft ? left : right;
+            const candidates = from.filter(it => it.ratio < flipEligibleRatio);
+            if (candidates.length === 0) break; // 옮길 만한 작은 조각이 더 없으면 중단
+            let flipIdx = from.indexOf(candidates[0]);
+            candidates.forEach(c => {
+                if (Math.abs(c.cos) < Math.abs(from[flipIdx].cos)) flipIdx = from.indexOf(c);
+            });
+            const [flipped] = from.splice(flipIdx, 1);
+            flipped.side = fromLeft ? 'right' : 'left';
+            (fromLeft ? right : left).push(flipped);
+        }
 
         // 2) 같은 쪽에서 겹치는 라벨만 순서를 유지한 채 최소한으로 세로로 밀어내기 (2-패스: 정방향 후 역방향 보정)
         ['left', 'right'].forEach(side => {
