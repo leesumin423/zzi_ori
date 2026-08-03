@@ -25,29 +25,31 @@
                 </div>
             </div>
             <div class="header-controls">
-                <div class="control-group">
-                    <label for="snapshot-select" class="control-label">조회 기준일</label>
-                    <select id="snapshot-select" class="dropdown-control">
-                        <!-- Options filled dynamically -->
-                    </select>
-                </div>
-                <div class="control-group" id="legacy-year-group" style="display:none;">
-                    <label for="legacy-year-select" class="control-label">이전 연도</label>
-                    <select id="legacy-year-select" class="dropdown-control">
-                        <!-- Options filled dynamically -->
-                    </select>
-                </div>
-                <div class="control-group">
-                    <span class="control-label">금액 단위</span>
-                    <div class="toggle-container">
-                        <input type="checkbox" id="unit-toggle" class="toggle-checkbox">
-                        <label for="unit-toggle" class="toggle-label">
-                            <span class="toggle-inner" data-on="백만원" data-off="원"></span>
-                            <span class="toggle-switch"></span>
-                        </label>
+                <div class="header-filters">
+                    <div class="control-group">
+                        <label for="snapshot-select" class="control-label">조회 기준일</label>
+                        <select id="snapshot-select" class="dropdown-control">
+                            <!-- Options filled dynamically -->
+                        </select>
+                    </div>
+                    <div class="control-group" id="legacy-year-group" style="display:none;">
+                        <label for="legacy-year-select" class="control-label">이전 연도</label>
+                        <select id="legacy-year-select" class="dropdown-control">
+                            <!-- Options filled dynamically -->
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <span class="control-label">금액 단위</span>
+                        <div class="toggle-container">
+                            <input type="checkbox" id="unit-toggle" class="toggle-checkbox">
+                            <label for="unit-toggle" class="toggle-label">
+                                <span class="toggle-inner" data-on="백만원" data-off="원"></span>
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
-                <div class="control-group">
+                <div class="header-actions">
                     <a id="export-link" href="/export.xlsx" download class="header-btn primary">📥 엑셀 다운로드</a>
                     <a href="/admin" target="_blank" class="header-btn outline">⚙️ 관리</a>
                 </div>
