@@ -9,12 +9,13 @@ Chart.defaults.set('plugins.datalabels', {
 });
 
 // Custom plugin: 파이/도넛 조각의 외곽 라벨을 각 조각 바로 옆(자기 각도 방향)에 짧은 선으로 표기.
-// - 기본은 그 조각의 실제 각도(중심 기준 왼쪽/오른쪽)를 따르되, 작은 조각 여러 개가
-//   한쪽에 몰려있으면(예: 국민ㆍ산업ㆍ삼성생명ㆍ하나은행이 전부 왼쪽에 연달아 있던
-//   경우) 라벨이 크게 밀리면서 지시선끼리 교차해 보인다 — 이럴 땐 세로(12/6시)에
-//   가장 가까운, 즉 반대쪽으로 넘겨도 각도상 가장 자연스러운 조각부터 균형이 맞을
-//   때까지 반대쪽으로 옮긴다(아래 "1-1) 좌우 쏠림 완화" 참고).
+// - 좌/우는 그 조각의 실제 각도(중심 기준 왼쪽/오른쪽) 그대로 쓴다 — 반대쪽으로 넘기면
+//   anchor는 여전히 원래 자리인데 텍스트만 반대로 정렬돼 도넛에 파고들어 붙어 보이는
+//   문제가 있어서(실제로 겪음) 넘기지 않기로 했다.
 // - 같은 쪽 라벨끼리 실제로 겹칠 때만, 순서를 유지한 채 "필요한 만큼만" 세로로 밀어낸다.
+// - 지시선은 anchor(도넛 테두리에서 살짝 띄움) → 조각의 자기 각도로 짧게 뻗은 꺾임점 →
+//   텍스트, 이렇게 2구간으로 그려서 라벨이 세로로 밀렸을 때도 어느 조각과 이어지는
+//   선인지 명확하게 보이도록 한다.
 // - 비중이 아주 작은 조각(기본 2% 미만)은 외곽 라벨을 생략한다(범례/툴팁으로 확인 가능).
 const smartOutsideLabelsPlugin = {
     id: 'smartOutsideLabels',
@@ -59,28 +60,12 @@ const smartOutsideLabelsPlugin = {
         });
         if (items.length === 0) return;
 
-        // 1-1) 좌우 쏠림 완화: 개수 차이가 2개 이상이면, 많은 쪽에서 세로(12/6시)에
-        // 가장 가까운(|cos|가 가장 작은 = 반대쪽으로 넘겨도 가장 자연스러운) "작은"
-        // 조각부터 하나씩 반대쪽으로 옮겨 균형을 맞춘다. 밀집된 작은 조각들이 한쪽에
-        // 몰려 라벨끼리 크게 밀리며 지시선이 서로 엇갈려 보이는 문제를 줄이는 게
-        // 목적이라, 옮기는 대상은 비중이 작은 조각으로만 한정한다(비중 큰 조각을
-        // 반대쪽으로 넘기면 지시선이 도넛을 가로질러 훨씬 더 어색해 보인다).
-        const flipEligibleRatio = 0.1;
-        let left = items.filter(it => it.side === 'left');
-        let right = items.filter(it => it.side === 'right');
-        while (Math.abs(left.length - right.length) > 1) {
-            const fromLeft = left.length > right.length;
-            const from = fromLeft ? left : right;
-            const candidates = from.filter(it => it.ratio < flipEligibleRatio);
-            if (candidates.length === 0) break; // 옮길 만한 작은 조각이 더 없으면 중단
-            let flipIdx = from.indexOf(candidates[0]);
-            candidates.forEach(c => {
-                if (Math.abs(c.cos) < Math.abs(from[flipIdx].cos)) flipIdx = from.indexOf(c);
-            });
-            const [flipped] = from.splice(flipIdx, 1);
-            flipped.side = fromLeft ? 'right' : 'left';
-            (fromLeft ? right : left).push(flipped);
-        }
+        // (좌우로 반대쪽에 넘기는 시도는 되돌렸다 — side만 바꾸고 anchorX/elbowX는
+        // 원래 각도 그대로 두면, 실제로는 오른쪽에 있는 조각인데 텍스트만 왼쪽으로
+        // 정렬돼서 그 조각 쪽(도넛)으로 파고들어 붙어 보이는 버그가 있었다. side를
+        // 바꾸려면 anchor 자체를 반대쪽 여백까지 다시 계산해야 하는데, 그러면 결국
+        // 큰 조각을 옮겼을 때와 같은 문제(선이 도넛을 가로지름)가 재발한다. 그래서
+        // 좌/우는 각 조각의 실제 각도 그대로 두고, 아래 세로 겹침 보정만으로 정리한다.)
 
         // 2) 같은 쪽에서 겹치는 라벨만 순서를 유지한 채 최소한으로 세로로 밀어내기 (2-패스: 정방향 후 역방향 보정)
         ['left', 'right'].forEach(side => {
