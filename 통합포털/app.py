@@ -37,6 +37,11 @@ import monthly_report_db as report_db
 app = Flask(__name__)
 app.secret_key = hub_config.SECRET_KEY
 
+# 퇴직연금 iframe URL에 붙이는 캐시버스터 — 그 앱의 index.html/style.css/app.js를
+# 고칠 때마다 이 값을 올려주면(예: 날짜 문자열) 브라우저가 예전 index.html을
+# 계속 캐시해서 통합포털에서 새 화면이 안 보이는 문제를 막을 수 있다.
+PENSION_ASSET_VERSION = '20260803a'
+
 # 대여/운용은 단일 시트·단순 표라 화면에서 직접 조회+수정(editable=True)이 가능하고,
 # 자금수지(표지 포함)·어음현황·전체(표지부터 전체출력)는 다단 헤더/대량 병합셀에 시트도
 # 여러 장(sheets)이라 화면 조회 전용(editable=False)으로 두고 데이터 등록/교체는 관리
@@ -546,7 +551,12 @@ def portal():
             'id': 'pension',
             'label': '🧓 퇴직연금',
             'type': 'iframe',
-            'url': f'http://{host}:{hub_config.PORT_PENSION}/',
+            # 퇴직연금 앱의 index.html 자체를 브라우저가 오래 캐시해서, 그 안의
+            # style.css/app.js 버전을 올려도 iframe이 예전 index.html을 계속
+            # 재사용해 반영이 안 되는 문제가 있었다 — iframe src에 버전 쿼리를
+            # 붙여 이 앱을 고칠 때마다(PENSION_ASSET_VERSION만 올리면) 강제로
+            # 새로 받아오게 한다.
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/?_v={PENSION_ASSET_VERSION}',
         },
     ]
     if allowed_sections is not None:

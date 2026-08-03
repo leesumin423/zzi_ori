@@ -312,6 +312,25 @@ def _parse_db_snapshots():
     return snapshots_data
 
 
+def _carry_forward_new_dates(snapshots_data):
+    """'신규일'(new_date)은 계약이 실제로 갱신될 때만 원본 엑셀에 채워지고, 그 사이
+    분기/반기 보고서에는 아예 빈칸으로 오는 경우가 많다(예: 2026.5월/6월 말 자료는
+    47건 전부 신규일이 비어 있었음, 반면 매 12월말 자료는 채워져 있었음) — 이걸
+    그대로 두면 화면ㆍ엑셀에 신규일이 안 보이는 계약이 실제보다 훨씬 많아 보인다.
+    같은 계약(법인 재설정 없이 기관ㆍ상품명ㆍ최초가입일ㆍ만기일이 같으면 같은 계약으로
+    본다)은 새 신규일이 나올 때까지 직전에 확인된 신규일을 그대로 이어간다 — 예:
+    25년 4분기에 신규일이 찍혀 있으면, 26년 1분기 자료에 그 칸이 비어 있어도
+    (새로 갱신됐다는 자료가 없는 한) 25년 4분기 신규일을 그대로 쓴다."""
+    last_known = {}
+    for date_str in sorted(snapshots_data.keys()):
+        for item in snapshots_data[date_str]["items"]:
+            key = (item["institution"], item["product"], item["start"], item["end"])
+            if item.get("new_date"):
+                last_known[key] = item["new_date"]
+            elif key in last_known:
+                item["new_date"] = last_known[key]
+
+
 def _compute_yoy_years(all_dates):
     """연말 기준일(YYYY-12-31)이 있는 해는 전부 넣고, 그중 없는 가장 최근 기준일(예:
     반기말)도 마지막에 하나 추가한다 — 새 기준일이 계속 추가돼도 코드를 손대지
@@ -332,6 +351,7 @@ def build_snapshots_and_yoy():
     print("Parsing all snapshots...")
     snapshots_data = _parse_legacy_snapshots()
     snapshots_data.update(_parse_db_snapshots())
+    _carry_forward_new_dates(snapshots_data)
 
     yoy_years = _compute_yoy_years(list(snapshots_data.keys()))
     yoy_comparison = []

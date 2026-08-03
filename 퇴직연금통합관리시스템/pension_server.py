@@ -83,7 +83,8 @@ def _export_write_items_sheet(ws, items, institution_order):
     파란 배경), 맨 끝에 전체 합계 행(진한 파란 배경)을 추가한다. 표시 순서는
     institution_distribution과 같은 순서(금액 큰 기관부터)로 맞춘다 — 그 목록에
     없는 기관이 혹시 있으면(데이터 불일치) 누락 없이 뒤에 이어 붙인다."""
-    headers = ['사업자(기관)', '상품명', '상품유형', '실적배당여부', '금리', '개시일', '갱신일', '만기일', '금액(원)']
+    # 컬럼명은 대시보드 표(index.html)ㆍ원본 엑셀 서식과 동일하게 "최초가입일"/"신규일"로 맞춘다.
+    headers = ['사업자(기관)', '상품명', '상품유형', '실적배당여부', '금리', '최초가입일', '신규일', '만기일', '금액(원)']
     ws.append(headers)
     for cell in ws[1]:
         cell.fill = _EXPORT_HEADER_FILL
