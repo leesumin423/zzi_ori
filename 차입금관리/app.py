@@ -3015,12 +3015,42 @@ def render_dashboard():
             )
             return fig
 
+        def _popover_row(labels, build_body, key_prefix, per_row=6):
+            """labels 각각에 대해 클릭하면 세부내역이 뜨는 팝오버 버튼을 한 줄에
+            per_row개씩 나눠 배치한다(항목이 많아도 옆으로 계속 늘어나 잘리지
+            않도록). build_body(label)는 팝오버 안에 그릴 내용을 렌더링하는
+            콜백이다."""
+            for i in range(0, len(labels), per_row):
+                cols = st.columns(per_row)
+                for col, label in zip(cols, labels[i:i + per_row]):
+                    with col:
+                        with st.popover(label, use_container_width=True):
+                            build_body(label)
+
         chart_col1, chart_col2 = st.columns(2)
         with chart_col1:
             st.markdown("#### 🥧 금융기관별 잔액 비중 (7개 법인 합산)")
             inst_lv = [(col, bal_total[col]) for col in group_loan.INSTITUTION_COLUMNS if bal_total[col] > 0]
             if inst_lv:
                 st.plotly_chart(_donut(inst_lv, lambda t: f"{t:,.0f}억원"), use_container_width=True)
+
+                def _institution_detail(inst):
+                    st.markdown(f"**{inst} — 법인별 세부내역**")
+                    rows = []
+                    for c in group_loan.GROUP_COMPANIES:
+                        for it in company_items.get(c, []):
+                            if group_loan.normalize_institution_column(it['institution_raw']) == inst:
+                                rows.append({
+                                    "법인": c, "차입처": it['institution_raw'],
+                                    "잔액(억원)": _fmt_amt(it['balance']),
+                                    "금리": _fmt_pct(it['rate']) if it['rate'] is not None else "-",
+                                })
+                    if rows:
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    else:
+                        st.caption("세부내역이 없습니다.")
+
+                _popover_row([l for l, _v in inst_lv], _institution_detail, "gl_inst_pop")
             else:
                 st.caption("표시할 잔액이 없습니다.")
         with chart_col2:
@@ -3043,9 +3073,30 @@ def render_dashboard():
             fig_bar.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 font=dict(color='#0f172a'), margin=dict(t=20, b=10, l=10, r=10), height=320,
+                # bargap을 넉넉히 둬서 법인 7개뿐이라도 막대 하나하나의 가로폭이
+                # 화면을 꽉 채우며 두꺼워지지 않도록(한눈에 비교하기 어려웠던 문제) 한다.
+                xaxis=dict(title=None),
                 yaxis=dict(title='잔액(억원)', gridcolor='rgba(15,23,42,0.06)'), showlegend=False,
+                bargap=0.55,
             )
             st.plotly_chart(fig_bar, use_container_width=True)
+
+            def _company_detail(company):
+                st.markdown(f"**{company} — 금융기관별 세부내역**")
+                rows = [
+                    {
+                        "구분": it['subject'] or '-', "차입처": it['institution_raw'],
+                        "한도(억원)": _fmt_amt(it['limit']), "잔액(억원)": _fmt_amt(it['balance']),
+                        "금리": _fmt_pct(it['rate']) if it['rate'] is not None else "-",
+                    }
+                    for it in company_items.get(company, [])
+                ]
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                else:
+                    st.caption("세부내역이 없습니다.")
+
+            _popover_row(bar_companies, _company_detail, "gl_company_pop")
         return
 
     # -----------------------------------------------------------------
