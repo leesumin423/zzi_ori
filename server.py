@@ -2004,6 +2004,46 @@ def _equity_is_buy(t: dict) -> bool:
     더해야 한다(제외하면 그 이전 매수 이력이 통째로 빠져버린다)."""
     return bool(t.get('qty') and t['qty'] > 0 and t.get('price') is not None)
 
+def _equity_is_split_like(t: dict) -> bool:
+    """주식병합ㆍ액면분할처럼 "대가 없이 보유주식수가 일정 비율로 재조정"되는
+    사유인지 판단한다(보고사유 텍스트에 "병합"ㆍ"분할"이 있고, 무상증자ㆍ증여처럼
+    단가가 없는 다른 사유와 달리 변동후 수량으로 비율을 계산할 수 있어야 함).
+    이런 사유가 있으면, 그 이전 매수 이력의 수량ㆍ단가를 소급 조정해야 한다 —
+    안 그러면 평균단가가 "옛 주식수 기준"으로 남아 지금 보유수량과 단위가
+    안 맞는다(예: 2026-07-07 2:1 병합으로 37,046주가 18,523주가 됐는데,
+    그 전 매수분을 그대로 두면 평균단가가 여전히 병합 전 주식수 기준으로
+    계산되어 "18,523주에 평균 얼마"라는 표시와 실제 취득총액이 안 맞는다)."""
+    reason = t.get('reason') or ''
+    return bool(
+        ('병합' in reason or '분할' in reason)
+        and t.get('price') is None
+        and t.get('qty')
+        and t.get('after_qty') is not None
+    )
+
+def _equity_apply_split_adjustments(all_txns_sorted):
+    """실제 변동일 오름차순으로 정렬된 이 사람의 전체 거래(all_txns_sorted, 매수뿐
+    아니라 병합ㆍ증여 등도 포함)를 받아, 매수 거래의 (수량, 단가)를 그 이후에
+    발생한 병합/분할 비율만큼 소급 보정한 [(date, qty, price), ...]를 반환한다
+    (병합/분할이 아닌 매수만 포함, 최신순이 아니라 날짜 오름차순 유지).
+
+    최신 → 과거 순으로 훑으면서 누적비율을 곱해나가는 방식이라, 한 사람이
+    여러 번 병합/분할을 겪어도(드물지만) 각 매수 시점 이후의 모든 이벤트가
+    자동으로 다 반영된다. 총 취득금액(qty×price)은 보정 전후로 항상 그대로
+    보존된다 — 수량을 비율만큼 줄이면 단가는 그 반대비율만큼 늘어난다."""
+    adjusted = []
+    cum_ratio = 1.0
+    for t in reversed(all_txns_sorted):
+        if _equity_is_split_like(t):
+            before_qty = t['after_qty'] - t['qty']
+            if before_qty:
+                cum_ratio *= t['after_qty'] / before_qty
+            continue
+        if _equity_is_buy(t):
+            adjusted.append((t['date'], t['qty'] * cum_ratio, t['price'] / cum_ratio))
+    adjusted.reverse()
+    return adjusted
+
 def _equity_parse_document(html_text: str) -> dict:
     """임원ㆍ주요주주 특정증권등 소유상황보고서 원문을 파싱한다. 단판공시 문서와
     달리 이 서식은 값마다 ACODE(고정값)/AUNIT(선택값, aunitvalue에 코드)가 직접
@@ -2331,16 +2371,17 @@ def fetch_equity_monitoring(force: bool = False) -> list:
     results = []
     for name, docs in by_person.items():
         docs.sort(key=lambda d: (d['rcept_dt'], d['rcept_no']))
-        buy_txns = [
-            (d['rcept_dt'], d['rcept_no'], t['date'], t['qty'], t['price'])
-            for d in docs for t in d['parsed']['transactions']
-            if _equity_is_buy(t)
-        ]
+        # 병합/분할 소급 조정을 하려면 매수 아닌 거래(병합 등)도 같이 봐야 하므로,
+        # 이 사람의 전체 거래를 먼저 실제 변동일 순으로 모은다.
+        all_txns = sorted(
+            (t for d in docs for t in d['parsed']['transactions']),
+            key=lambda t: t['date'],
+        )
+        buy_txns = _equity_apply_split_adjustments(all_txns)
         if not buy_txns:
             continue  # 매수 이력이 없으면(매도ㆍ증여ㆍ병합 등만 있으면) 이 표에서는 제외
 
-        buy_txns.sort(key=lambda t: t[2])  # 실제 매매(변동)일 기준 정렬
-        first_date = buy_txns[0][2]
+        first_date = buy_txns[0][0]
 
         # "최근 매수일(공시일)"ㆍ원문은 매수 거래가 포함된 공시 중 가장 최근 것을 기준으로
         latest_doc = max(
@@ -2361,10 +2402,10 @@ def fetch_equity_monitoring(force: bool = False) -> list:
                 total_qty = d['parsed']['final_holding']
                 break
         if total_qty is None:
-            total_qty = sum(t[3] for t in buy_txns)  # 폴백: 파싱 실패 시 매수 합계라도
+            total_qty = sum(t[1] for t in buy_txns)  # 폴백: 파싱 실패 시 매수 합계라도
 
-        priced = [t for t in buy_txns if t[4] is not None]
-        avg_price = (sum(t[3] * t[4] for t in priced) / sum(t[3] for t in priced)) if priced else None
+        priced = [t for t in buy_txns if t[2] is not None]
+        avg_price = (sum(t[1] * t[2] for t in priced) / sum(t[1] for t in priced)) if priced else None
 
         last_parsed = docs[-1]['parsed']  # 가장 최근 공시에 적힌 신상정보(직위 등)를 채택
         is_major_shareholder = last_parsed.get('is_major_shareholder', False)
