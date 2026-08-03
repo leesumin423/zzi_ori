@@ -272,3 +272,12 @@ def index():
 @app.route('/<path:filename>')
 def static_files(filename):
     return send_from_directory(BASE_DIR, filename)
+
+
+@app.after_request
+def _no_cache_static(response):
+    # index.html/app.js/style.css는 자주 고쳐지는데, 브라우저(특히 통합포털 iframe
+    # 안에서 열릴 때)가 오래 캐시해서 서버를 재시작해도 화면이 안 바뀌어 보이는
+    # 문제가 있었다 — 항상 서버에 다시 확인하도록 캐시를 꺼둔다.
+    response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    return response
