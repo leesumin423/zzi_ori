@@ -54,6 +54,9 @@ def data_json():
 
 _EXPORT_HEADER_FILL = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
 _EXPORT_HEADER_FONT = Font(color='FFFFFF', bold=True)
+_EXPORT_SUBTOTAL_FILL = PatternFill(start_color='DCE6F1', end_color='DCE6F1', fill_type='solid')
+_EXPORT_TOTAL_FILL = PatternFill(start_color='9DC3E6', end_color='9DC3E6', fill_type='solid')
+_EXPORT_BOLD = Font(bold=True)
 
 
 def _export_write_sheet(ws, headers, rows):
@@ -70,6 +73,59 @@ def _export_write_sheet(ws, headers, rows):
     for row in rows:
         for i, v in enumerate(row):
             widths[i] = max(widths[i], len(str(v)) if v is not None else 0)
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = min(max(w + 2, 10), 45)
+    ws.freeze_panes = 'A2'
+
+
+def _export_write_items_sheet(ws, items, institution_order):
+    """상세내역 시트 전용 — 기관별로 묶어 나열하고, 기관이 바뀔 때마다 소계 행(연한
+    파란 배경), 맨 끝에 전체 합계 행(진한 파란 배경)을 추가한다. 표시 순서는
+    institution_distribution과 같은 순서(금액 큰 기관부터)로 맞춘다 — 그 목록에
+    없는 기관이 혹시 있으면(데이터 불일치) 누락 없이 뒤에 이어 붙인다."""
+    headers = ['사업자(기관)', '상품명', '상품유형', '실적배당여부', '금리', '개시일', '갱신일', '만기일', '금액(원)']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = _EXPORT_HEADER_FILL
+        cell.font = _EXPORT_HEADER_FONT
+        cell.alignment = Alignment(horizontal='center')
+
+    by_inst = {}
+    for it in items:
+        by_inst.setdefault(it.get('institution', ''), []).append(it)
+    ordered_insts = [i for i in institution_order if i in by_inst] + [i for i in by_inst if i not in institution_order]
+
+    widths = [len(h) for h in headers]
+
+    def _append_row(row, bold=False, fill=None):
+        ws.append(row)
+        r = ws.max_row
+        for i, v in enumerate(row, start=1):
+            cell = ws.cell(row=r, column=i)
+            if bold:
+                cell.font = _EXPORT_BOLD
+            if fill:
+                cell.fill = fill
+            widths[i - 1] = max(widths[i - 1], len(str(v)) if v is not None else 0)
+
+    grand_total = 0
+    for inst in ordered_insts:
+        inst_sum = 0
+        for it in by_inst[inst]:
+            amount = it.get('amount') or 0
+            _append_row([
+                it.get('institution', ''), it.get('product', ''), it.get('product_type', ''),
+                '실적배당' if it.get('is_performance') else '원리금보장',
+                f"{it.get('rate', 0) * 100:.2f}%" if it.get('rate') is not None else '-',
+                it.get('start') or '-', it.get('new_date') or '-', it.get('end') or '-',
+                amount,
+            ])
+            inst_sum += amount
+        _append_row([f'{inst} 소계', '', '', '', '', '', '', '', inst_sum], bold=True, fill=_EXPORT_SUBTOTAL_FILL)
+        grand_total += inst_sum
+
+    _append_row(['합계', '', '', '', '', '', '', '', grand_total], bold=True, fill=_EXPORT_TOTAL_FILL)
+
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = min(max(w + 2, 10), 45)
     ws.freeze_panes = 'A2'
@@ -104,20 +160,8 @@ def export_excel():
     ])
 
     ws_items = wb.create_sheet('상세내역')
-    _export_write_sheet(
-        ws_items,
-        ['사업자(기관)', '상품명', '상품유형', '실적배당여부', '금리', '개시일', '갱신일', '만기일', '금액(원)'],
-        [
-            [
-                it.get('institution', ''), it.get('product', ''), it.get('product_type', ''),
-                '실적배당' if it.get('is_performance') else '원리금보장',
-                f"{it.get('rate', 0) * 100:.2f}%" if it.get('rate') is not None else '-',
-                it.get('start') or '-', it.get('new_date') or '-', it.get('end') or '-',
-                it.get('amount'),
-            ]
-            for it in snap.get('items', [])
-        ],
-    )
+    institution_order = [d.get('institution', '') for d in snap.get('institution_distribution', [])]
+    _export_write_items_sheet(ws_items, snap.get('items', []), institution_order)
 
     ws_inst = wb.create_sheet('기관별분포')
     _export_write_sheet(

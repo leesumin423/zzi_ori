@@ -125,20 +125,63 @@ body {
 
 .header-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 2rem;
+    gap: 1.2rem 2rem;
 }
 
 .control-group {
     display: flex;
     align-items: center;
     gap: 0.8rem;
+    flex-shrink: 0;
 }
 
 .control-label {
     font-size: 0.85rem;
     color: var(--text-secondary);
     font-weight: 500;
+    white-space: nowrap;
+}
+
+/* 엑셀 다운로드ㆍ관리처럼 헤더에 나란히 놓이는 버튼형 링크 — 예전엔 .control-label을
+   그대로 재사용해서(고정폭 없이 border만 인라인으로 붙임) 헤더가 좁아지면 글자가
+   단어 중간에서 줄바꿈되는 문제가 있었다(예: "엑셀 다운로\n드"). white-space:nowrap과
+   전용 스타일로 분리했다. */
+.header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.6rem 1.1rem;
+    border-radius: 8px;
+    transition: all var(--transition-speed);
+}
+
+.header-btn.primary {
+    background: var(--accent);
+    color: #ffffff;
+    border: 1px solid var(--accent);
+    box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.header-btn.primary:hover {
+    background: var(--accent-light);
+    box-shadow: 0 4px 14px var(--accent-glow);
+}
+
+.header-btn.outline {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--card-border);
+}
+
+.header-btn.outline:hover {
+    border-color: var(--accent);
+    color: var(--accent-light);
 }
 
 .dropdown-control {
