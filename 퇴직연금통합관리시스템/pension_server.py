@@ -11,10 +11,12 @@ from datetime import datetime
 
 from flask import (
     Flask, request, session, redirect, url_for, flash,
-    send_from_directory, jsonify, render_template, get_flashed_messages,
+    send_from_directory, send_file, jsonify, render_template, get_flashed_messages,
 )
 
 import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 import parse_data
 import pension_db
@@ -48,6 +50,107 @@ def _is_admin():
 @app.route('/data.json')
 def data_json():
     return jsonify(_get_data())
+
+
+_EXPORT_HEADER_FILL = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
+_EXPORT_HEADER_FONT = Font(color='FFFFFF', bold=True)
+
+
+def _export_write_sheet(ws, headers, rows):
+    """헤더 행(진한 배경 + 흰 글씨)과 데이터 행을 쓰고, 각 열 너비를 내용에 맞춰
+    자동으로 넓힌다 — 시트마다 반복되는 서식이라 함수로 뺐다."""
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = _EXPORT_HEADER_FILL
+        cell.font = _EXPORT_HEADER_FONT
+        cell.alignment = Alignment(horizontal='center')
+    for row in rows:
+        ws.append(row)
+    widths = [len(str(h)) for h in headers]
+    for row in rows:
+        for i, v in enumerate(row):
+            widths[i] = max(widths[i], len(str(v)) if v is not None else 0)
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = min(max(w + 2, 10), 45)
+    ws.freeze_panes = 'A2'
+
+
+@app.route('/export.xlsx')
+def export_excel():
+    """조회 중인 기준일의 퇴직연금 자료를 엑셀로 내려받는다 — 요약ㆍ상세내역(계약별
+    기관ㆍ상품ㆍ금리ㆍ만기)ㆍ기관별/상품별/만기별 분포를 시트별로 나눠 담는다.
+    base_date를 안 주면 등록된 것 중 가장 최근 기준일을 쓴다."""
+    data = _get_data()
+    snapshots = data.get('snapshots', {})
+    if not snapshots:
+        return "등록된 데이터가 없습니다.", 404
+
+    base_date = request.args.get('base_date', '').strip()
+    if base_date not in snapshots:
+        base_date = sorted(snapshots.keys())[-1]
+    snap = snapshots[base_date]
+
+    wb = openpyxl.Workbook()
+
+    ws_summary = wb.active
+    ws_summary.title = '요약'
+    _export_write_sheet(ws_summary, ['항목', '값'], [
+        ['기준일', base_date],
+        ['라벨', snap.get('label', '')],
+        ['총 적립금(원)', snap.get('total_amount')],
+        ['가중평균 수익률', f"{snap.get('weighted_yield', 0) * 100:.2f}%" if snap.get('weighted_yield') is not None else '-'],
+        ['예상 연 이자(원)', round(snap.get('expected_interest', 0)) if snap.get('expected_interest') is not None else '-'],
+        ['계약 건수', len(snap.get('items', []))],
+    ])
+
+    ws_items = wb.create_sheet('상세내역')
+    _export_write_sheet(
+        ws_items,
+        ['사업자(기관)', '상품명', '상품유형', '실적배당여부', '금리', '개시일', '갱신일', '만기일', '금액(원)'],
+        [
+            [
+                it.get('institution', ''), it.get('product', ''), it.get('product_type', ''),
+                '실적배당' if it.get('is_performance') else '원리금보장',
+                f"{it.get('rate', 0) * 100:.2f}%" if it.get('rate') is not None else '-',
+                it.get('start') or '-', it.get('new_date') or '-', it.get('end') or '-',
+                it.get('amount'),
+            ]
+            for it in snap.get('items', [])
+        ],
+    )
+
+    ws_inst = wb.create_sheet('기관별분포')
+    _export_write_sheet(
+        ws_inst, ['사업자(기관)', '금액(원)', '비중'],
+        [[d.get('institution', ''), d.get('amount'), f"{d.get('ratio', 0) * 100:.2f}%"] for d in snap.get('institution_distribution', [])],
+    )
+
+    ws_prod = wb.create_sheet('상품유형별분포')
+    _export_write_sheet(
+        ws_prod, ['상품유형', '금액(원)', '비중'],
+        [[d.get('product_type', ''), d.get('amount'), f"{d.get('ratio', 0) * 100:.2f}%"] for d in snap.get('product_distribution', [])],
+    )
+
+    ws_mat = wb.create_sheet('만기별분포')
+    _export_write_sheet(
+        ws_mat, ['만기 구간', '금액(원)', '비중', '수익률', '예상이자(원)'],
+        [
+            [
+                d.get('category', ''), d.get('amount'), f"{d.get('ratio', 0) * 100:.2f}%",
+                f"{d.get('yield', 0) * 100:.2f}%" if d.get('yield') is not None else '-',
+                round(d.get('interest', 0)) if d.get('interest') is not None else '-',
+            ]
+            for d in snap.get('maturity_distribution', [])
+        ],
+    )
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf, as_attachment=True, download_name=f"퇴직연금_{base_date}.xlsx",
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
 
 
 @app.route('/admin', methods=['GET', 'POST'])

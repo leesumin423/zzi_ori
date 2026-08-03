@@ -344,6 +344,10 @@ function formatValue(value, isPercent = false, forceWon = false) {
 function updateDashboard() {
     if (!pensionData || !activeDate) return;
 
+    // 엑셀 다운로드 링크가 항상 지금 보고 있는 기준일 데이터를 받도록 갱신
+    const exportLink = document.getElementById("export-link");
+    if (exportLink) exportLink.href = "/export.xlsx?base_date=" + encodeURIComponent(activeDate);
+
     const snap = pensionData.snapshots[activeDate];
     const prevYearEndSnap = getPrevYearEndSnapshot(activeDate);
 
