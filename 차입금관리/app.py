@@ -3034,16 +3034,23 @@ def render_dashboard():
 
         chart_col1, chart_col2 = st.columns(2)
         with chart_col1:
-            st.markdown("#### 🥧 금융기관별 잔액 비중 (7개 법인 합산) — 조각을 클릭하면 세부내역")
+            st.markdown("#### 🥧 금융기관별 잔액 비중 (7개 법인 합산)")
             inst_lv = [(col, bal_total[col]) for col in group_loan.INSTITUTION_COLUMNS if bal_total[col] > 0]
             if inst_lv:
-                inst_event = st.plotly_chart(
-                    _donut(inst_lv, lambda t: f"{t:,.0f}억원"), use_container_width=True,
-                    on_select="rerun", selection_mode="points", key="gl_inst_donut",
-                )
-                inst_points = (inst_event or {}).get("selection", {}).get("points", [])
-                if inst_points and inst_points[0].get("label"):
-                    _show_institution_dialog(inst_points[0]["label"])
+                st.plotly_chart(_donut(inst_lv, lambda t: f"{t:,.0f}억원"), use_container_width=True)
+                # 원형(파이/도넛) 차트는 Plotly의 클릭선택(on_select)이 애초에 지원되지
+                # 않는다 — 선택 기능은 x/y축이 있는 카테시안 트레이스(막대ㆍ산점도 등)
+                # 전용이라 각도 기반인 파이 트레이스에는 적용되지 않는다(라이브러리
+                # 자체 한계, 실제로 클릭해도 아무 반응이 없는 것으로 확인됨). 그래서
+                # 여기만 기관 이름 버튼을 눌러 세부내역 팝업을 여는 방식을 쓴다.
+                st.caption("👇 기관을 클릭하면 세부내역이 뜹니다")
+                inst_labels = [l for l, _v in inst_lv]
+                for i in range(0, len(inst_labels), 4):
+                    row_cols = st.columns(4)
+                    for rc, label in zip(row_cols, inst_labels[i:i + 4]):
+                        with rc:
+                            if st.button(label, key=f"gl_inst_btn_{label}", use_container_width=True):
+                                _show_institution_dialog(label)
             else:
                 st.caption("표시할 잔액이 없습니다.")
         with chart_col2:
