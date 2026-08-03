@@ -3064,19 +3064,28 @@ def render_dashboard():
         st.markdown("#### 📊 법인별 잔액 비교 (억원)")
         bar_companies = [c for c in group_loan.GROUP_COMPANIES if c in summary_rows]
         if bar_companies:
+            bar_values = [summary_rows[c]['잔액'] for c in bar_companies]
+            bar_max = max(bar_values) if bar_values else 0
             fig_bar = go.Figure(data=[go.Bar(
-                x=bar_companies, y=[summary_rows[c]['잔액'] for c in bar_companies],
+                x=bar_companies, y=bar_values,
+                # width를 카테고리 슬롯 대비 고정 비율로 못박아서, bargap만으로는
+                # 법인 수가 적을 때(예: 2개) 슬롯 자체가 넓어져 막대가 여전히
+                # 두꺼워 보이던 문제를 없앤다 — 법인이 2개든 7개든 막대 하나의
+                # 두께가 항상 일정하게 얇게 유지된다.
+                width=[0.28] * len(bar_companies),
                 marker=dict(color=(CHART_COLORS * (len(bar_companies) // len(CHART_COLORS) + 1))[:len(bar_companies)]),
-                text=[f"{summary_rows[c]['잔액']:,.0f}" for c in bar_companies], textposition='outside',
+                text=[f"{v:,.0f}" for v in bar_values], textposition='outside',
                 hovertemplate='%{x}<br>%{y:,.1f}억원<extra></extra>',
             )])
             fig_bar.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#0f172a'), margin=dict(t=20, b=10, l=10, r=10), height=320,
-                # bargap을 넉넉히 둬서 법인 7개뿐이라도 막대 하나하나의 가로폭이
-                # 화면을 꽉 채우며 두꺼워지지 않도록(한눈에 비교하기 어려웠던 문제) 한다.
+                font=dict(color='#0f172a'), margin=dict(t=40, b=10, l=10, r=10), height=320,
                 xaxis=dict(title=None),
-                yaxis=dict(title='잔액(억원)', gridcolor='rgba(15,23,42,0.06)'), showlegend=False,
+                # 막대 위 숫자 라벨(textposition='outside')이 y축 최댓값 바로
+                # 위까지 차오르면 잘려 보였던 문제 — y축 상단에 18% 여유를 둬서
+                # 라벨이 항상 그래프 영역 안에 다 보이게 한다.
+                yaxis=dict(title='잔액(억원)', gridcolor='rgba(15,23,42,0.06)', range=[0, bar_max * 1.18 if bar_max else 1]),
+                showlegend=False,
                 bargap=0.55,
             )
             st.plotly_chart(fig_bar, use_container_width=True)
