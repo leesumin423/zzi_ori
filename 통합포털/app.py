@@ -1015,10 +1015,7 @@ def admin_cashflow_mail_template_upload():
 @app.route('/admin/cashflow-mail/send-now', methods=['POST'])
 @cashflow_plan_mail_access_required
 def admin_cashflow_mail_send_now():
-    # 백그라운드 스레드로 실행 — RPA가 로그인 대기(최대 5분) 동안 HTTP 요청을
-    # 붙잡으면 브라우저가 "작업실행중"으로 멈춰버리는 문제가 있었다.
-    # 버튼을 누르면 즉시 "자동화 시작됨" 메시지를 반환하고,
-    # 그룹웨어 창은 서버 PC 화면에서 따로 열린다.
+    import asyncio
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = cashflow_plan_mail.prepare_groupware_draft(sender_name)
@@ -1030,6 +1027,9 @@ def admin_cashflow_mail_send_now():
     missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
 
     def _run():
+        # Windows 새 스레드에는 asyncio 이벤트 루프가 없어
+        # Playwright가 브라우저를 못 여는 문제를 막기 위해 명시적으로 생성
+        asyncio.set_event_loop(asyncio.new_event_loop())
         result = groupware_rpa.create_groupware_draft(
             subject=draft['subject'], body_html=draft['body_html'],
             recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
@@ -1124,8 +1124,7 @@ def periodic_send():
 @app.route('/disclosure/periodic-send/send-now', methods=['POST'])
 @login_required
 def periodic_send_now():
-    # 백그라운드 스레드로 실행 — 로그인 대기 동안 브라우저가 "작업실행중"으로
-    # 멈추는 문제를 방지한다. 버튼 클릭 즉시 응답 반환, 창은 서버 PC에서 열림.
+    import asyncio
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = periodic_mail.prepare_groupware_draft(sender_name)
@@ -1136,6 +1135,7 @@ def periodic_send_now():
     import groupware_rpa
 
     def _run():
+        asyncio.set_event_loop(asyncio.new_event_loop())
         result = groupware_rpa.create_groupware_draft(
             subject=draft['subject'], body_html=draft['body_html'],
             recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
@@ -1246,8 +1246,7 @@ def admin_ftc_disclosure_mail_template_upload():
 @app.route('/admin/ftc-disclosure-mail/send-now', methods=['POST'])
 @ftc_disclosure_mail_access_required
 def admin_ftc_disclosure_mail_send_now():
-    # 백그라운드 스레드로 실행 — 로그인 대기 동안 브라우저가 "작업실행중"으로
-    # 멈추는 문제를 방지한다. 버튼 클릭 즉시 응답 반환, 창은 서버 PC에서 열림.
+    import asyncio
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = ftc_disclosure_mail.prepare_groupware_draft(sender_name)
@@ -1259,6 +1258,7 @@ def admin_ftc_disclosure_mail_send_now():
     missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
 
     def _run():
+        asyncio.set_event_loop(asyncio.new_event_loop())
         result = groupware_rpa.create_groupware_draft(
             subject=draft['subject'], body_html=draft['body_html'],
             recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
