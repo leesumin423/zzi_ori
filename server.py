@@ -3779,18 +3779,17 @@ MGMT_BACKFILL_MAX_CALLS_PER_REQUEST = 20   # 한 번의 /data 요청에서 backf
                                             # 환경에서는 이 한도에 거의 안 걸린다.)
 MGMT_WATCH_HISTORY_FILE = os.path.join(BASE_DIR, 'mgmt_watch_history.json')
 
-# 동양우ㆍ동양2우B 감자(주식병합)로 인한 재상장일 — 2026.7.3~7.16 매매정지, 7.20 재상장.
-# 병합 전(예: 7.1~7.2)과 병합 후(7.20~)는 1주가 표상하는 가치ㆍ발행주식총수 자체가
-# 달라져서 거래량(주식수) 단위가 서로 다르다 — 예를 들어 동양우는 7.1 종가 4,215원이던
-# 것이 7.20 재상장 후 7,700원으로 뛰었는데(발행주식총수가 그만큼 줄어든 것), 이 둘을
-# 그대로 더해서 "반기 누적거래량"을 구하면 서로 다른 단위를 억지로 합산하는 셈이라
-# 잠정치가 실제보다 과다하게 나온다(사용자가 실거래량 대조로 직접 발견: 동양우는
-# 7.20 이후 실거래량 합계가 16,917주인데 반기 시작일 기준으로 계산하면 19,168주로 나옴 —
-# 7.1~7.2의 병합 전 거래량 21,659주가 함께 합산됐기 때문). 그래서 이 반기(2026년
-# 하반기)만큼은 반기 시작일(7.1) 대신 재상장일(7.20)부터 누적ㆍ경과월수를 계산한다.
+# 동양우ㆍ동양2우B 감자(액면병합, 구주 2주→신주 1주)로 인한 변경상장일 —
+# 2026.7.3~7.16 매매정지, 7.20 변경상장(신규상장 아님). 병합 전(7.1~7.2)과 병합
+# 후(7.20~)는 1주가 표상하는 가치ㆍ발행주식총수 자체가 달라져서(병합비율 2:1)
+# 거래량(주식수) 단위가 서로 다르다 — 동양우는 병합 전 발행주식총수 525,231주
+# (mktcap÷close로 역산, 2026.6.30 기준)가 병합 후 262,615주로 정확히 절반이 됨
+# (동양2우B도 동일 비율로 확인). 반기는 그대로 7.1부터지만, 병합 전 거래량에
+# ratio(0.5)를 곱해 "신주 환산 거래량"으로 바꿔서 합산해야 한다 — 그대로 더하면
+# 서로 다른 단위를 합산하는 셈이라 잠정치가 왜곡된다.
 MGMT_SHARE_REORG_DATES = {
-    "001525": date(2026, 7, 20),  # 동양우
-    "001527": date(2026, 7, 20),  # 동양2우B
+    "001525": {"reorg_date": date(2026, 7, 20), "ratio": 0.5},  # 동양우
+    "001527": {"reorg_date": date(2026, 7, 20), "ratio": 0.5},  # 동양2우B
 }
 
 def _load_mgmt_history() -> dict:
@@ -4119,8 +4118,8 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
             "current_volume_status": "데이터 없음",
             "half_year_label": None,
             "history_days": 0,
-            "volume_period_start": None,
             "share_reorg_date": None,
+            "share_reorg_ratio": None,
             "trading_days_observed": 0,
             "avg_daily_volume_recent": None,
             "estimated_remaining_trading_days": 0,
@@ -4146,16 +4145,30 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
 
     half_start = _half_year_start(latest_dt)
     half_label = f"{half_start.year}년 {'상반기' if half_start.month == 1 else '하반기'}"
-    # 반기 중 감자(주식병합) 등으로 재상장한 종목은, 병합 전ㆍ후 거래량(주식수) 단위가
-    # 달라서 반기 시작일부터 그대로 합산하면 안 된다 — MGMT_SHARE_REORG_DATES 참고.
-    # 재상장일이 반기 시작일보다 늦으면 그 재상장일부터 누적ㆍ경과월수를 계산한다.
-    reorg_date = MGMT_SHARE_REORG_DATES.get(code)
-    volume_period_start = max(half_start, reorg_date) if reorg_date else half_start
-    elapsed_months = (latest_dt.year - volume_period_start.year) * 12 + (latest_dt.month - volume_period_start.month) + 1
-    half_volume_sum = sum(
-        v["volume"] for d_str, v in day_map.items()
-        if datetime.strptime(d_str, '%Y%m%d').date() >= volume_period_start
-    )
+    # 반기 거래량은 반기 시작일(7/1 또는 1/1)부터 그대로 집계한다 — 반기 도중 감자
+    # (주식병합) 등으로 변경상장(신규상장이 아님)된 종목이라도 반기 자체는 그대로
+    # 유지된다. 다만 병합 전ㆍ후는 1주가 표상하는 가치ㆍ발행주식총수 자체가 달라서
+    # (예: 동양우ㆍ동양2우B는 2026.7.20 액면병합으로 구주 2주→신주 1주, 병합 전
+    # 발행주식총수 525,231주가 병합 후 262,615주로 정확히 절반이 됨 — mktcap÷close로
+    # 직접 역산해 검증) 병합 전 거래량(구주 기준)을 그대로 병합 후 거래량(신주 기준)과
+    # 합산하면 서로 다른 단위를 더하는 셈이 된다. 그래서 병합 전 거래량에 병합비율을
+    # 곱해 "신주 환산 거래량"으로 바꾼 뒤(권리락ㆍ액면분할 시 가격ㆍ거래량 연속성을
+    # 맞추는, 증권시장에서 널리 쓰이는 표준적인 소급환산 방식과 동일한 원리) 반기
+    # 시작일부터 그대로 합산한다 — MGMT_SHARE_REORG_DATES 참고. (주의: 유가증권시장
+    # 상장규정 시행세칙에 이 환산방법을 명시한 정확한 조문 번호는 KRX 법규서비스가
+    # 자바스크립트 렌더링 기반이라 이 코드 작성 시점에 원문으로 직접 확인하지 못했다 —
+    # 여기 쓴 소급환산 방식은 병합비율을 실제 시가총액ㆍ종가 데이터로 역산 검증한 뒤
+    # 적용한 것으로, 공식 제출용으로 쓰려면 거래소에 정확한 조문을 한 번 더 확인 필요.)
+    reorg_info = MGMT_SHARE_REORG_DATES.get(code)
+    def _converted_volume(d_str: str, raw_volume: float) -> float:
+        if reorg_info and datetime.strptime(d_str, '%Y%m%d').date() < reorg_info['reorg_date']:
+            return raw_volume * reorg_info['ratio']
+        return raw_volume
+    elapsed_months = (latest_dt.year - half_start.year) * 12 + (latest_dt.month - half_start.month) + 1
+    half_volume_sum = round(sum(
+        _converted_volume(d_str, v["volume"]) for d_str, v in day_map.items()
+        if datetime.strptime(d_str, '%Y%m%d').date() >= half_start
+    ))
     volume_avg_monthly = round(half_volume_sum / elapsed_months) if elapsed_months else 0
     volume_status = "미달 우려" if volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
 
@@ -4165,10 +4178,11 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
 
     # "현재기준" 잠정 월평균거래량 — 오늘이 아직 KRX로 확정되지 않았으면(장중) 오늘의
     # 실시간 누적거래량을 더해서 계산하고, 이미 확정 이력에 오늘이 들어있으면(장마감 후)
-    # 중복 합산을 막기 위해 확정치(half_volume_sum)를 그대로 쓴다.
+    # 중복 합산을 막기 위해 확정치(half_volume_sum)를 그대로 쓴다. 오늘자는 병합 후
+    # 시점이므로(반기 중 병합은 이미 지난 일이라 실시간가는 항상 신주 기준) 환산 불필요.
     today = date.today()
     today_str = today.strftime('%Y%m%d')
-    current_elapsed_months = (today.year - volume_period_start.year) * 12 + (today.month - volume_period_start.month) + 1
+    current_elapsed_months = (today.year - half_start.year) * 12 + (today.month - half_start.month) + 1
     if live_volume is not None and today_str not in day_map:
         current_volume_sum = half_volume_sum + live_volume
     else:
@@ -4179,20 +4193,27 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
     current_volume_status = "미달 우려" if current_volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
 
     # 실거래 페이스 기준 반기 전체(6개월) 거래량ㆍ월평균 예상치 — 위 volume_avg_monthly
-    # ("잠정치", 지금까지의 누적거래량 ÷ 경과월수)와는 다른 지표다. 지금까지의 일평균
-    # 거래량이 반기 잔여 매매거래일에도 그대로 이어진다고 가정하고, 반기 전체(항상
-    # 6개월)로 나눈 값 — "지금 페이스로 쭉 가면 반기가 끝났을 때 1만주를 밑돌 것 같다"를
-    # 미리 가늠해보기 위한 참고용 추정치이며, 미래 실데이터와 다를 수 있어 확정치가 아니다.
+    # ("잠정치", 지금까지의 누적거래량 ÷ 경과월수)와는 다른 지표다. 병합 후(신주 기준)
+    # 최근 실거래 일평균 거래량이 반기 잔여 매매거래일에도 그대로 이어진다고 가정하고,
+    # 반기 전체(항상 6개월)로 나눈 값 — "지금 페이스로 쭉 가면 반기가 끝났을 때 1만주를
+    # 밑돌 것 같다"를 미리 가늠해보기 위한 참고용 추정치이며, 미래 실데이터와 다를 수
+    # 있어 확정치가 아니다. 일평균은 병합 전 데이터가 섞이면 왜곡되므로 재상장일 이후
+    # (신주 기준) 거래일만으로 계산한다.
+    pace_start = reorg_info['reorg_date'] if reorg_info else half_start
     trading_days_observed = sum(
         1 for d_str in day_map
-        if datetime.strptime(d_str, '%Y%m%d').date() >= volume_period_start
+        if pace_start <= datetime.strptime(d_str, '%Y%m%d').date() <= latest_dt
+    )
+    recent_volume_sum = sum(
+        v["volume"] for d_str, v in day_map.items()
+        if pace_start <= datetime.strptime(d_str, '%Y%m%d').date() <= latest_dt
     )
     half_end = date(half_start.year, 6, 30) if half_start.month == 1 else date(half_start.year, 12, 31)
-    avg_daily_volume_recent = round(half_volume_sum / trading_days_observed, 1) if trading_days_observed else None
+    avg_daily_volume_recent = round(recent_volume_sum / trading_days_observed, 1) if trading_days_observed else None
     if trading_days_observed and latest_dt < half_end:
         remaining_calendar_days = (half_end - latest_dt).days
         estimated_remaining_trading_days = max(0, round(remaining_calendar_days * 5 / 7))
-        projected_half_total = round(half_volume_sum + (half_volume_sum / trading_days_observed) * estimated_remaining_trading_days)
+        projected_half_total = round(half_volume_sum + (recent_volume_sum / trading_days_observed) * estimated_remaining_trading_days)
     else:
         estimated_remaining_trading_days = 0
         projected_half_total = half_volume_sum
@@ -4215,8 +4236,8 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
         "current_volume_status": current_volume_status,
         "half_year_label": half_label,
         "history_days": len(trading_dates),
-        "volume_period_start": volume_period_start.strftime('%Y-%m-%d'),
-        "share_reorg_date": reorg_date.strftime('%Y-%m-%d') if reorg_date else None,
+        "share_reorg_date": reorg_info['reorg_date'].strftime('%Y-%m-%d') if reorg_info else None,
+        "share_reorg_ratio": reorg_info['ratio'] if reorg_info else None,
         "trading_days_observed": trading_days_observed,
         "avg_daily_volume_recent": avg_daily_volume_recent,
         "estimated_remaining_trading_days": estimated_remaining_trading_days,
