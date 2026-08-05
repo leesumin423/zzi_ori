@@ -598,6 +598,16 @@ tr:hover td { background: rgba(25,31,40,0.025); }
 .disclosure-type-badge.type-large_holding { background: rgba(219, 39, 119, 0.12); color: #be185d; }
 .disclosure-type-badge.type-periodic { background: rgba(13, 148, 136, 0.12); color: #0d9488; }
 
+/* ── 공시 점검(K-CLIC식 키워드 검색 결과 카드) ───────────────────── */
+.check-result-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; margin-bottom: 12px;
+}
+.check-result-card h3 { font-size: 14px; font-weight: 700; color: var(--title); margin: 0 0 6px; }
+.check-result-desc { font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 6px; }
+.check-result-actions { margin-top: 10px; }
+.check-result-actions .rule-btn { margin-left: 0; margin-right: 8px; }
+
 /* ── 작성 가이드 모달 내부 서브탭(공정위공시 3유형 등) ──────────── */
 .guide-subtabs { display: flex; gap: 6px; margin: 4px 0 16px; flex-wrap: wrap; }
 .guide-subtab-btn {

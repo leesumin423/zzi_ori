@@ -216,8 +216,9 @@
 
       <h1 class="page-title">공시 <span class="market-note">(동양(주))</span></h1>
 
-      <div class="tab-group" id="disclosureTabs" style="max-width:660px; margin-bottom:24px;">
+      <div class="tab-group" id="disclosureTabs" style="max-width:780px; margin-bottom:24px;">
         <button class="tab-btn active" data-disclosure="summary">공시현황 요약</button>
+        <button class="tab-btn" data-disclosure="check">🔍 공시 점검</button>
         <button class="tab-btn" data-disclosure="danpan">단판공시</button>
         <button class="tab-btn" data-disclosure="ftc">공정위공시</button>
         <button class="tab-btn" data-disclosure="equity">지분공시</button>
@@ -245,6 +246,19 @@
               <tbody></tbody>
             </table>
           </div>
+        </section>
+      </div>
+
+      <!-- ── 공시 점검(K-CLIC식 검색 — 공시유형을 검색하면 판단기준ㆍ근거규정ㆍ
+           사전검증 계산기로 안내) ── -->
+      <div id="disclosure-check" style="display:none;">
+        <section class="section" id="check-section">
+          <h2>공시 점검 — 어떤 공시가 필요한지 검색하세요</h2>
+          <p class="info" style="margin-bottom:12px;">거래ㆍ보고 내용과 관련된 키워드(예: "단일판매", "자금대여", "임원 소유상황", "사업보고서")를
+            입력하면 해당하는 공시 유형의 판단기준ㆍ근거규정과, 사전검증 계산기가 있는 경우 그 링크까지 한 번에 보여줍니다.</p>
+          <input type="text" id="checkSearchInput" placeholder="예: 단일판매, 대규모내부거래, 자금대여, 임원 소유상황, 대량보유, 사업보고서, 관리종목 …"
+            style="width:100%; max-width:640px; padding:10px 14px; font-size:15px; margin-bottom:16px;">
+          <div id="checkSearchResults"></div>
         </section>
       </div>
 

@@ -25,6 +25,109 @@ const HUB_PERIODIC_REVIEW_URL = `http://${API_HOST}:9000/disclosure/periodic-rev
 // 갱신되는 파일이라 이 화면 쪽에 따로 복사해두지 않고 항상 최신본을 가리킨다.
 const HUB_PERIODIC_GUIDE_URL = `http://${API_HOST}:9000/static/guides/정기공시_작성지침서.docx`;
 
+// ── 공시 점검(K-CLIC 공시종합지원시스템식 검색) ──────────────────────
+// 한국거래소 K-CLIC은 공시 유형을 검색하면 판단기준ㆍ근거규정ㆍ필요서류를
+// 한 번에 보여준다. 우리 앱에는 이미 단판ㆍ공정위ㆍ지분ㆍ정기공시 각각에
+// "규정 보기"(판단기준ㆍ근거규정)ㆍ"작성 가이드"(서식ㆍ필요서류ㆍ기재요령)
+// 모달이 실제 법령 원문을 인용해서 만들어져 있으므로, 이 검색 도구는 그
+// 콘텐츠를 새로 지어내지 않고 키워드로 찾아 바로 연결해주는 인덱스다 —
+// DART가 내려주는 건 공시 "제출 이력"(회사ㆍ날짜ㆍ원문 링크)일 뿐 판단기준ㆍ
+// 근거규정 자체는 아니라서, 검증되지 않은 법령 문구를 API로 대신할 수 없다.
+// 세부 공시서식(예: K-CLIC처럼 수백 개 서식 각각)까지 다루려면 그 서식마다
+// 근거규정을 새로 검증해서 추가해야 하므로, 지금은 이미 이 앱에서 실제로
+// 판단기준 계산기ㆍ규정 콘텐츠를 갖춘 4대 분류(+관리종목)만 검색 대상이다.
+const DISCLOSURE_CHECK_INDEX = [
+  {
+    keywords: ['단일판매', '공급계약', '단판', '수시공시', '매출액', '건설', '플랜트', '현장'],
+    label: '단일판매ㆍ공급계약체결(단판공시)',
+    desc: '최근 사업연도 매출액의 5%(대규모법인은 1,000분의 25) 이상인 단일판매계약 또는 공급계약을 체결한 때',
+    ruleKind: 'danpan', guideKind: 'danpan', precheckTab: 'danpan', precheckNote: '아래 "단판공시" 탭에서 현장별 진행 현황ㆍ변동율을 확인할 수 있습니다.',
+  },
+  {
+    keywords: ['대규모내부거래', '특수관계인', '자금대여', '자금차입', '유가증권', '채권매도', '출자', '상품', '용역거래', '공정위', '계열사', '계열회사', '내부거래'],
+    label: '대규모내부거래(공정거래법 제26조ㆍ시행령 제33조)',
+    desc: '특수관계인과의 자금ㆍ자산ㆍ유가증권 거래(즉시 대상) 또는 20% 계열사(그 50%초과 자회사 포함)와의 상품ㆍ용역거래(거래금액 100억원 이상 또는 자본총계ㆍ자본금 중 큰 금액의 5%(최소 5억원) 이상)',
+    ruleKind: 'ftc', guideKind: 'ftc', precheckTab: 'ftc', precheckNote: '아래 "공정위공시" 탭의 사전검증 계산기에서 거래금액ㆍ상대방을 입력하면 공시대상 여부를 바로 판단할 수 있습니다.',
+  },
+  {
+    keywords: ['임원', '주요주주', '소유상황보고', '지분공시', '특정증권', '스톡옵션', '자사주'],
+    label: '임원ㆍ주요주주 특정증권등 소유상황보고서',
+    desc: '임원 또는 주요주주(10% 이상 또는 사실상 지배)가 된 날, 또는 그 이후 특정증권등의 소유상황에 변동이 있는 경우(변동일로부터 5영업일 이내)',
+    ruleKind: 'equity', guideKind: 'equity', precheckTab: 'equity',
+  },
+  {
+    keywords: ['대량보유', '5%rule', '5% rule', '보고자', '지분율변동'],
+    label: '주식등의 대량보유상황보고서(5% Rule)',
+    desc: '발행주식총수의 5% 이상을 보유하게 된 경우, 또는 그 이후 보유비율이 1%p 이상 변동된 경우(사유발생일로부터 5영업일 이내)',
+    ruleKind: 'large_holding', guideKind: 'large_holding', precheckTab: 'equity',
+  },
+  {
+    keywords: ['사업보고서', '반기보고서', '분기보고서', '정기공시', '정기보고'],
+    label: '사업ㆍ반기ㆍ분기보고서(정기공시)',
+    desc: '사업연도 경과 후 90일 이내(사업보고서), 반기ㆍ분기 경과 후 45일 이내(반기ㆍ분기보고서) 제출',
+    ruleKind: 'periodic', guideKind: 'periodic', precheckTab: 'periodic',
+  },
+  {
+    keywords: ['관리종목', '보통주', '주가미달', '시가총액미달', '상장폐지'],
+    label: '관리종목 지정 — 보통주(동양) 주가 미달',
+    desc: '보통주 주가가 액면가의 20%(또는 시가총액 기준) 미달 상태가 지속되는 경우',
+    ruleKind: 'mgmt_common', guideKind: null, precheckTab: null,
+  },
+  {
+    keywords: ['관리종목', '우선주', '동양우', '동양2우b', '거래량미달', '시가총액'],
+    label: '관리종목 지정 — 우선주(동양우ㆍ동양2우B) 시가총액ㆍ거래량 미달',
+    desc: '우선주 시가총액 또는 반기 월평균거래량이 기준 미달 상태가 지속되는 경우',
+    ruleKind: 'mgmt_preferred', guideKind: null, precheckTab: null,
+  },
+];
+
+function searchDisclosureCheckIndex(query) {
+  const q = (query || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!q) return DISCLOSURE_CHECK_INDEX;
+  return DISCLOSURE_CHECK_INDEX.filter(entry => {
+    const haystack = [entry.label, entry.desc, ...entry.keywords].join(' ').toLowerCase().replace(/\s+/g, '');
+    return haystack.includes(q);
+  });
+}
+
+function renderCheckSearchResults() {
+  const container = document.getElementById('checkSearchResults');
+  if (!container) return;
+  const query = document.getElementById('checkSearchInput')?.value ?? '';
+  const results = searchDisclosureCheckIndex(query);
+
+  if (results.length === 0) {
+    container.innerHTML = '<p class="info">일치하는 공시 유형이 없습니다. 다른 키워드로 검색해보세요.</p>';
+    return;
+  }
+
+  container.innerHTML = results.map((entry, idx) => `
+    <div class="check-result-card">
+      <h3>${escapeAttr(entry.label)}</h3>
+      <p class="check-result-desc">${escapeAttr(entry.desc)}</p>
+      ${entry.precheckNote ? `<p class="rule-cite">${escapeAttr(entry.precheckNote)}</p>` : ''}
+      <div class="check-result-actions">
+        <button type="button" class="rule-btn" data-check-rule="${idx}">판단기준ㆍ근거규정 보기</button>
+        ${entry.guideKind ? `<button type="button" class="rule-btn" data-check-guide="${idx}">작성 가이드ㆍ필요서류 보기</button>` : ''}
+        ${entry.precheckTab ? `<button type="button" class="rule-btn" data-check-goto="${idx}">해당 공시 탭으로 이동</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-check-rule]').forEach(btn => {
+    btn.addEventListener('click', () => showRuleModal(results[Number(btn.dataset.checkRule)].ruleKind));
+  });
+  container.querySelectorAll('[data-check-guide]').forEach(btn => {
+    btn.addEventListener('click', () => showGuideModal(results[Number(btn.dataset.checkGuide)].guideKind));
+  });
+  container.querySelectorAll('[data-check-goto]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = results[Number(btn.dataset.checkGoto)].precheckTab;
+      document.querySelector(`#disclosureTabs .tab-btn[data-disclosure="${tab}"]`)?.click();
+    });
+  });
+}
+
 // 현재기준(current, 실시간) / 장마감기준(close, 15:30 마감 고정) 전환 상태.
 // 서버가 한 번에 두 값을 모두 내려주므로, 탭 전환은 재요청 없이 마지막으로
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
@@ -109,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (page === 'disclosures') {
         const activeDisclosure = document.querySelector('#disclosureTabs .tab-btn.active')?.dataset.disclosure ?? 'summary';
         if (activeDisclosure === 'summary') loadPortalOverview();
+        if (activeDisclosure === 'check') renderCheckSearchResults();
         if (activeDisclosure === 'danpan' && !lastData.danpan) loadDanpan();
         if (activeDisclosure === 'ftc' && !lastData.ftc) loadFtc();
         if (activeDisclosure === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
@@ -123,11 +227,13 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('#disclosureTabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       const kind = btn.dataset.disclosure;
       document.getElementById('disclosure-summary').style.display = kind === 'summary' ? '' : 'none';
+      document.getElementById('disclosure-check').style.display = kind === 'check' ? '' : 'none';
       document.getElementById('disclosure-danpan').style.display = kind === 'danpan' ? '' : 'none';
       document.getElementById('disclosure-ftc').style.display = kind === 'ftc' ? '' : 'none';
       document.getElementById('disclosure-equity').style.display = kind === 'equity' ? '' : 'none';
       document.getElementById('disclosure-periodic').style.display = kind === 'periodic' ? '' : 'none';
       if (kind === 'summary') loadPortalOverview();
+      if (kind === 'check') renderCheckSearchResults();
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
       if (kind === 'ftc' && !lastData.ftc) loadFtc();
       if (kind === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
@@ -172,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closeRuleModal(); closeGuideModal(); closeDocRequestModal(); closeTargetListModal(); }
   });
+  document.getElementById('checkSearchInput')?.addEventListener('input', renderCheckSearchResults);
   document.getElementById('checkSubmitBtn')?.addEventListener('click', runDanpanCheck);
   document.getElementById('danpanMailBtn')?.addEventListener('click', sendDanpanMailNow);
   document.getElementById('ftcDisclosureMailBtn')?.addEventListener('click', () => {
