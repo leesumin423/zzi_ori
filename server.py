@@ -6,12 +6,19 @@ import io
 import time as _time_module
 import threading
 import zipfile
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time as dtime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -175,9 +182,12 @@ def fetch_index_close_basis(code: str, market_open: bool):
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.encoding = 'euc-kr'
-        soup = BeautifulSoup(r.text, 'xml')
+        # lxml 기반 BeautifulSoup(..., 'xml') 대신 표준 라이브러리 ElementTree 사용
+        # (fetch_stock의 fchart 파싱과 동일한 이유 — 워커 스레드에서 libxml2 스레드
+        # 이슈로 예외 없이 빈 결과가 나오는 문제를 피하기 위함).
+        root = ET.fromstring(r.text)
         rows = []
-        for item in soup.find_all('item'):
+        for item in root.findall('.//item'):
             parts = item.get('data', '').split('|')
             if len(parts) < 5:
                 continue
@@ -575,8 +585,12 @@ def fetch_stock(ticker: str) -> dict:
     try:
         cr = requests.get(chart_url, headers=HEADERS, timeout=15)
         cr.encoding = 'euc-kr'
-        soup = BeautifulSoup(cr.text, 'xml')
-        items = soup.find_all('item')
+        # BeautifulSoup(..., 'xml')는 lxml에 의존하는데, Werkzeug 요청 스레드(메인
+        # 스레드가 아닌 워커 스레드)에서 호출하면 libxml2 쪽 스레드 이슈로 예외 없이
+        # 그냥 빈 결과가 나오는 경우가 있었다(단일 스레드 테스트에선 재현 안 됨).
+        # 표준 라이브러리 ElementTree로 바꿔서 그런 스레드 의존성을 아예 없앤다.
+        root = ET.fromstring(cr.text)
+        items = root.findall('.//item')
 
         last_year_candidates = {}
         for item in items:
@@ -969,8 +983,8 @@ def fetch_daily_ohlc(code: str, count: int = 12) -> list:
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         r.encoding = 'euc-kr'
-        soup = BeautifulSoup(r.text, 'xml')
-        for item in soup.find_all('item'):
+        root = ET.fromstring(r.text)
+        for item in root.findall('.//item'):
             parts = item.get('data', '').split('|')
             if len(parts) < 6:
                 continue
@@ -2635,7 +2649,26 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
         if not text:
             continue
         date_fmt = f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}" if len(rcept_dt) == 8 else rcept_dt
-        for entry in _large_holding_parse_document(text):
+
+        # DART list.json의 flr_nm(제출인, 접수 시점 등록된 회사명)이 문서 본문에
+        # 파싱되는 이름보다 최신이다 — 예: 삼표기초소재(주)가 에스피네이처(주)로
+        # 상호변경된 뒤에도, 그 변경을 반영해 다시 낸 보고서 "본문 표"에는 여전히
+        # 옛 이름이 남아있던 사례가 있었다(반면 flr_nm은 "에스피네이처"로 정확).
+        # 본문 이름만 믿으면 상호변경 전/후가 같은 이름 키로 묶여, 나중에 낸(값이
+        # 있는) 문서가 먼저 낸(0으로 처분 신고한) 문서를 덮어써 이미 사라진
+        # 회사가 계속 보유자로 잡히는 문제가 있었다 — flr_nm을 "보고자" 행의
+        # 대표 이름으로 우선한다.
+        flr_nm = (item.get('flr_nm') or '').strip()
+        entries = _large_holding_parse_document(text)
+        if flr_nm:
+            reporter_name_in_doc = next((e['name'] for e in entries if e['relation'] == '보고자'), None)
+            if reporter_name_in_doc and _lh_normalize_name(flr_nm) != reporter_name_in_doc:
+                for e in entries:
+                    if e['relation'] == '보고자':
+                        e['name'] = _lh_normalize_name(flr_nm)
+                    e['reporter_name'] = _lh_normalize_name(flr_nm)
+
+        for entry in entries:
             name = entry['name']
             existing = by_entity.get(name)
             if existing is None:
@@ -3011,6 +3044,49 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
     }
     _ftc_cache.update(ts=now, data=results, meta=meta)
     return results
+
+PERIODIC_CACHE_TTL = 6 * 3600
+_periodic_cache = {'ts': 0.0, 'data': None}
+
+def fetch_periodic_disclosures(force: bool = False) -> list:
+    """(주)동양 최근 1년 정기공시(사업ㆍ반기ㆍ분기보고서, pblntf_ty=A) 목록.
+    정기공시 검수 도구(통합포털)에서 비교 기준으로 쓰는 원문 링크와 동일한
+    목적이라, 여기서도 단순히 이름ㆍ공시일ㆍ원문 링크만 내려준다."""
+    now = datetime.now().timestamp()
+    if not force and _periodic_cache['data'] is not None and now - _periodic_cache['ts'] < PERIODIC_CACHE_TTL:
+        return _periodic_cache['data']
+
+    corp_code = DART_CORP_CODES.get('001520')
+    if not corp_code or not DART_API_KEY:
+        return []
+
+    end_de = datetime.now().strftime('%Y%m%d')
+    bgn_de = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
+    records = []
+    try:
+        r = requests.get("https://opendart.fss.or.kr/api/list.json", params={
+            "crtfc_key": DART_API_KEY, "corp_code": corp_code,
+            "bgn_de": bgn_de, "end_de": end_de, "pblntf_ty": "A",
+            "page_no": 1, "page_count": 100,
+        }, timeout=15)
+        data = r.json()
+        if data.get('status') == '000':
+            for item in data.get('list', []):
+                rcept_no = item.get('rcept_no', '')
+                rcept_dt = item.get('rcept_dt', '')
+                if len(rcept_dt) == 8:
+                    rcept_dt = f"{rcept_dt[:4]}.{rcept_dt[4:6]}.{rcept_dt[6:]}"
+                records.append({
+                    "report_nm": item.get('report_nm', ''),
+                    "rcept_dt": rcept_dt,
+                    "rcept_no": rcept_no,
+                    "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}",
+                })
+    except Exception as e:
+        print(f"[DEBUG] 정기공시 목록 조회 중 예외: {e}")
+
+    _periodic_cache.update(ts=now, data=records)
+    return records
 
 def _normalize_dot_date(raw: str):
     """"2025.04.25"뿐 아니라 "2025. 4. 25."처럼 공백ㆍ트레일링 점이 섞인 원문
@@ -4384,6 +4460,11 @@ def data_endpoint():
         else:
             meta['range'] = 'all'
         return jsonify({"records": records, "meta": meta})
+
+    if section == 'periodic':
+        force = request.args.get('refresh') == '1'
+        records = fetch_periodic_disclosures(force=force)
+        return jsonify({"records": records})
 
     if section == 'ftc_check':
         transaction_type = request.args.get('transaction_type', '')
