@@ -460,13 +460,18 @@ function renderMgmtWatch() {
     const shownVolStatus = basis === 'current' ? row.current_volume_status : row.volume_status;
     const volWarn = shownVolStatus === '미달 우려';
     const volAvg = shownVolAvg != null ? shownVolAvg.toLocaleString('ko-KR') : '--';
+    // 반기 중 감자(주식병합) 재상장으로 volume_period_start가 재조정된 종목만, 실거래
+    // 페이스 기준 반기 전체 예상치를 작은 보조문구로 함께 보여준다(平소엔 안 보임).
+    const projectionNote = row.share_reorg_date && row.projected_volume_avg_monthly != null
+      ? `<div class="info" style="font-size:10.5px; margin-top:2px;">재상장(${row.share_reorg_date}) 이후 실거래 페이스 기준 예상: 월평균 ${row.projected_volume_avg_monthly.toLocaleString('ko-KR')}주(${row.projected_volume_status})</div>`
+      : '';
     return `
       <tr>
         <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
         <td>${shownDate ?? '--'}</td>
         <td>${mktcapEok}억원</td>
         <td class="${capWarn ? 'down' : ''}">${row.cap_status}</td>
-        <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
+        <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)${projectionNote}</td>
         <td class="${volWarn ? 'down' : ''}">${shownVolStatus}</td>
       </tr>
     `;
@@ -2116,6 +2121,19 @@ function ruleMgmtVolumeCalcHtml() {
       <li>"장마감기준" 탭은 항상 KRX가 공식 확정한 이력만으로 계산해서, 실시간가 변동과 무관하게
         고정된 값을 보여줍니다.</li>
     </ul>
+    <h4>감자(주식병합) 등으로 반기 중 재상장한 경우</h4>
+    <p>동양우ㆍ동양2우B처럼 반기 중 감자(주식병합)로 매매정지 후 재상장하면, 병합 전ㆍ후는
+    거래량(주식수)의 단위 자체가 달라져서(발행주식총수가 바뀜) 그대로 합산하면 안 됩니다.
+    이런 종목은 반기 시작일 대신 <b>재상장일부터</b> 누적ㆍ경과월수를 계산하도록 별도 설정돼
+    있습니다.</p>
+    <h4>"실거래 페이스 기준 반기 전체 예상"(참고용)</h4>
+    <p>위 잠정치는 경과월수(달력상 개월 수, 일부 지난 달도 1개월로 계산)로 나누기 때문에
+    재상장 직후에는 실제 거래 강도보다 낮게 보일 수 있습니다. 그래서 재상장 종목에 한해,
+    지금까지의 <b>일평균 거래량</b>이 반기 잔여 매매거래일에도 그대로 이어진다고 가정하고
+    반기 전체(6개월)로 환산한 예상치도 작은 글씨로 함께 보여줍니다 — 어디까지나 지금
+    페이스가 유지된다는 가정 하의 참고용 추정이며, 실제 반기 종료 시점의 확정치와 다를
+    수 있습니다. (또한 감자 재상장이 상장규정상 "신규상장 반기" 제외 사유에 해당하는지는
+    별도로 거래소에 확인이 필요합니다.)</p>
     <p class="rule-cite">기준: 유가증권시장 상장규정 제64조제1항제4호(반기 월평균거래량 <b class="num-hl">1만주</b> 기준).
     매일 자동 재계산되며, 반기가 바뀌면 분자ㆍ분모가 자동으로 새 반기 기준으로 초기화됩니다.</p>`;
 }
