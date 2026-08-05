@@ -71,40 +71,22 @@ def _settle(page):
 _DEBUG_SCREENSHOT_PATH = os.path.join(tempfile.gettempdir(), "groupware_rpa_debug.png")
 
 
-def _find_text_in_all_frames(page, text: str, exact: bool = True):
-    """메인 페이지와 모든 iframe에서 텍스트 요소를 찾아 반환한다."""
-    targets = [page] + list(page.frames)
-    for target in targets:
-        try:
-            loc = target.get_by_text(text, exact=exact).first
-            if loc.count() > 0:
-                return loc, target
-        except Exception:
-            continue
-    return None, None
-
-
 def _wait_for_text_visible(page, text: str, timeout_seconds: int, context=None):
-    """텍스트가 화면에 보일 때까지 기다린다 — 메인 페이지와 모든 iframe을 탐색한다."""
+    """텍스트가 화면에 보일 때까지 기다린다."""
+    locator = page.get_by_text(text, exact=True).first
     deadline = time.time() + timeout_seconds
     while True:
-        loc, _ = _find_text_in_all_frames(page, text, exact=True)
-        if loc is None:
-            loc, _ = _find_text_in_all_frames(page, text, exact=False)
-        if loc is not None:
-            try:
-                loc.wait_for(state="visible", timeout=3000)
-                return loc
-            except PWTimeoutError:
-                pass
-        if time.time() >= deadline:
-            raise PWTimeoutError(f"'{text}' 텍스트가 {timeout_seconds}초 내에 보이지 않았습니다.")
         try:
-            page.screenshot(path=_DEBUG_SCREENSHOT_PATH)
-            print(f"[groupware_rpa] '{text}' 아직 안 보임 — 화면 캡처: {_DEBUG_SCREENSHOT_PATH}", flush=True)
-        except Exception:
-            pass
-        time.sleep(3)
+            locator.wait_for(state="visible", timeout=5000)
+            return locator
+        except PWTimeoutError:
+            if time.time() >= deadline:
+                raise
+            try:
+                page.screenshot(path=_DEBUG_SCREENSHOT_PATH)
+                print(f"[groupware_rpa] '{text}' 아직 안 보임 — 화면 캡처: {_DEBUG_SCREENSHOT_PATH}", flush=True)
+            except Exception:
+                pass
 
 
 def _wait_for_login_and_open_draft(page, context):
@@ -118,14 +100,7 @@ def _wait_for_login_and_open_draft(page, context):
     _wait_for_text_visible(page, "전자결재", LOGIN_WAIT_SECONDS, context)
 
     _show_progress(context, "로그인 확인됨 — '전자결재' 메뉴 클릭 중...")
-    loc, src_frame = _find_text_in_all_frames(page, "전자결재", exact=True)
-    if loc is None:
-        loc, src_frame = _find_text_in_all_frames(page, "전자결재", exact=False)
-    if loc is not None:
-        try:
-            loc.click()
-        except Exception:
-            pass
+    page.get_by_text("전자결재", exact=True).first.click()
     _settle(page)
 
     _show_progress(context, "'결재작성' 버튼 찾는 중...")
@@ -135,11 +110,7 @@ def _wait_for_login_and_open_draft(page, context):
     _show_progress(context, "서식 목록에서 '협조전' 찾는 중...")
     try:
         with context.expect_page(timeout=3000) as popup_info:
-            loc2, _ = _find_text_in_all_frames(page, "협조전", exact=True)
-            if loc2 is None:
-                loc2, _ = _find_text_in_all_frames(page, "협조전", exact=False)
-            if loc2:
-                loc2.click()
+            page.get_by_text("협조전", exact=True).first.click()
         new_page = popup_info.value
         new_page.on("dialog", lambda d: d.accept())
         _settle(new_page)
