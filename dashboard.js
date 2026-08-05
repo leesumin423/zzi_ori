@@ -17,13 +17,20 @@ const API_BASE = `http://${API_HOST}:5000/data`;
 // 그래서 이 버튼은 API 호출이 아니라 허브의 해당 화면을 새 탭으로 그냥 연다 — 지금 보고
 // 있는 공정위공시 화면은 그대로 두고, 협조전 작성은 별도 탭에서 진행하도록.
 const HUB_FTC_SEND_URL = `http://${API_HOST}:9000/disclosure/ftc-send`;
+// 정기공시(사업ㆍ반기ㆍ분기보고서) 협조전 발송ㆍ초안 검수도 같은 이유로 허브(9000번)
+// 쪽 화면을 새 탭으로 연다.
+const HUB_PERIODIC_SEND_URL = `http://${API_HOST}:9000/disclosure/periodic-send`;
+const HUB_PERIODIC_REVIEW_URL = `http://${API_HOST}:9000/disclosure/periodic-review`;
+// 작성지침서(.docx)도 허브의 static 폴더에 올려두고 여기서는 링크만 건다 — 계속
+// 갱신되는 파일이라 이 화면 쪽에 따로 복사해두지 않고 항상 최신본을 가리킨다.
+const HUB_PERIODIC_GUIDE_URL = `http://${API_HOST}:9000/static/guides/정기공시_작성지침서.docx`;
 
 // 현재기준(current, 실시간) / 장마감기준(close, 15:30 마감 고정) 전환 상태.
 // 서버가 한 번에 두 값을 모두 내려주므로, 탭 전환은 재요청 없이 마지막으로
 // 받아온 데이터(lastData)를 다시 그리기만 하면 된다.
 let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
-let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null, goodsServicesTargets: null, mgmtWatch: null };
+let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null, goodsServicesTargets: null, mgmtWatch: null, periodic: null };
 
 // 포털형 공시현황 요약 — 지금은 동양(주) 하나만 실제로 연동돼 있어 계열사
 // 선택 없이 바로 보여준다. 카드를 눌러 유형별로 필터링하는 상태만 관리한다.
@@ -107,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeDisclosure === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
         if (activeDisclosure === 'ftc' && !lastData.goodsServicesTargets) loadGoodsServicesTargets();
         if (activeDisclosure === 'equity') loadActiveEquitySub();
+        if (activeDisclosure === 'periodic' && !lastData.periodic) loadPeriodic();
       }
     });
   });
@@ -118,12 +126,14 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('disclosure-danpan').style.display = kind === 'danpan' ? '' : 'none';
       document.getElementById('disclosure-ftc').style.display = kind === 'ftc' ? '' : 'none';
       document.getElementById('disclosure-equity').style.display = kind === 'equity' ? '' : 'none';
+      document.getElementById('disclosure-periodic').style.display = kind === 'periodic' ? '' : 'none';
       if (kind === 'summary') loadPortalOverview();
       if (kind === 'danpan' && !lastData.danpan) loadDanpan();
       if (kind === 'ftc' && !lastData.ftc) loadFtc();
       if (kind === 'ftc' && !lastData.subsidiaryCapital) loadSubsidiaryCapital();
       if (kind === 'ftc' && !lastData.goodsServicesTargets) loadGoodsServicesTargets();
       if (kind === 'equity') loadActiveEquitySub();
+      if (kind === 'periodic' && !lastData.periodic) loadPeriodic();
     });
   });
   document.querySelectorAll('#ftcRangeTabs .tab-btn').forEach(btn => {
@@ -167,6 +177,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ftcDisclosureMailBtn')?.addEventListener('click', () => {
     window.open(HUB_FTC_SEND_URL, '_blank');
   });
+  document.getElementById('periodicMailBtn')?.addEventListener('click', () => {
+    window.open(HUB_PERIODIC_SEND_URL, '_blank');
+  });
+  document.getElementById('periodicReviewBtn')?.addEventListener('click', () => {
+    window.open(HUB_PERIODIC_REVIEW_URL, '_blank');
+  });
+  const periodicGuideLink = document.getElementById('periodicGuideDownload');
+  if (periodicGuideLink) periodicGuideLink.href = HUB_PERIODIC_GUIDE_URL;
   attachCommaFormatting(document.getElementById('checkAmount'));
 
   // ── 공정위 공시(대규모내부거래) 대상여부 사전검증 ───────────────────
@@ -460,14 +478,31 @@ async function loadCommentary() {
 }
 
 // ── 포털형 공시현황 요약(유형별 건수 카드 + 클릭 필터) ────────────
-// 뉴스ㆍ재무 카드는 빼고, 이미 서버가 갖고 있는 단판ㆍ공정위ㆍ지분(임원/대량보유)
-// 공시 데이터를 유형별 건수 카드로 요약해서 보여준다. 카드를 누르면 그
+// 뉴스ㆍ재무 카드는 빼고, 이미 서버가 갖고 있는 단판ㆍ공정위ㆍ지분(임원/대량보유)ㆍ
+// 정기공시 데이터를 유형별 건수 카드로 요약해서 보여준다. 카드를 누르면 그
 // 유형의 내역만 아래 표에 필터링돼서 나온다("전체" 카드를 누르면 모두 표시).
+// 카드는 정확히 4종류(단판/공정위/지분/정기공시)만 보여주되, 지분공시는 원래
+// 서로 다른 두 데이터(임원 소유상황보고/대량보유상황보고)를 합친 것이라 표의
+// 배지는 ROW_CATEGORY_META로 세부 구분을 유지한다.
 const PORTAL_CATEGORIES = [
-  { key: 'danpan', label: '단판공시', typeClass: 'type-danpan' },
-  { key: 'ftc', label: '공정위공시', typeClass: 'type-ftc' },
-  { key: 'equity', label: '지분공시(임원)', typeClass: 'type-equity' },
-  { key: 'large_holding', label: '지분공시(대량보유)', typeClass: 'type-large_holding' },
+  { key: 'danpan', label: '단판공시' },
+  { key: 'ftc', label: '공정위공시' },
+  { key: 'equity', label: '지분공시' },
+  { key: 'periodic', label: '정기공시' },
+];
+const PORTAL_CARD_OF = { danpan: 'danpan', ftc: 'ftc', equity: 'equity', large_holding: 'equity', periodic: 'periodic' };
+const ROW_CATEGORY_META = {
+  danpan: { label: '단판공시', typeClass: 'type-danpan' },
+  ftc: { label: '공정위공시', typeClass: 'type-ftc' },
+  equity: { label: '지분공시(임원)', typeClass: 'type-equity' },
+  large_holding: { label: '지분공시(대량보유)', typeClass: 'type-large_holding' },
+  periodic: { label: '정기공시', typeClass: 'type-periodic' },
+};
+// 공정위 공시 요약에서는 동양(주)ㆍ자회사 4곳끼리의 순수 그룹 내부거래(상대방도
+// 이 5개사 중 하나)는 빼고, 대외 계열사(유진기업 등) 상대 거래만 보여준다.
+const FTC_GROUP_ENTITY_NAMES = [
+  '동양(주)', '동양에너지(주)', '금왕에프원(주)',
+  '디씨아이티와이부천피에프브이(주)', '디씨아이티와이인천피에프브이(주)',
 ];
 
 async function loadPortalOverview() {
@@ -479,6 +514,7 @@ async function loadPortalOverview() {
       lastData.ftc ? null : loadFtc(),
       lastData.equity ? null : loadEquity(),
       lastData.large_holding ? null : loadLargeHolding(),
+      lastData.periodic ? null : loadPeriodic(),
     ]);
   } finally {
     renderPortalOverview();
@@ -491,17 +527,30 @@ function buildPortalOverviewRows() {
     category: 'danpan', date: s.latest_disclosure_date,
     title: s.site_name ?? '', sub: s.counterparty ?? '', url: s.dart_url,
   }));
-  (lastData.ftc?.records ?? []).forEach(r => rows.push({
-    category: 'ftc', date: r.disclosure_date,
-    title: r.type_label ?? '', sub: r.counterparty ?? '', url: r.dart_url,
-  }));
+  (lastData.ftc?.records ?? [])
+    .filter(r => !FTC_GROUP_ENTITY_NAMES.includes(r.counterparty))
+    .forEach(r => rows.push({
+      category: 'ftc', date: r.disclosure_date,
+      title: r.type_label ?? '', sub: r.counterparty ?? '', url: r.dart_url,
+    }));
   (lastData.equity?.records ?? []).forEach(r => rows.push({
     category: 'equity', date: r.latest_buy_date,
     title: `${r.holder_name ?? ''} 소유상황보고`, sub: r.role_label ?? '', url: r.dart_url,
   }));
-  (lastData.large_holding?.records ?? []).forEach(r => rows.push({
-    category: 'large_holding', date: r.latest_disclosure_date,
-    title: `${r.reporter_name ?? r.holder_name ?? ''} 대량보유상황보고`, sub: r.holder_name ?? '', url: r.dart_url,
+  // 대량보유상황보고는 보고서 1건(rcept_no)이 보고자+특별관계자별로 여러 행으로
+  // 펼쳐져 나온다(예: 18행 = 실제 제출 3건) — 제출인 기준(rcept_no 단위)으로 한
+  // 건만 센다.
+  const seenLargeHolding = new Set();
+  (lastData.large_holding?.records ?? []).forEach(r => {
+    if (!r.rcept_no || seenLargeHolding.has(r.rcept_no)) return;
+    seenLargeHolding.add(r.rcept_no);
+    rows.push({
+      category: 'large_holding', date: r.latest_disclosure_date,
+      title: `${r.reporter_name ?? r.holder_name ?? ''} 대량보유상황보고`, sub: r.holder_name ?? '', url: r.dart_url,
+    });
+  });
+  (lastData.periodic?.records ?? []).forEach(r => rows.push({
+    category: 'periodic', date: r.rcept_dt, title: r.report_nm ?? '', sub: '', url: r.dart_url,
   }));
   rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   return rows;
@@ -511,13 +560,16 @@ function renderPortalSummaryCards(rows) {
   const container = document.getElementById('portalSummaryCards');
   if (!container) return;
 
-  const countsByCategory = {};
-  PORTAL_CATEGORIES.forEach(c => { countsByCategory[c.key] = 0; });
-  rows.forEach(r => { countsByCategory[r.category] = (countsByCategory[r.category] ?? 0) + 1; });
+  const countsByCard = {};
+  PORTAL_CATEGORIES.forEach(c => { countsByCard[c.key] = 0; });
+  rows.forEach(r => {
+    const cardKey = PORTAL_CARD_OF[r.category] ?? r.category;
+    countsByCard[cardKey] = (countsByCard[cardKey] ?? 0) + 1;
+  });
 
   const cards = [
     { key: null, label: '전체', count: rows.length },
-    ...PORTAL_CATEGORIES.map(c => ({ key: c.key, label: c.label, count: countsByCategory[c.key] ?? 0 })),
+    ...PORTAL_CATEGORIES.map(c => ({ key: c.key, label: c.label, count: countsByCard[c.key] ?? 0 })),
   ];
 
   container.innerHTML = cards.map(c => `
@@ -529,7 +581,12 @@ function renderPortalSummaryCards(rows) {
   container.querySelectorAll('.portal-summary-card').forEach(btn => {
     btn.addEventListener('click', () => {
       portalFilterType = btn.dataset.filterKey || null;
-      renderPortalOverview();
+      // renderPortalOverview()를 바로 부르면, 최초 진입 직후(아직 danpan/ftc/
+      // equity/large_holding/periodic 5종 데이터를 다 못 받아온 상태) 카드를
+      // 누를 때 lastData가 비어있어 0건으로 "굳어버리는" 문제가 있었다.
+      // loadPortalOverview()는 이미 받아온 건 다시 안 받고, 안 받아온 것만
+      // 마저 받아온 뒤 렌더링하므로 이 레이스 컨디션이 없다.
+      loadPortalOverview();
     });
   });
 }
@@ -542,17 +599,19 @@ function renderPortalOverview() {
   const rows = buildPortalOverviewRows();
   renderPortalSummaryCards(rows);
 
-  const filtered = portalFilterType ? rows.filter(r => r.category === portalFilterType) : rows;
+  const filtered = portalFilterType
+    ? rows.filter(r => (PORTAL_CARD_OF[r.category] ?? r.category) === portalFilterType)
+    : rows;
   const activeLabel = portalFilterType ? (PORTAL_CATEGORIES.find(c => c.key === portalFilterType)?.label ?? '') : '전체';
 
   if (note) {
-    note.textContent = `${activeLabel} — ${filtered.length}건. 단판ㆍ공정위ㆍ지분공시를 유형별로 모았습니다 — `
+    note.textContent = `${activeLabel} — ${filtered.length}건. 단판ㆍ공정위ㆍ지분ㆍ정기공시를 유형별로 모았습니다 — `
       + '카드를 눌러 유형을 바꿀 수 있고, 각 유형의 세부 조건은 아래 탭에서 확인하세요.';
   }
 
   tbody.innerHTML = filtered.length === 0 ? '<tr><td colspan="5">데이터 없음</td></tr>' : '';
   filtered.forEach(r => {
-    const category = PORTAL_CATEGORIES.find(c => c.key === r.category);
+    const category = ROW_CATEGORY_META[r.category];
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="disclosure-type-badge ${category?.typeClass ?? ''}">${category?.label ?? ''}</span></td>
@@ -773,6 +832,52 @@ function ftcReverifyBadge(item) {
   return `<span class="rule-cite" title="${escapeAttr(item.reverify_note ?? '')}">확인불가</span>`;
 }
 
+// ── 정기공시(사업ㆍ반기ㆍ분기보고서) 이력 — 최근 1년, 이름/공시일/원문만 ──────
+async function loadPeriodic() {
+  const note = document.getElementById('periodicNote');
+  const tbody = document.querySelector('#periodic-table tbody');
+  if (note) note.textContent = 'DART 공시 목록을 조회하는 중…';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="4">로딩 중…</td></tr>';
+  try {
+    const data = await safeFetch(`${API_BASE}?section=periodic`);
+    lastData.periodic = data;
+    renderPeriodic(data);
+  } catch (err) {
+    if (note) note.textContent = `조회 실패: ${err.message}`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4">조회 실패: ${err.message}</td></tr>`;
+  }
+}
+
+function renderPeriodic(payload) {
+  const tbody = document.querySelector('#periodic-table tbody');
+  const note = document.getElementById('periodicNote');
+  if (!tbody) return;
+  const list = Array.isArray(payload) ? payload : (payload?.records ?? []);
+
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4">정기공시 이력이 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    if (note) note.textContent = '';
+    return;
+  }
+
+  if (note) {
+    note.textContent = `최근 1년간 ${list.length}건(접수일 최신순). 초안(.dsd) 단계에서 오탈자ㆍ전기 대비 변경내역ㆍ`
+      + `작성기준 준수 여부를 확인하려면 "정기공시 검수" 버튼을 눌러주세요.`;
+  }
+
+  tbody.innerHTML = '';
+  list.forEach((item, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${idx + 1}</td>
+      <td>${item.report_nm ?? ''}</td>
+      <td class="num">${item.rcept_dt ?? ''}</td>
+      <td>${item.dart_url ? `<a href="${item.dart_url}" target="_blank" class="clickable-name">원문</a>` : ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 // ── 계열사별 자본금ㆍ자본총계(비상장 자회사 — 공정위 사전검증 계산기 드롭다운용) ──
 // 별도 참고표 대신, 계산기에서 계열사를 선택하면 바로 값이 보이도록
 // 드롭다운만 채우고 실제 표시는 ftcCheckCompany의 change 핸들러가 담당한다.
@@ -806,7 +911,7 @@ function renderSubsidiaryCapital(payload) {
 function findCapitalRecordByName(name) {
   const target = normalizeCompanyNameForMatch(name);
   if (!target) return null;
-  return (lastData.subsidiaryCapital?.records ?? []).find(r => normalizeCompanyNameForMatch(r.name) === target) ?? null;
+  return _findByNameFuzzy(target, lastData.subsidiaryCapital?.records ?? [], r => r.name);
 }
 
 function renderFtcCompanyInfo(rec) {
@@ -849,11 +954,27 @@ function normalizeCompanyNameForMatch(name) {
   return (name || '').replace(/\(주\)|㈜|주식회사/g, '').replace(/\s+/g, '').trim();
 }
 
+// 완전일치가 없으면 부분포함(유사성)으로 한 번 더 찾는다 — "농업회사법인
+// 자연팜앤바이오(주)"처럼 앞에 업종ㆍ법인형태 접두사가 붙어 정규화해도
+// 완전히 같은 문자열이 안 되는 계열사명을 "자연팜앤바이오"만 쳐도 찾도록.
+// 후보가 둘 이상 걸리면 오매칭 위험이 있어 매칭하지 않고 null을 반환한다.
+function _findByNameFuzzy(target, items, getName) {
+  if (!target) return null;
+  const exact = items.find(item => normalizeCompanyNameForMatch(getName(item)) === target);
+  if (exact) return exact;
+  if (target.length < 2) return null;
+  const matches = items.filter(item => {
+    const norm = normalizeCompanyNameForMatch(getName(item));
+    return norm.includes(target) || target.includes(norm);
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function isKnownGoodsServicesTarget(name) {
   const target = normalizeCompanyNameForMatch(name);
   if (!target) return false;
   const companies = lastData.goodsServicesTargets?.companies ?? [];
-  return companies.some(c => normalizeCompanyNameForMatch(c) === target);
+  return _findByNameFuzzy(target, companies, c => c) !== null;
 }
 
 // 계열사 드롭다운에서 골랐으면 그 이름을, "직접입력"이면 텍스트 입력값을 쓴다.
@@ -1230,6 +1351,9 @@ function showRuleModal(kind) {
   } else if (kind === 'ftc') {
     title.textContent = '공정위 공시 — 대규모내부거래 이사회 의결ㆍ공시';
     body.innerHTML = ruleFtcHtml();
+  } else if (kind === 'periodic') {
+    title.textContent = '정기공시 — 사업ㆍ반기ㆍ분기보고서 제출기한';
+    body.innerHTML = rulePeriodicHtml();
   } else if (kind === 'mgmt_common') {
     title.textContent = '관리종목 모니터링 — 보통주(동양) 주가 미달';
     body.innerHTML = ruleMgmtCommonHtml();
@@ -1262,6 +1386,7 @@ function showGuideModal(kind) {
     equity: { label: '지분공시 — 임원ㆍ주요주주 특정증권등 소유상황보고', html: guideEquityHtml },
     large_holding: { label: '지분공시 — 주식등의 대량보유상황보고(5% Rule)', html: guideLargeHoldingHtml },
     ftc: { label: '공정위공시 — 대규모내부거래(계열회사간 거래)', html: guideFtcHtml },
+    periodic: { label: '정기공시 — 사업ㆍ반기ㆍ분기보고서 작성기준', html: guidePeriodicHtml },
   };
   const guide = GUIDES[kind];
   if (!guide) return;
@@ -1587,6 +1712,39 @@ function guideFtcHtml() {
     독점규제 및 공정거래에 관한 법률 제26조, 동법 시행령 제33조, 대규모내부거래 등에 대한 이사회 의결 및 공시에 관한 규정(공정위 고시).</p>`;
 }
 
+function guidePeriodicHtml() {
+  return `
+    <p class="info">금융감독원 「기업공시서식 작성기준」(2026.4.1. 시행) 중 정기공시(사업ㆍ반기ㆍ분기보고서)
+    작성과 관련해 실무에서 자주 확인이 필요한 부분만 간략히 정리했습니다 — 전체 조문은
+    <a href="https://dart.fss.or.kr" target="_blank" class="clickable-name">DART</a> "공시서식 작성기준"에서
+    확인하세요.</p>
+
+    <h4>표지ㆍ서명 관련 필수 확인사항</h4>
+    <ul>
+      <li>표지에 회사명ㆍ사업연도(부터~까지)ㆍ제출일이 정확히 채워졌는지</li>
+      <li>【 대표이사 등의 확인 】 — 대표이사 및 신고업무 담당 이사의 서명이 빠지지 않았는지</li>
+      <li>기수(제OO기)ㆍ날짜 표기가 이번 회차 기준으로 정확히 갱신됐는지 (전기 원문을 복사해서
+        시작하는 경우 특히 놓치기 쉬움)</li>
+    </ul>
+
+    <h4>분기ㆍ반기보고서에서 생략 가능한 항목</h4>
+    <p>사업보고서와 달리 분기ㆍ반기보고서는 회사의 연혁, 자본금 변동사항, 사업의 내용 세부항목(주요
+    제품ㆍ원재료ㆍ생산설비 등) 같은 일부 항목을 "작성기준에 따라 OO보고서에 기재하지 않습니다"라는
+    문구로 갈음할 수 있습니다. 이 문구가 있다면 정상이며, 재무제표ㆍ이사의 경영진단 및 분석의견ㆍ
+    임원 및 직원 현황 등은 분기ㆍ반기보고서에서도 생략 대상이 아닙니다.</p>
+
+    <h4>이 화면의 "정기공시 검수" 도구가 자동으로 확인해주는 것</h4>
+    <ul>
+      <li><b>오탈자</b> — 맞춤법/문법 검사 (회사명 등 고유명사 오탐은 제외 목록으로 관리)</li>
+      <li><b>전기 대비 변경내역</b> — 목차 항목ㆍ표 항목ㆍ문단 내용이 전기 원문과 달라진 부분
+        (분기ㆍ반기보고서의 정상적인 생략은 제외)</li>
+      <li><b>작성기준 준수 여부</b> — 필수 목차 누락, 표지 필수 기재사항 확인</li>
+      <li><b>단위 확인</b> — 표에 표기된 "(단위: 원/백만원 등)"이 전기와 달라진 곳 확인</li>
+    </ul>
+    <p class="rule-cite">근거: 「기업공시서식 작성기준」(2026.4.1. 시행) 제1편 통칙, 제3장 회사의 개요,
+    제5장 재무정보 등에 관한 사항 (금융감독원 기업공시국).</p>`;
+}
+
 function ruleDanpanHtml(rule) {
   if (!rule) {
     return '<p>매출액 기준 정보를 불러오지 못했습니다 (DART 재무제표 조회 실패). 잠시 후 "단판공시" 탭을 다시 열어보세요.</p>';
@@ -1850,6 +2008,33 @@ function ruleFtcHtml() {
     공정위 고시 "대규모내부거래 등에 대한 이사회 의결 및 공시에 관한 규정" (출처:
     <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
     <a href="https://www.ftc.go.kr" target="_blank" class="clickable-name">공정거래위원회</a>).</p>`;
+}
+
+function rulePeriodicHtml() {
+  return `
+    <p>상장법인은 정기적으로 사업보고서ㆍ반기보고서ㆍ분기보고서를 제출해야 합니다 —
+    "정기공시".</p>
+    <div class="rule-flow">
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">사업보고서</div>
+        <div class="rule-flow-value">사업연도 경과 후 90일 이내</div>
+      </div>
+      <div class="rule-flow-box">
+        <div class="rule-flow-label">반기ㆍ분기보고서</div>
+        <div class="rule-flow-value">해당 기간 경과 후 45일 이내</div>
+      </div>
+    </div>
+    <h4>대표이사 등의 확인ㆍ서명 의무</h4>
+    <p>제출회사의 대표이사와 신고ㆍ제출업무를 담당하는 이사는 기재내용을 직접 확인ㆍ검토했다는 사실,
+    중요사항의 거짓 기재나 누락이 없다는 사실 등을 확인하고 서명해야 합니다(【 대표이사 등의 확인 】).</p>
+    <h4>분기ㆍ반기보고서의 기재 생략</h4>
+    <p>분기ㆍ반기보고서는 사업보고서와 달리 회사의 연혁, 사업의 내용 세부항목 등 일부를
+    "작성기준에 따라 기재하지 않습니다"라는 문구로 갈음할 수 있습니다 — 이 도구의 "정기공시 검수"도
+    이런 정상적인 생략은 변경사항으로 잡지 않습니다.</p>
+    <p class="rule-cite">근거: 자본시장법 제159조ㆍ제160조(사업ㆍ반기ㆍ분기보고서의 제출), 「기업공시서식
+    작성기준」 제1-2-1조(대표이사 등의 확인) (출처:
+    <a href="https://www.law.go.kr" target="_blank" class="clickable-name">국가법령정보센터</a>,
+    <a href="https://dart.fss.or.kr" target="_blank" class="clickable-name">DART 전자공시시스템</a>).</p>`;
 }
 
 function ruleLargeHoldingHtml() {
