@@ -1015,7 +1015,9 @@ def admin_cashflow_mail_template_upload():
 @app.route('/admin/cashflow-mail/send-now', methods=['POST'])
 @cashflow_plan_mail_access_required
 def admin_cashflow_mail_send_now():
-    import asyncio
+    # 메일 발송이 아니라 그룹웨어 협조전 임시저장으로 대체한다.
+    # 로그인은 지금 이 버튼을 누른 사람이 서버 PC에 뜨는 그룹웨어 창에서 직접 하고,
+    # '임시저장'까지만 자동화한다 — 실제 제출(기안)은 사람이 그룹웨어에서 확인 후 직접 눌러야 한다.
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = cashflow_plan_mail.prepare_groupware_draft(sender_name)
@@ -1024,29 +1026,19 @@ def admin_cashflow_mail_send_now():
         return redirect(url_for('admin_cashflow_mail'))
 
     import groupware_rpa
-    missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
-
-    def _run():
-        # Windows 새 스레드에는 asyncio 이벤트 루프가 없어
-        # Playwright가 브라우저를 못 여는 문제를 막기 위해 명시적으로 생성
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        result = groupware_rpa.create_groupware_draft(
-            subject=draft['subject'], body_html=draft['body_html'],
-            recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
-        )
-        if result.get('ok'):
-            hub_db.log_cashflow_plan_mail(
-                year_month=datetime.now().strftime('%Y-%m'),
-                recipient_count=len(draft['recipient_labels']), triggered_by='manual',
-            )
-        print(f"[cashflow_rpa] 협조전 자동화 완료: ok={result.get('ok')} / {result.get('message') or result.get('reason')}", flush=True)
-
-    threading.Thread(target=_run, daemon=True).start()
-    flash(
-        f"협조전 자동화를 시작했습니다{missing_note}. "
-        "서버 PC 화면에 그룹웨어 창이 열리면 로그인해주세요 — 자동으로 내용을 채우고 임시저장합니다.",
-        'success'
+    result = groupware_rpa.create_groupware_draft(
+        subject=draft['subject'], body_html=draft['body_html'],
+        recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
     )
+    if result.get('ok'):
+        hub_db.log_cashflow_plan_mail(
+            year_month=datetime.now().strftime('%Y-%m'),
+            recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+        )
+        missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
+        flash(f"{result['message']}{missing_note}", 'success')
+    else:
+        flash(result.get('reason', '협조전 작성에 실패했습니다.'), 'error')
     return redirect(url_for('admin_cashflow_mail'))
 
 
@@ -1124,7 +1116,9 @@ def periodic_send():
 @app.route('/disclosure/periodic-send/send-now', methods=['POST'])
 @login_required
 def periodic_send_now():
-    import asyncio
+    # 메일 발송이 아니라 그룹웨어 협조전 임시저장.
+    # 로그인은 지금 이 버튼을 누른 사람이 서버 PC에 뜨는 그룹웨어 창에서 직접 하고,
+    # '임시저장'까지만 자동화한다 — 첨부 및 실제 제출(기안)은 사람이 확인 후 직접 해야 한다.
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = periodic_mail.prepare_groupware_draft(sender_name)
@@ -1133,27 +1127,18 @@ def periodic_send_now():
         return redirect(url_for('periodic_send'))
 
     import groupware_rpa
-
-    def _run():
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        result = groupware_rpa.create_groupware_draft(
-            subject=draft['subject'], body_html=draft['body_html'],
-            recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
-        )
-        if result.get('ok'):
-            hub_db.log_periodic_mail(
-                period_label=draft['period_label'],
-                recipient_count=len(draft['recipient_labels']), triggered_by='manual',
-            )
-        print(f"[periodic_rpa] 협조전 자동화 완료: ok={result.get('ok')} / {result.get('message') or result.get('reason')}", flush=True)
-
-    threading.Thread(target=_run, daemon=True).start()
-    flash(
-        "협조전 자동화를 시작했습니다. "
-        "서버 PC 화면에 그룹웨어 창이 열리면 로그인해주세요 — 자동으로 내용을 채우고 임시저장합니다. "
-        "(첨부파일은 그룹웨어에서 직접 추가해주세요 — 작성기준 PDF, 직전 보고서 원문)",
-        'success'
+    result = groupware_rpa.create_groupware_draft(
+        subject=draft['subject'], body_html=draft['body_html'],
+        recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
     )
+    if result.get('ok'):
+        hub_db.log_periodic_mail(
+            period_label=draft['period_label'],
+            recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+        )
+        flash(f"{result['message']} (첨부파일은 그룹웨어에서 직접 추가해주세요 — 작성기준 PDF, 직전 보고서 원문)", 'success')
+    else:
+        flash(result.get('reason', '협조전 작성에 실패했습니다.'), 'error')
     return redirect(url_for('periodic_send'))
 
 
@@ -1246,7 +1231,9 @@ def admin_ftc_disclosure_mail_template_upload():
 @app.route('/admin/ftc-disclosure-mail/send-now', methods=['POST'])
 @ftc_disclosure_mail_access_required
 def admin_ftc_disclosure_mail_send_now():
-    import asyncio
+    # 자금계획 협조전과 완전히 같은 방식 — 메일 발송이 아니라 그룹웨어 협조전 임시저장.
+    # 로그인은 지금 이 버튼을 누른 사람이 서버 PC에 뜨는 그룹웨어 창에서 직접 하고,
+    # '임시저장'까지만 자동화한다 — 실제 제출(기안)은 사람이 그룹웨어에서 확인 후 직접 눌러야 한다.
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = ftc_disclosure_mail.prepare_groupware_draft(sender_name)
@@ -1255,27 +1242,19 @@ def admin_ftc_disclosure_mail_send_now():
         return redirect(url_for('disclosure_ftc_send'))
 
     import groupware_rpa
-    missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
-
-    def _run():
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        result = groupware_rpa.create_groupware_draft(
-            subject=draft['subject'], body_html=draft['body_html'],
-            recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
-        )
-        if result.get('ok'):
-            hub_db.log_ftc_disclosure_mail(
-                period_label=draft['period_label'],
-                recipient_count=len(draft['recipient_labels']), triggered_by='manual',
-            )
-        print(f"[ftc_rpa] 협조전 자동화 완료: ok={result.get('ok')} / {result.get('message') or result.get('reason')}", flush=True)
-
-    threading.Thread(target=_run, daemon=True).start()
-    flash(
-        f"협조전 자동화를 시작했습니다{missing_note}. "
-        "서버 PC 화면에 그룹웨어 창이 열리면 로그인해주세요 — 자동으로 내용을 채우고 임시저장합니다.",
-        'success'
+    result = groupware_rpa.create_groupware_draft(
+        subject=draft['subject'], body_html=draft['body_html'],
+        recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
     )
+    if result.get('ok'):
+        hub_db.log_ftc_disclosure_mail(
+            period_label=draft['period_label'],
+            recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+        )
+        missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
+        flash(f"{result['message']}{missing_note}", 'success')
+    else:
+        flash(result.get('reason', '협조전 작성에 실패했습니다.'), 'error')
     return redirect(url_for('disclosure_ftc_send'))
 
 
