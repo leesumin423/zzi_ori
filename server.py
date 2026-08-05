@@ -3764,6 +3764,9 @@ MGMT_COMMON_TICKERS = {
     "동양": "001520",
 }
 MGMT_ALL_TICKERS = {**MGMT_WATCH_TICKERS, **MGMT_COMMON_TICKERS}
+MGMT_MARKET_CALENDAR_PROXY_CODE = "001520"  # 동양(보통주) — 매매정지 없이 항상 거래되는
+                                              # 종목이라, 시행세칙 제43조①의 "반기 중
+                                              # 매매거래일"(시장 전체 개장일) 산정 기준으로 쓴다.
 MGMT_CAP_THRESHOLD = 2_000_000_000       # 20억원 (종류주권 시가총액 미달 기준)
 MGMT_PRICE_THRESHOLD = 1_000             # 1,000원 (보통주 주가 미달 기준)
 MGMT_VOLUME_THRESHOLD = 10_000           # 반기 월평균 1만주
@@ -4145,51 +4148,73 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
 
     half_start = _half_year_start(latest_dt)
     half_label = f"{half_start.year}년 {'상반기' if half_start.month == 1 else '하반기'}"
-    # 반기 거래량은 반기 시작일(7/1 또는 1/1)부터 그대로 집계한다 — 반기 도중 감자
-    # (주식병합) 등으로 변경상장(신규상장이 아님)된 종목이라도 반기 자체는 그대로
-    # 유지된다. 다만 병합 전ㆍ후는 1주가 표상하는 가치ㆍ발행주식총수 자체가 달라서
-    # (예: 동양우ㆍ동양2우B는 2026.7.20 액면병합으로 구주 2주→신주 1주, 병합 전
-    # 발행주식총수 525,231주가 병합 후 262,615주로 정확히 절반이 됨 — mktcap÷close로
-    # 직접 역산해 검증) 병합 전 거래량(구주 기준)을 그대로 병합 후 거래량(신주 기준)과
-    # 합산하면 서로 다른 단위를 더하는 셈이 된다. 그래서 병합 전 거래량에 병합비율을
-    # 곱해 "신주 환산 거래량"으로 바꾼 뒤(권리락ㆍ액면분할 시 가격ㆍ거래량 연속성을
-    # 맞추는, 증권시장에서 널리 쓰이는 표준적인 소급환산 방식과 동일한 원리) 반기
-    # 시작일부터 그대로 합산한다 — MGMT_SHARE_REORG_DATES 참고. (주의: 유가증권시장
-    # 상장규정 시행세칙에 이 환산방법을 명시한 정확한 조문 번호는 KRX 법규서비스가
-    # 자바스크립트 렌더링 기반이라 이 코드 작성 시점에 원문으로 직접 확인하지 못했다 —
-    # 여기 쓴 소급환산 방식은 병합비율을 실제 시가총액ㆍ종가 데이터로 역산 검증한 뒤
-    # 적용한 것으로, 공식 제출용으로 쓰려면 거래소에 정확한 조문을 한 번 더 확인 필요.)
+    # 유가증권시장 상장규정 시행세칙 제43조(거래량 미달 사유의 적용방법) 원문(사용자
+    # 제공):
+    #  ①"반기 월평균거래량"=[(반기 중 매매거래일÷반기 중 해당 주권의 매매거래일)×
+    #    반기 총 거래량]÷6. 매매정지 등으로 이 종목만 거래가 안 된 날은 "해당 주권의
+    #    매매거래일"에서 빠지므로, 전체 시장 개장일 대비 실제 거래일 비율만큼 거래량을
+    #    증폭(gross-up)해서 매매정지 공백을 보정한다.
+    #  ② 반기 중 병합ㆍ분할ㆍ증자ㆍ감자로 변경상장ㆍ신주상장이 있으면, 그 이전 거래량은
+    #    해당 비율로 조정한다(병합ㆍ분할은 병합ㆍ분할비율) — MGMT_SHARE_REORG_DATES 참고.
+    #    동양우ㆍ동양2우B는 2026.7.20 액면병합(구주 2주→신주 1주). 병합 전 발행주식
+    #    총수 525,231주가 병합 후 262,615주로 정확히 절반이 됨을 mktcap÷close로 역산
+    #    검증했다 — 병합 전 거래량에 0.5를 곱해 신주 환산 거래량으로 바꿔서 합산한다.
+    # 이 산식은 문언상 "÷6"으로 반기 전체(6개월)를 상정하므로, 반기가 아직 안 끝난
+    # 시점에 지금까지의 A(시장 개장일)ㆍB(종목 실제 거래일)ㆍC(누적거래량)만으로 그대로
+    # 적용하면 숫자가 작게 나온다 — 다만 "지금 이 순간 반기가 끝난다고 가정했을 때"의
+    # 값으로 해석할 수 있고, 남은 기간 거래가 쌓일수록 이 값은 계속 올라가기만 한다
+    # (단조증가하는 하한선). 최근 페이스가 유지된다는 가정의 별도 "예상치"는 아래에서
+    # 같이 낸다.
     reorg_info = MGMT_SHARE_REORG_DATES.get(code)
     def _converted_volume(d_str: str, raw_volume: float) -> float:
         if reorg_info and datetime.strptime(d_str, '%Y%m%d').date() < reorg_info['reorg_date']:
             return raw_volume * reorg_info['ratio']
         return raw_volume
-    elapsed_months = (latest_dt.year - half_start.year) * 12 + (latest_dt.month - half_start.month) + 1
+
+    market_day_map = history.get(MGMT_MARKET_CALENDAR_PROXY_CODE) or day_map
+
+    def _official_volume_avg(as_of: date, extra_volume: float = 0.0, extra_is_trading_day: bool = False) -> int:
+        """제43조①+② 산식을 half_start~as_of 구간 데이터로 그대로 적용한다."""
+        market_days = sum(
+            1 for d_str in market_day_map
+            if half_start <= datetime.strptime(d_str, '%Y%m%d').date() <= as_of
+        )
+        stock_days = sum(
+            1 for d_str, v in day_map.items()
+            if half_start <= datetime.strptime(d_str, '%Y%m%d').date() <= as_of and v.get('volume', 0) > 0
+        )
+        total_volume = sum(
+            _converted_volume(d_str, v['volume']) for d_str, v in day_map.items()
+            if half_start <= datetime.strptime(d_str, '%Y%m%d').date() <= as_of
+        ) + extra_volume
+        if extra_volume > 0:
+            market_days += 1  # "오늘"이 아직 day_map에 없다면 시장 개장일에도 하루 더한다
+            if extra_is_trading_day:
+                stock_days += 1
+        if not stock_days:
+            return 0
+        return round((market_days / stock_days) * total_volume / 6)
+
     half_volume_sum = round(sum(
         _converted_volume(d_str, v["volume"]) for d_str, v in day_map.items()
         if datetime.strptime(d_str, '%Y%m%d').date() >= half_start
     ))
-    volume_avg_monthly = round(half_volume_sum / elapsed_months) if elapsed_months else 0
+    volume_avg_monthly = _official_volume_avg(latest_dt)
     volume_status = "미달 우려" if volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
 
     current_mktcap = None
     if live_price and latest.get("close"):
         current_mktcap = round(latest["mktcap"] / latest["close"] * live_price)
 
-    # "현재기준" 잠정 월평균거래량 — 오늘이 아직 KRX로 확정되지 않았으면(장중) 오늘의
-    # 실시간 누적거래량을 더해서 계산하고, 이미 확정 이력에 오늘이 들어있으면(장마감 후)
-    # 중복 합산을 막기 위해 확정치(half_volume_sum)를 그대로 쓴다. 오늘자는 병합 후
-    # 시점이므로(반기 중 병합은 이미 지난 일이라 실시간가는 항상 신주 기준) 환산 불필요.
+    # "현재기준" — 오늘이 아직 KRX 확정 이력에 없으면(장중) 오늘의 실시간 누적거래량을
+    # 임시로 더해서 같은 산식을 다시 계산하고, 이미 확정 이력에 들어있으면(장마감 후)
+    # 중복 합산을 막기 위해 확정치를 그대로 쓴다.
     today = date.today()
     today_str = today.strftime('%Y%m%d')
-    current_elapsed_months = (today.year - half_start.year) * 12 + (today.month - half_start.month) + 1
     if live_volume is not None and today_str not in day_map:
-        current_volume_sum = half_volume_sum + live_volume
+        current_volume_avg_monthly = _official_volume_avg(today, extra_volume=live_volume, extra_is_trading_day=live_volume > 0)
     else:
-        current_volume_sum = half_volume_sum
-    current_volume_avg_monthly = (
-        round(current_volume_sum / current_elapsed_months) if current_elapsed_months else 0
-    )
+        current_volume_avg_monthly = volume_avg_monthly
     current_volume_status = "미달 우려" if current_volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
 
     # 실거래 페이스 기준 반기 전체(6개월) 거래량ㆍ월평균 예상치 — 위 volume_avg_monthly
