@@ -9,11 +9,6 @@
 2. '임시저장'까지만 자동으로 누르고, '기안'(결재상신 = 실제 제출)은 절대 자동으로
    누르지 않는다 — 참조자ㆍ본문ㆍ첨부파일이 맞는지 사람이 그룹웨어 화면에서 마지막
    으로 직접 확인한 뒤 스스로 상신해야 한다.
-
-화면(브라우저 창)에 지금 뭘 하고 있는지 배너로 계속 띄운다 — 이 자동화가 도는
-동안 사람이 볼 수 있는 유일한 화면이 이 브라우저 창이라, 진행상황을 여기 직접
-표시하지 않으면 "로그인했는데 아무 일도 안 일어난다"처럼 실제로는 동작 중인데도
-멈춘 것처럼 보인다.
 """
 import os
 import sys
@@ -26,37 +21,24 @@ GROUPWARE_BASE_URL = "https://gw.eugenes.co.kr"
 LOGIN_WAIT_SECONDS = 5 * 60  # 로그인 대기 최대 5분
 REFERENCE_ROLE_LABEL = "사후참조"  # 결재선 팝업에서 '참조자'로 추가할 때 쓰는 구분
 
-_PROGRESS_BANNER_JS = """(args) => {
-    let text = typeof args === 'string' ? args : (args.text || '');
-    let isSuccess = typeof args === 'object' && args.isSuccess;
-    let isRemove = typeof args === 'object' && args.remove;
+_PROGRESS_BANNER_JS = """(text) => {
     let el = document.getElementById('__rpa_progress_banner__');
-    if (isRemove) {
-        if (el) el.remove();
-        return;
-    }
     if (!el) {
         el = document.createElement('div');
         el.id = '__rpa_progress_banner__';
-        // pointer-events:none이 핵심이다 — 배너는 눈으로 보기만 하고 클릭은 항상 아래 실제 화면으로 그대로 통과시킨다.
+        // pointer-events:none — 배너는 눈으로 보기만 하고 클릭은 그대로 통과시킴
         el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
-            'color:#ffffff;font:600 15px/1.4 sans-serif;' +
-            'padding:12px 20px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.3);' +
-            'pointer-events:none;transition:all 0.3s ease;';
+            'background:#0f172a;color:#f8fafc;font:600 14px/1.4 sans-serif;' +
+            'padding:12px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3);' +
+            'pointer-events:none;';
         document.documentElement.appendChild(el);
     }
-    if (isSuccess) {
-        el.style.background = '#059669'; // 초록색 (임시저장 완료)
-        el.textContent = text;
-    } else {
-        el.style.background = '#0f172a'; // 검은색 (진행 중)
-        el.textContent = '🤖 자동 작성 진행 중 — ' + text;
-    }
+    el.textContent = '🤖 자동 작성 진행 중 — ' + text;
 }"""
 
 
 def _show_progress(context, text: str):
-    """진행 상황을 콘솔 및 브라우저 창 배너에 출력한다."""
+    """진행 상황을 콘솔 및 브라우저 배너에 출력한다."""
     try:
         print(f"[groupware_rpa] {text}", flush=True)
     except UnicodeEncodeError:
@@ -69,25 +51,11 @@ def _show_progress(context, text: str):
             pass
 
 
-def _show_success(context, text: str):
-    """성공 안내 메시지를 초록색 배너로 전환하여 표시한다."""
-    try:
-        print(f"[groupware_rpa] [성공] {text}", flush=True)
-    except UnicodeEncodeError:
-        safe_text = text.encode(sys.stdout.encoding or 'ascii', errors='replace').decode(sys.stdout.encoding or 'ascii')
-        print(f"[groupware_rpa] [성공] {safe_text}", flush=True)
-    for p in list(context.pages):
-        try:
-            p.evaluate(_PROGRESS_BANNER_JS, {"text": text, "isSuccess": True})
-        except Exception:
-            pass
-
-
 def _remove_progress_banner(context):
-    """실행 배너를 깔끔하게 제거한다."""
+    """완료 또는 종료 시 화면에서 배너를 완벽히 제거한다."""
     for p in list(context.pages):
         try:
-            p.evaluate(_PROGRESS_BANNER_JS, {"remove": True})
+            p.evaluate("() => { let el = document.getElementById('__rpa_progress_banner__'); if (el) el.remove(); }")
         except Exception:
             pass
 
@@ -145,6 +113,7 @@ def _wait_for_login_and_open_draft(page, context):
         with context.expect_page(timeout=3000) as popup_info:
             page.get_by_text("협조전", exact=True).first.click()
         new_page = popup_info.value
+        new_page.on("dialog", lambda d: d.accept())
         _settle(new_page)
         _show_progress(context, "협조전 작성 화면 열림 — 내용 채우는 중...")
         return new_page
@@ -186,6 +155,7 @@ def _add_reference_recipients(page, context, recipient_labels):
     with context.expect_page() as popup_info:
         page.get_by_text("결재선", exact=True).first.click()
     popup = popup_info.value
+    popup.on("dialog", lambda d: d.accept())
     popup.wait_for_load_state()
 
     for i, label in enumerate(recipient_labels, 1):
@@ -233,7 +203,12 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
     pw = sync_playwright().start()
     browser = pw.chromium.launch(headless=False)
     context = browser.new_context()
+    
+    # 팝업 알림(alert/confirm) 자동 수락 핸들러 등록
+    context.on("page", lambda p: p.on("dialog", lambda d: d.accept()))
+
     page = context.new_page()
+    page.on("dialog", lambda d: d.accept())
 
     saved_successfully = False
 
@@ -284,32 +259,14 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
             except Exception as ex:
                 raise RuntimeError(f"임시저장 버튼 클릭 실패: {ex}")
 
-        # 임시저장 버튼 클릭 성공 후 즉시 초록색 성공 배너로 교체 (사용자 마우스/클릭 오진 방지)
-        _show_success(context, "✅ 임시저장 완료 — 창을 닫습니다. 그룹웨어 '임시함'에서 확인 후 직접 '기안'을 눌러주세요.")
-
-        # 완료 다이얼로그 처리 (있는 경우)
-        try:
-            completion_ok = page.get_by_text("OK", exact=True).first
-            if completion_ok.is_visible(timeout=3000):
-                completion_ok.click()
-        except Exception:
-            pass
-
-        try:
-            completion_ok2 = page.get_by_text("확인", exact=True).first
-            if completion_ok2.is_visible(timeout=2000):
-                completion_ok2.click()
-        except Exception:
-            pass
-
-        try:
-            page.wait_for_url("**/*TempSave*", timeout=4000)
-        except Exception:
-            pass
-
-        # 1초 후 배너 제거 및 자동화 브라우저 안전 종료
-        page.wait_for_timeout(1000)
+        # ★ 사용자 요청 반영: 완료 시 자동작성 진행 배너를 완전히 삭제
         _remove_progress_banner(context)
+
+        # 저장 반영 대기 후 브라우저 닫기
+        try:
+            page.wait_for_timeout(1500)
+        except Exception:
+            pass
 
         try:
             browser.close()
@@ -325,12 +282,12 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
             ),
         }
     except Exception as e:
-        # 이미 임시저장 버튼을 성공적으로 누른 후 발생한 예외(유저 마우스 이동, 창 닫기, 팝업 클릭 등)인 경우
-        # 거짓 오류를 띄우지 않고 무조건 성공으로 리턴한다.
+        # 완료/종료 시 배너 무조건 삭제 (오류로 멈췄습니다 배너 제거)
+        _remove_progress_banner(context)
+
         if saved_successfully:
-            print(f"[groupware_rpa] 임시저장 클릭 후 사용자 조작/이동 예외 발생 (정상 완결 처리): {e}", flush=True)
+            print(f"[groupware_rpa] 임시저장 클릭 후 예외 발생 (정상 완결 처리): {e}", flush=True)
             try:
-                _remove_progress_banner(context)
                 browser.close()
                 pw.stop()
             except Exception:
@@ -343,7 +300,6 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
                 ),
             }
 
-        _show_progress(context, f"❌ 작성 중 오류가 발생했습니다: {e}")
         return {
             "ok": False,
             "reason": (
