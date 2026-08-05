@@ -1,8 +1,5 @@
 import os
 import sys
-import threading
-import time
-import webbrowser
 
 
 def main():
@@ -14,12 +11,6 @@ def main():
     import pension_server
 
     PORT = 8000
-
-    def _open_browser():
-        time.sleep(1.2)  # 서버가 리스닝을 시작할 시간을 준다
-        webbrowser.open(f"http://localhost:{PORT}")
-
-    threading.Thread(target=_open_browser, daemon=True).start()
 
     print(f"\n========================================================")
     print(f"  퇴직연금 통합 대시보드 서버 구동 중...")
