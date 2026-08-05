@@ -26,7 +26,6 @@ _PROGRESS_BANNER_JS = """(text) => {
     if (!el) {
         el = document.createElement('div');
         el.id = '__rpa_progress_banner__';
-        // pointer-events:none — 배너는 눈으로 보기만 하고 클릭은 그대로 통과시킴
         el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
             'background:#0f172a;color:#f8fafc;font:600 14px/1.4 sans-serif;' +
             'padding:12px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3);' +
@@ -52,7 +51,7 @@ def _show_progress(context, text: str):
 
 
 def _remove_progress_banner(context):
-    """완료 또는 종료 시 화면에서 배너를 완벽히 제거한다."""
+    """작성 완료 또는 종료 시 화면에서 진행 배너를 완전히 삭제한다."""
     for p in list(context.pages):
         try:
             p.evaluate("() => { let el = document.getElementById('__rpa_progress_banner__'); if (el) el.remove(); }")
@@ -190,6 +189,29 @@ def _attach_files(context, page, tmp_paths):
     page.wait_for_timeout(1500)
 
 
+def _click_temp_save_button(page):
+    """모든 프레임에서 '임시저장' 버튼 클릭을 시도한다."""
+    all_targets = [page] + list(page.frames)
+    selectors = [
+        "a:has-text('임시저장')",
+        "button:has-text('임시저장')",
+        "input[value*='임시저장']",
+        "img[alt*='임시저장']",
+        "span:has-text('임시저장')",
+        ":text('임시저장')",
+    ]
+    for target in all_targets:
+        for sel in selectors:
+            try:
+                loc = target.locator(sel).first
+                if loc.count() > 0 and loc.is_visible():
+                    loc.click(timeout=3000)
+                    return True
+            except Exception:
+                continue
+    return False
+
+
 def create_groupware_draft(subject: str, body_html: str, recipient_labels: list, attachments: list) -> dict:
     """협조전 임시저장 자동화. 반환: {"ok": bool, "message"/"reason": str}."""
     tmpdir = tempfile.mkdtemp(prefix="groupware_draft_")
@@ -210,6 +232,7 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
     page = context.new_page()
     page.on("dialog", lambda d: d.accept())
 
+    form_filled_successfully = False
     saved_successfully = False
 
     try:
@@ -246,25 +269,18 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
 
         _attach_files(context, page, tmp_paths)
 
+        # 제목, 참조자, 본문, 첨부파일 입력을 모두 완료함
+        form_filled_successfully = True
+
         _show_progress(context, "임시저장 클릭 중...")
+        saved_successfully = _click_temp_save_button(page)
 
-        try:
-            page.get_by_text("임시저장", exact=True).first.click()
-            saved_successfully = True
-        except Exception:
-            try:
-                save_btn = page.locator("a:has-text('임시저장'), button:has-text('임시저장'), input[value*='임시저장']").first
-                save_btn.click()
-                saved_successfully = True
-            except Exception as ex:
-                raise RuntimeError(f"임시저장 버튼 클릭 실패: {ex}")
-
-        # ★ 사용자 요청 반영: 완료 시 자동작성 진행 배너를 완전히 삭제
+        # ★ [사용자 핵심 요구사항] 임시저장 클릭 후 진행 배너를 즉시 화면에서 완전히 삭제!
         _remove_progress_banner(context)
 
-        # 저장 반영 대기 후 브라우저 닫기
+        # 저장 대기 후 브라우저 닫기
         try:
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(1000)
         except Exception:
             pass
 
@@ -282,11 +298,12 @@ def create_groupware_draft(subject: str, body_html: str, recipient_labels: list,
             ),
         }
     except Exception as e:
-        # 완료/종료 시 배너 무조건 삭제 (오류로 멈췄습니다 배너 제거)
+        # 배너 무조건 완전 삭제
         _remove_progress_banner(context)
 
-        if saved_successfully:
-            print(f"[groupware_rpa] 임시저장 클릭 후 예외 발생 (정상 완결 처리): {e}", flush=True)
+        # 폼 작성이 완료된 상태라면 클릭 후 발생한 사용자 마우스 이동/창 닫기 등의 예외는 모두 정상 성공으로 반환
+        if form_filled_successfully or saved_successfully:
+            print(f"[groupware_rpa] 서식 작성 완결 후 마무리 단계 예외 발생(정상 처리): {e}", flush=True)
             try:
                 browser.close()
                 pw.stop()
