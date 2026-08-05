@@ -13,7 +13,18 @@
 import sys
 import threading
 import time as _time_module
-from datetime import datetime
+
+# 콘솔 코드페이지가 UTF-8이 아닌 상태(예: chcp 65001 없이 실행)로 뜨면, 이모지ㆍ
+# 특수문자가 섞인 print() 한 줄 때문에 UnicodeEncodeError로 요청 전체가 500 에러로
+# 죽는 문제가 있었다(groupware_rpa.py의 진행 로그에서 실제로 발생). 어떤 방식으로
+# 이 서버가 실행되든(배치파일의 chcp 65001 유무와 무관하게) 항상 안전하게 출력되도록
+# 프로세스 전체의 표준출력ㆍ표준에러 인코딩을 여기서 한 번에 맞춘다.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
+from datetime import datetime, timedelta
 from functools import wraps
 
 import requests
@@ -26,6 +37,15 @@ import danpan_mail
 import danpan_tracking_db
 import cashflow_plan_mail
 import ftc_disclosure_mail
+import periodic_mail
+import disclosure_review.dart_client
+import disclosure_review.doc_parser
+import disclosure_review.diff_engine
+import disclosure_review.spellcheck
+import disclosure_review.standards.rules
+
+# (주)동양 정기공시 정확도 검토가 목적인 기능이라 다른 회사는 다루지 않는다.
+PERIODIC_REVIEW_STOCK_CODE = '001520'
 
 # 차입금관리 폴더의 report_shared.py(엑셀 시트 렌더링)와 monthly_report_db.py(월간보고서
 # 저장소)를 그대로 재사용한다 — 같은 로직을 통합포털에 새로 베껴 쓰면 나중에 둘이
@@ -376,6 +396,21 @@ def ftc_disclosure_mail_access_required(view):
     return wrapped
 
 
+def periodic_mail_access_required(view):
+    """정기공시 협조전 설정도 같은 방식으로, 전체 관리자가 아닌 담당자에게
+    별도로 권한을 부여할 수 있게 한다."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = current_user()
+        if not user:
+            return redirect(url_for('login', next=request.path))
+        if not user['is_admin'] and not hub_db.is_periodic_mail_admin(user['id']):
+            flash('정기공시 협조전 설정 권한이 없습니다.', 'error')
+            return redirect(url_for('portal'))
+        return view(*args, **kwargs)
+    return wrapped
+
+
 @app.route('/')
 def index():
     if current_user():
@@ -539,6 +574,8 @@ def portal():
             'id': 'disclosure',
             'label': '📋 공시',
             'type': 'iframe',
+            # 정기공시 검수 화면은 이제 이 안(주가현황.html의 "정기공시" 탭)에서
+            # 바로 연결되므로, 허브 레벨에 별도 서브탭으로 중복해서 두지 않는다.
             'url': f'http://{host}:{hub_config.PORT_STOCK_DISCLOSURE}/주가현황.html?page=disclosures',
         },
         {
@@ -845,6 +882,69 @@ def admin_danpan_mail_access_revoke(user_id):
     return redirect(url_for('admin_danpan_mail_access'))
 
 
+@app.route('/admin/periodic-mail')
+@periodic_mail_access_required
+def admin_periodic_mail():
+    recipients = hub_db.list_periodic_mail_recipients()
+    last_sent = hub_db.get_last_periodic_mail()
+    return render_template(
+        'periodic_mail.html', user=current_user(), recipients=recipients, last_sent=last_sent,
+    )
+
+
+@app.route('/admin/periodic-mail/add', methods=['POST'])
+@periodic_mail_access_required
+def admin_periodic_mail_add():
+    label = request.form.get('label', '').strip()
+    email = request.form.get('email', '').strip() or None
+    if not label:
+        flash('이름/부서명을 입력해주세요 — 그룹웨어 참조자 검색에 이 이름을 그대로 씁니다.', 'error')
+    else:
+        hub_db.add_periodic_mail_recipient(email, label)
+        flash('참조자를 추가했습니다.', 'success')
+    return redirect(url_for('admin_periodic_mail'))
+
+
+@app.route('/admin/periodic-mail/delete/<int:recipient_id>', methods=['POST'])
+@periodic_mail_access_required
+def admin_periodic_mail_delete(recipient_id):
+    hub_db.delete_periodic_mail_recipient(recipient_id)
+    flash('수신자를 삭제했습니다.', 'info')
+    return redirect(url_for('admin_periodic_mail'))
+
+
+@app.route('/admin/periodic-mail-access')
+@admin_required
+def admin_periodic_mail_access():
+    """정기공시 협조전 설정 권한을 전체 관리자가 아닌 특정 담당자에게 지정하는
+    화면 — 전체 관리자 계정은 이미 항상 접근 가능하므로 목록에서 뺀다."""
+    users = [u for u in hub_db.list_users() if not u[3]]
+    granted_ids = hub_db.list_periodic_mail_admin_ids()
+    return render_template('periodic_mail_access.html', users=users, granted_ids=granted_ids)
+
+
+@app.route('/admin/periodic-mail-access/grant/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_periodic_mail_access_grant(user_id):
+    target = hub_db.get_user_by_id(user_id)
+    if not target:
+        flash('사용자를 찾을 수 없습니다.', 'error')
+    else:
+        hub_db.grant_periodic_mail_admin(user_id)
+        flash(f"{target['display_name'] or target['username']}님에게 정기공시 협조전 설정 권한을 부여했습니다.", 'success')
+    return redirect(url_for('admin_periodic_mail_access'))
+
+
+@app.route('/admin/periodic-mail-access/revoke/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_periodic_mail_access_revoke(user_id):
+    target = hub_db.get_user_by_id(user_id)
+    hub_db.revoke_periodic_mail_admin(user_id)
+    if target:
+        flash(f"{target['display_name'] or target['username']}님의 정기공시 협조전 설정 권한을 회수했습니다.", 'info')
+    return redirect(url_for('admin_periodic_mail_access'))
+
+
 @app.route('/admin/cashflow-mail')
 @cashflow_plan_mail_access_required
 def admin_cashflow_mail():
@@ -915,11 +1015,10 @@ def admin_cashflow_mail_template_upload():
 @app.route('/admin/cashflow-mail/send-now', methods=['POST'])
 @cashflow_plan_mail_access_required
 def admin_cashflow_mail_send_now():
-    # 메일 발송이 아니라 그룹웨어 협조전 임시저장으로 대체한다 — 자금계획 요청은
-    # 실제로 메일이 아니라 협조전으로 주고받는 업무이기 때문. 로그인은 지금 이
-    # 버튼을 누른 사람이 화면이 뜬 브라우저 창에서 직접 하고(포털은 그룹웨어
-    # 로그인 정보를 전혀 저장하지 않는다), '임시저장'까지만 자동화한다 — 실제
-    # 제출(기안)은 사람이 그룹웨어에서 마지막으로 확인 후 직접 눌러야 한다.
+    # 백그라운드 스레드로 실행 — RPA가 로그인 대기(최대 5분) 동안 HTTP 요청을
+    # 붙잡으면 브라우저가 "작업실행중"으로 멈춰버리는 문제가 있었다.
+    # 버튼을 누르면 즉시 "자동화 시작됨" 메시지를 반환하고,
+    # 그룹웨어 창은 서버 PC 화면에서 따로 열린다.
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = cashflow_plan_mail.prepare_groupware_draft(sender_name)
@@ -928,19 +1027,26 @@ def admin_cashflow_mail_send_now():
         return redirect(url_for('admin_cashflow_mail'))
 
     import groupware_rpa
-    result = groupware_rpa.create_groupware_draft(
-        subject=draft['subject'], body_html=draft['body_html'],
-        recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
-    )
-    if result.get('ok'):
-        hub_db.log_cashflow_plan_mail(
-            year_month=datetime.now().strftime('%Y-%m'),
-            recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+    missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
+
+    def _run():
+        result = groupware_rpa.create_groupware_draft(
+            subject=draft['subject'], body_html=draft['body_html'],
+            recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
         )
-        missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
-        flash(f"{result['message']}{missing_note}", 'success')
-    else:
-        flash(result.get('reason', '협조전 작성에 실패했습니다.'), 'error')
+        if result.get('ok'):
+            hub_db.log_cashflow_plan_mail(
+                year_month=datetime.now().strftime('%Y-%m'),
+                recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+            )
+        print(f"[cashflow_rpa] 협조전 자동화 완료: ok={result.get('ok')} / {result.get('message') or result.get('reason')}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+    flash(
+        f"협조전 자동화를 시작했습니다{missing_note}. "
+        "서버 PC 화면에 그룹웨어 창이 열리면 로그인해주세요 — 자동으로 내용을 채우고 임시저장합니다.",
+        'success'
+    )
     return redirect(url_for('admin_cashflow_mail'))
 
 
@@ -969,6 +1075,130 @@ def disclosure_ftc_send():
         'ftc_disclosure_send.html', user=current_user(), recipients=recipients, last_sent=last_sent,
         templates=templates, template_slots=hub_db.FTC_DISCLOSURE_TEMPLATE_SLOTS, period=period,
         title_preview=ftc_disclosure_mail.build_title(period),
+    )
+
+
+@app.route('/disclosure/periodic-review')
+@login_required
+def periodic_review():
+    """(주)동양 정기공시 초안(.dsd)을 DART 기준 원문과 비교해 오탈자ㆍ변경내역ㆍ
+    작성기준 준수 여부를 검토하는 화면. 다른 회사는 다루지 않는다."""
+    try:
+        years = int(request.args.get('years', 1))
+    except ValueError:
+        years = 1
+    years = min(max(years, 1), 3)  # 회차 목록이 너무 길어지지 않게 최근 1~3년만 허용
+
+    corp_code = disclosure_review.dart_client.get_corp_code(PERIODIC_REVIEW_STOCK_CODE)
+    disclosures = []
+    if corp_code:
+        end_de = datetime.now().strftime('%Y%m%d')
+        bgn_de = (datetime.now() - timedelta(days=years * 365)).strftime('%Y%m%d')
+        try:
+            disclosures = disclosure_review.dart_client.fetch_disclosures(corp_code, bgn_de, end_de, pblntf_ty='A')
+        except disclosure_review.dart_client.DartApiError as e:
+            flash(str(e), 'error')
+    else:
+        flash('DART_API_KEY가 설정되어 있지 않거나 회사 코드를 찾지 못했습니다.', 'error')
+    return render_template(
+        'periodic_review.html', user=current_user(), disclosures=disclosures, selected_years=years,
+        today=datetime.now().strftime('%Y-%m-%d'),
+    )
+
+
+@app.route('/disclosure/periodic-send')
+@login_required
+def periodic_send():
+    """정기공시(사업ㆍ반기ㆍ분기보고서) 작성 요청 협조전 화면 — 관리자 설정(수신자
+    지정)과 분리해, 실제 협조전 임시저장 '실행'은 여기서만 한다."""
+    recipients = hub_db.list_periodic_mail_recipients()
+    last_sent = hub_db.get_last_periodic_mail()
+    period = periodic_mail.compute_periodic_period()
+    return render_template(
+        'periodic_send.html', user=current_user(), recipients=recipients, last_sent=last_sent,
+        period=period, title_preview=periodic_mail.build_title(period),
+        items=periodic_mail.PERIODIC_REPORT_ITEMS,
+    )
+
+
+@app.route('/disclosure/periodic-send/send-now', methods=['POST'])
+@login_required
+def periodic_send_now():
+    # 백그라운드 스레드로 실행 — 로그인 대기 동안 브라우저가 "작업실행중"으로
+    # 멈추는 문제를 방지한다. 버튼 클릭 즉시 응답 반환, 창은 서버 PC에서 열림.
+    user = current_user()
+    sender_name = user['display_name'] or user['username']
+    draft = periodic_mail.prepare_groupware_draft(sender_name)
+    if not draft.get('ok'):
+        flash(draft.get('reason', '협조전 작성 준비에 실패했습니다.'), 'error')
+        return redirect(url_for('periodic_send'))
+
+    import groupware_rpa
+
+    def _run():
+        result = groupware_rpa.create_groupware_draft(
+            subject=draft['subject'], body_html=draft['body_html'],
+            recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
+        )
+        if result.get('ok'):
+            hub_db.log_periodic_mail(
+                period_label=draft['period_label'],
+                recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+            )
+        print(f"[periodic_rpa] 협조전 자동화 완료: ok={result.get('ok')} / {result.get('message') or result.get('reason')}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+    flash(
+        "협조전 자동화를 시작했습니다. "
+        "서버 PC 화면에 그룹웨어 창이 열리면 로그인해주세요 — 자동으로 내용을 채우고 임시저장합니다. "
+        "(첨부파일은 그룹웨어에서 직접 추가해주세요 — 작성기준 PDF, 직전 보고서 원문)",
+        'success'
+    )
+    return redirect(url_for('periodic_send'))
+
+
+@app.route('/disclosure/periodic-review/run', methods=['POST'])
+@login_required
+def periodic_review_run():
+    rcept_no = (request.form.get('rcept_no') or '').strip()
+    uploaded = request.files.get('draft_file')
+    if not rcept_no or not uploaded or not uploaded.filename:
+        flash('비교 기준 회차와 초안(.dsd) 파일을 모두 선택해주세요.', 'error')
+        return redirect(url_for('periodic_review'))
+
+    try:
+        draft_doc = disclosure_review.doc_parser.parse_dsd_or_document_zip(uploaded.read())
+    except Exception as e:
+        flash(f'업로드한 초안 파일을 파싱하지 못했습니다: {e}', 'error')
+        return redirect(url_for('periodic_review'))
+
+    try:
+        baseline_xml = disclosure_review.dart_client.fetch_document_xml(rcept_no)
+        baseline_doc = disclosure_review.doc_parser.parse_xml_bytes(baseline_xml)
+    except disclosure_review.dart_client.DartApiError as e:
+        flash(f'기준 원문을 가져오지 못했습니다: {e}', 'error')
+        return redirect(url_for('periodic_review'))
+
+    diff_result = disclosure_review.diff_engine.diff_documents(baseline_doc, draft_doc)
+    standards_results = disclosure_review.standards.rules.run_all(draft_doc)
+    unit_mismatches = disclosure_review.diff_engine.check_unit_consistency(baseline_doc, draft_doc)
+
+    spell_report = None
+    if request.form.get('run_spellcheck') == 'on':
+        paragraphs = [
+            (s.key, s.title, p)
+            for s in draft_doc.sections
+            for p in s.paragraphs
+            if len(p) > 5
+        ]
+        spell_report = disclosure_review.spellcheck.check_paragraphs(paragraphs)
+
+    return render_template(
+        'periodic_review_result.html', user=current_user(),
+        draft_doc=draft_doc, baseline_rcept_no=rcept_no,
+        diff=diff_result, unified_changes=diff_result.to_unified_rows(),
+        standards_results=standards_results, spell_report=spell_report,
+        unit_mismatches=unit_mismatches,
     )
 
 
@@ -1016,10 +1246,8 @@ def admin_ftc_disclosure_mail_template_upload():
 @app.route('/admin/ftc-disclosure-mail/send-now', methods=['POST'])
 @ftc_disclosure_mail_access_required
 def admin_ftc_disclosure_mail_send_now():
-    # 자금계획 협조전(admin_cashflow_mail_send_now)과 완전히 같은 방식 — 메일 발송이 아니라
-    # 그룹웨어 협조전 임시저장. 로그인은 지금 이 버튼을 누른 사람이 뜬 브라우저 창에서
-    # 직접 하고, '임시저장'까지만 자동화한다 — 실제 제출(기안)은 사람이 그룹웨어에서
-    # 마지막으로 확인 후 직접 눌러야 한다.
+    # 백그라운드 스레드로 실행 — 로그인 대기 동안 브라우저가 "작업실행중"으로
+    # 멈추는 문제를 방지한다. 버튼 클릭 즉시 응답 반환, 창은 서버 PC에서 열림.
     user = current_user()
     sender_name = user['display_name'] or user['username']
     draft = ftc_disclosure_mail.prepare_groupware_draft(sender_name)
@@ -1028,19 +1256,26 @@ def admin_ftc_disclosure_mail_send_now():
         return redirect(url_for('disclosure_ftc_send'))
 
     import groupware_rpa
-    result = groupware_rpa.create_groupware_draft(
-        subject=draft['subject'], body_html=draft['body_html'],
-        recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
-    )
-    if result.get('ok'):
-        hub_db.log_ftc_disclosure_mail(
-            period_label=draft['period_label'],
-            recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+    missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
+
+    def _run():
+        result = groupware_rpa.create_groupware_draft(
+            subject=draft['subject'], body_html=draft['body_html'],
+            recipient_labels=draft['recipient_labels'], attachments=draft['attachments'],
         )
-        missing_note = f" (미등록 서식: {', '.join(draft['missing_templates'])})" if draft.get('missing_templates') else ''
-        flash(f"{result['message']}{missing_note}", 'success')
-    else:
-        flash(result.get('reason', '협조전 작성에 실패했습니다.'), 'error')
+        if result.get('ok'):
+            hub_db.log_ftc_disclosure_mail(
+                period_label=draft['period_label'],
+                recipient_count=len(draft['recipient_labels']), triggered_by='manual',
+            )
+        print(f"[ftc_rpa] 협조전 자동화 완료: ok={result.get('ok')} / {result.get('message') or result.get('reason')}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+    flash(
+        f"협조전 자동화를 시작했습니다{missing_note}. "
+        "서버 PC 화면에 그룹웨어 창이 열리면 로그인해주세요 — 자동으로 내용을 채우고 임시저장합니다.",
+        'success'
+    )
     return redirect(url_for('disclosure_ftc_send'))
 
 
