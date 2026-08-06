@@ -460,18 +460,13 @@ function renderMgmtWatch() {
     const shownVolStatus = basis === 'current' ? row.current_volume_status : row.volume_status;
     const volWarn = shownVolStatus === '미달 우려';
     const volAvg = shownVolAvg != null ? shownVolAvg.toLocaleString('ko-KR') : '--';
-    // 반기 중 감자(액면병합)로 변경상장된 종목만, 변경상장 이후 실거래 페이스 기준
-    // 반기 전체 예상치를 작은 보조문구로 함께 보여준다(평소엔 안 보임).
-    const projectionNote = row.share_reorg_date && row.projected_volume_avg_monthly != null
-      ? `<div class="info" style="font-size:10.5px; margin-top:2px;">변경상장(${row.share_reorg_date}) 이후 실거래 페이스 기준 예상: 월평균 ${row.projected_volume_avg_monthly.toLocaleString('ko-KR')}주(${row.projected_volume_status})</div>`
-      : '';
     return `
       <tr>
         <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
         <td>${shownDate ?? '--'}</td>
         <td>${mktcapEok}억원</td>
         <td class="${capWarn ? 'down' : ''}">${row.cap_status}</td>
-        <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)${projectionNote}</td>
+        <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
         <td class="${volWarn ? 'down' : ''}">${shownVolStatus}</td>
       </tr>
     `;
@@ -2140,12 +2135,6 @@ function ruleMgmtVolumeCalcHtml() {
     (병합 전 525,231주 → 병합 후 262,615주, 정확히 절반 — mktcap÷close로 역산 검증) 그대로
     합산할 수 없으므로, 병합 전(7/1~7/2) 거래량에 병합비율(0.5)을 곱해 <b>신주 환산 거래량</b>
     으로 바꾼 뒤 C에 포함합니다.</p>
-    <h4>"실거래 페이스 기준 반기 전체 예상"(참고용, 제43조와 별개)</h4>
-    <p>위 잠정치는 "÷6" 때문에 반기 초반에는 실제 거래 강도보다 낮게 보일 수 있습니다. 그래서
-    변경상장 종목에 한해, 변경상장 이후(신주 기준) <b>일평균 거래량</b>이 반기 잔여 매매거래일에도
-    그대로 이어진다고 가정하고 반기 전체로 환산한 예상치도 작은 글씨로 함께 보여줍니다 — 어디까지나
-    지금 페이스가 유지된다는 가정 하의 참고용 추정이며, 제43조 공식 산식이 아니고 실제 반기 종료
-    시점의 확정치와도 다를 수 있습니다.</p>
     <p class="rule-cite">기준: 유가증권시장 상장규정 제47조제1항제5호(반기 월평균거래량
     <b class="num-hl">1만주</b> 미달), 시행세칙 제43조(거래량 미달 사유의 적용방법). 매일 자동
     재계산되며, 반기가 바뀌면 자동으로 새 반기 기준으로 초기화됩니다.</p>`;

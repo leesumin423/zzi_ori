@@ -4123,12 +4123,6 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
             "history_days": 0,
             "share_reorg_date": None,
             "share_reorg_ratio": None,
-            "trading_days_observed": 0,
-            "avg_daily_volume_recent": None,
-            "estimated_remaining_trading_days": 0,
-            "projected_half_total": None,
-            "projected_volume_avg_monthly": None,
-            "projected_volume_status": "데이터 없음",
         }
 
     latest_date_str = trading_dates[-1]
@@ -4217,34 +4211,6 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
         current_volume_avg_monthly = volume_avg_monthly
     current_volume_status = "미달 우려" if current_volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
 
-    # 실거래 페이스 기준 반기 전체(6개월) 거래량ㆍ월평균 예상치 — 위 volume_avg_monthly
-    # ("잠정치", 지금까지의 누적거래량 ÷ 경과월수)와는 다른 지표다. 병합 후(신주 기준)
-    # 최근 실거래 일평균 거래량이 반기 잔여 매매거래일에도 그대로 이어진다고 가정하고,
-    # 반기 전체(항상 6개월)로 나눈 값 — "지금 페이스로 쭉 가면 반기가 끝났을 때 1만주를
-    # 밑돌 것 같다"를 미리 가늠해보기 위한 참고용 추정치이며, 미래 실데이터와 다를 수
-    # 있어 확정치가 아니다. 일평균은 병합 전 데이터가 섞이면 왜곡되므로 재상장일 이후
-    # (신주 기준) 거래일만으로 계산한다.
-    pace_start = reorg_info['reorg_date'] if reorg_info else half_start
-    trading_days_observed = sum(
-        1 for d_str in day_map
-        if pace_start <= datetime.strptime(d_str, '%Y%m%d').date() <= latest_dt
-    )
-    recent_volume_sum = sum(
-        v["volume"] for d_str, v in day_map.items()
-        if pace_start <= datetime.strptime(d_str, '%Y%m%d').date() <= latest_dt
-    )
-    half_end = date(half_start.year, 6, 30) if half_start.month == 1 else date(half_start.year, 12, 31)
-    avg_daily_volume_recent = round(recent_volume_sum / trading_days_observed, 1) if trading_days_observed else None
-    if trading_days_observed and latest_dt < half_end:
-        remaining_calendar_days = (half_end - latest_dt).days
-        estimated_remaining_trading_days = max(0, round(remaining_calendar_days * 5 / 7))
-        projected_half_total = round(half_volume_sum + (recent_volume_sum / trading_days_observed) * estimated_remaining_trading_days)
-    else:
-        estimated_remaining_trading_days = 0
-        projected_half_total = half_volume_sum
-    projected_volume_avg_monthly = round(projected_half_total / 6)
-    projected_volume_status = "미달 우려" if projected_volume_avg_monthly < MGMT_VOLUME_THRESHOLD else "정상"
-
     return {
         "has_data": True,
         "cap_streak_days": cap_streak,
@@ -4263,12 +4229,6 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
         "history_days": len(trading_dates),
         "share_reorg_date": reorg_info['reorg_date'].strftime('%Y-%m-%d') if reorg_info else None,
         "share_reorg_ratio": reorg_info['ratio'] if reorg_info else None,
-        "trading_days_observed": trading_days_observed,
-        "avg_daily_volume_recent": avg_daily_volume_recent,
-        "estimated_remaining_trading_days": estimated_remaining_trading_days,
-        "projected_half_total": projected_half_total,
-        "projected_volume_avg_monthly": projected_volume_avg_monthly,
-        "projected_volume_status": projected_volume_status,
     }
 
 def compute_price_status(code: str, history: dict, live_price: int = None) -> dict:
