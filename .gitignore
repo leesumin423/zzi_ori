@@ -48,6 +48,13 @@ Thumbs.db
 # hub_config.example.py를 hub_config.py로 복사한 뒤 그 복사본에만 값을 채우세요.
 통합포털/hub_config.py
 
+# DART/Anthropic API 키 — 코드에는 안 적고 이 로컬 파일에서만 읽는다(.gitignore
+# 규칙이 명시적으로 없어도 git add로 개별 지정하지 않는 한 커밋되진 않지만,
+# 만약을 대비해 명시적으로 제외)
+통합포털/.dart_api_key
+통합포털/.anthropic_api_key
+통합포털/.corp_code_cache.json
+
 # Streamlit 관리자 비밀번호
 .streamlit/secrets.toml
 차입금관리/.streamlit/secrets.toml

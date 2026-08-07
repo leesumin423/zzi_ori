@@ -1,2 +1,17 @@
 flask==3.0.3
 werkzeug==3.0.3
+
+# 정기공시 검수(disclosure_review) 기능용
+requests>=2.31
+beautifulsoup4>=4.12
+PyYAML>=6.0
+python-docx>=1.1
+
+# 정기공시 AI 검수(disclosure_review/ai_review.py)용 — 사용하려면 통합포털 폴더에
+# .anthropic_api_key 파일을 만들거나 ANTHROPIC_API_KEY 환경변수를 설정해야 합니다.
+# 키 발급: https://console.anthropic.com
+anthropic>=0.68
+
+# 협조전 임시저장 자동화(groupware_rpa.py)용 — pip install 후 최초 1회
+# `python -m playwright install chromium`으로 브라우저까지 받아야 동작합니다.
+playwright>=1.40

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 정기공시 검수</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📝 공시 · 정기공시 검수 ((주)동양)</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님</span>
+      <a href="#" id="closeTabLink">← 닫기</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <h2>(주)동양 정기공시 초안 검수</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        DART에 이미 제출된 원문(전기 등)을 기준으로, 업로드한 초안(.dsd)의
+        ① 오탈자 ② 전기 대비 변경내역 ③ 작성기준 준수 여부를 검토합니다.
+      </p>
+
+      <h3 style="font-size:0.92rem; margin-bottom:8px;">1. 비교 기준 회차 선택</h3>
+      <div style="display:flex; gap:6px; margin-bottom:12px;">
+        {% for y in [1, 2, 3] %}
+          <a href="{{ url_for('periodic_review', years=y) }}"
+             class="btn-sm{% if y == selected_years %} approve{% endif %}"
+             style="text-decoration:none;">최근 {{ y }}년</a>
+        {% endfor %}
+      </div>
+      <p style="color:var(--text-muted); font-size:0.78rem; margin:-6px 0 12px;">
+        오늘({{ today }}) 기준 최근 {{ selected_years }}년간의 정기공시입니다.
+      </p>
+
+      <form method="post" action="{{ url_for('periodic_review_run') }}" enctype="multipart/form-data">
+        {% if not disclosures %}
+          <p style="color:var(--text-secondary); font-size:0.85rem;">
+            정기공시 내역을 불러오지 못했습니다. DART_API_KEY 설정을 확인해주세요.
+          </p>
+        {% else %}
+        <table class="admin-table">
+          <tbody>
+          {% for d in disclosures %}
+            <tr>
+              <td style="width:30px;"><input type="radio" name="rcept_no" value="{{ d.rcept_no }}" id="r{{ loop.index }}" {% if loop.first %}checked{% endif %}></td>
+              <td><label for="r{{ loop.index }}">{{ d.report_nm }}</label></td>
+              <td class="section-tag">{{ d.rcept_dt }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <h3 style="font-size:0.92rem; margin:20px 0 8px;">2. 검토할 초안(.dsd) 업로드</h3>
+        <input type="file" name="draft_file" accept=".dsd" required>
+        <p style="margin-top:10px;">
+          <label style="font-size:0.85rem; color:var(--text-secondary);">
+            <input type="checkbox" name="run_spellcheck" checked style="width:auto; vertical-align:middle;">
+            맞춤법/문법 검사 포함 (문단 수에 따라 다소 시간이 걸릴 수 있습니다)
+          </label>
+        </p>
+        <p style="margin-top:6px;">
+          <label style="font-size:0.85rem; color:var(--text-secondary);">
+            <input type="checkbox" name="run_ai_review" style="width:auto; vertical-align:middle;">
+            AI 검수(작성지침서 기준) 포함 — 목차 존재 여부가 아니라 실제 기재 내용이 지침서
+            기준에 맞는지 AI가 읽고 검토합니다. 1~2분 정도 걸릴 수 있고, 참고용이니 최종 판단은
+            직접 확인해주세요.
+          </label>
+        </p>
+
+        <button type="submit" class="btn-primary" id="reviewSubmitBtn" style="margin-top:12px;" {% if not disclosures %}disabled{% endif %}>검토 시작</button>
+        <span id="reviewLoading" style="display:none; margin-left:10px; color:var(--text-secondary); font-size:0.85rem;">
+          ⏳ 검토 중입니다... AI 검수를 포함하면 최대 2분 정도 걸릴 수 있어요. 이 화면을 벗어나지 말고 잠시만 기다려주세요.
+        </span>
+      </form>
+    </div>
+  </div>
+  <script>
+    document.querySelector('form').addEventListener('submit', function () {
+      document.getElementById('reviewSubmitBtn').disabled = true;
+      document.getElementById('reviewSubmitBtn').textContent = '검토 중...';
+      document.getElementById('reviewLoading').style.display = 'inline';
+    });
+    document.getElementById('closeTabLink').addEventListener('click', function (e) {
+      e.preventDefault();
+      window.close();
+    });
+  </script>
+</body>
+</html>

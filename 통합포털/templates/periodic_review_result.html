@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 정기공시 검수 결과</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📝 정기공시 검수 결과</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님</span>
+      <a href="{{ url_for('periodic_review') }}">← 새 검토 시작</a>
+      <a href="#" id="closeTabLink">닫기</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    <div class="review-summary">
+      <div class="stat">
+        <div class="num">{{ standards_results | selectattr('status','equalto','fail') | list | length }}</div>
+        <div class="label">작성기준 미비(필수 누락)</div>
+      </div>
+      <div class="stat">
+        <div class="num">{{ unified_changes|length }}</div>
+        <div class="label">전기 대비 변경내역</div>
+      </div>
+      <div class="stat">
+        <div class="num">{{ spell_report.corrections | selectattr('kind','equalto','other') | list | length if spell_report else '—' }}</div>
+        <div class="label">오탈자(철자/표현) 후보</div>
+      </div>
+    </div>
+
+    <!-- ===== 작성기준 준수 ===== -->
+    {% set standards_issues = standards_results | rejectattr('status', 'equalto', 'pass') | list %}
+    <div class="admin-section">
+      <h2>① 작성기준 준수 여부</h2>
+      <p style="color:var(--text-secondary); font-size:0.82rem; margin-top:-8px;">
+        「기업공시서식 작성기준」 발췌 기반 시드 체크리스트입니다. 전체 조문을 다 반영한 것은 아닙니다.
+      </p>
+      {% if not standards_issues %}
+      <p style="color:var(--text-muted); font-size:0.85rem;">체크한 {{ standards_results|length }}개 항목 모두 정상입니다.</p>
+      {% else %}
+      <table class="admin-table">
+        <thead><tr><th style="width:80px;">상태</th><th>항목</th><th>비고</th></tr></thead>
+        <tbody>
+        {% for r in standards_issues %}
+          <tr>
+            <td><span class="badge {{ r.status }}">{{ {'fail':'누락','warn':'확인필요'}[r.status] }}</span></td>
+            <td>{{ r.description }}</td>
+            <td class="section-tag">{{ r.detail }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p style="color:var(--text-muted); font-size:0.8rem; margin-top:10px;">
+        나머지 {{ standards_results|length - standards_issues|length }}건은 정상입니다.
+      </p>
+      {% endif %}
+
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer; font-size:0.85rem; color:var(--text-secondary);">
+          📘 작성기준 필수 체크 참고 (정기보고서 작성지침서 12개 장 44개 항목 · {{ report_type }} 기준)
+        </summary>
+        <p style="color:var(--text-muted); font-size:0.78rem; margin:8px 0;">
+          위 표는 목차 존재 여부만 기계적으로 확인한 것이고, 아래는 지침서의 "필수 체크" 문구 원문입니다.
+          찾음/못찾음과 무관하게 항목별로 실제 내용까지 직접 대조해주세요.
+          <a href="{{ hub_periodic_guide_url }}" target="_blank">전체 지침서(.docx) 새 탭에서 열기</a>
+        </p>
+        {% for ch in checklist_chapters %}
+        <div style="margin-bottom:10px;">
+          <div style="font-weight:600; font-size:0.84rem; margin-bottom:4px;">제{{ ch.chapter }}장 · {{ ch.title }}</div>
+          <table class="admin-table">
+            <thead><tr><th style="width:60px;">목차</th><th style="width:200px;">항목</th><th>필수 체크</th></tr></thead>
+            <tbody>
+            {% for it in ch.entries %}
+              {% if not it.omitted %}
+              <tr>
+                <td><span class="badge {{ 'pass' if it.found else 'warn' }}">{{ '확인' if it.found else '?' }}</span></td>
+                <td class="section-tag">{{ it.title }}</td>
+                <td style="font-size:0.78rem;">{{ it.must }}</td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+      </details>
+    </div>
+
+    <!-- ===== 변경내역 ===== -->
+    <div class="admin-section">
+      <h2>② 전기(기준 원문) 대비 변경내역</h2>
+      {% if diff.omitted_count %}
+      <p style="color:var(--text-muted); font-size:0.8rem; margin-top:-8px;">
+        분기ㆍ반기보고서에서 정상적으로 생략 가능한 항목 {{ diff.omitted_count }}건은 결과에서 제외했습니다.
+      </p>
+      {% endif %}
+
+      {% if not unified_changes %}
+      <p style="color:var(--text-muted); font-size:0.85rem;">기준 원문과 비교해 눈에 띄는 변경사항이 없습니다.</p>
+      {% else %}
+      <table class="admin-table diff-table">
+        <colgroup>
+          <col class="col-category"><col class="col-before"><col class="col-after"><col class="col-change"><col class="col-note">
+        </colgroup>
+        <thead><tr><th>구분</th><th>전(기준 원문)</th><th>후(초안)</th><th>차이내역</th><th>비고</th></tr></thead>
+        <tbody>
+        {% for c in unified_changes %}
+          <tr>
+            <td>{{ c.category }}</td>
+            <td class="review-before">{{ c.before }}</td>
+            <td class="review-after">{{ c.after }}</td>
+            <td class="section-tag">{{ c.change_type }}</td>
+            <td class="section-tag">{{ c.note }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {% if diff.table_count_mismatches %}
+      <h3 style="font-size:0.92rem; margin-top:18px;">표 개수가 달라진 항목 (구조 확인 필요)</h3>
+      <table class="admin-table">
+        <tbody>
+        {% for m in diff.table_count_mismatches %}
+          <tr><td class="section-tag">{{ m.section_title }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    <!-- ===== 오탈자 ===== -->
+    <div class="admin-section">
+      <h2>③ 오탈자(맞춤법/문법) · 단위 검수</h2>
+
+      <h3 style="font-size:0.92rem;">단위 확인 ({{ unit_mismatches|length }}건)</h3>
+      {% if unit_mismatches %}
+      <table class="admin-table">
+        <thead><tr><th>구분</th><th>이전 단위</th><th>현재 단위</th></tr></thead>
+        <tbody>
+        {% for u in unit_mismatches %}
+          <tr>
+            <td>{{ u.section_title }}</td>
+            <td class="review-before">{{ u.baseline_units }}</td>
+            <td class="review-after">{{ u.draft_units }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p style="color:var(--text-muted); font-size:0.78rem; margin-top:6px;">
+        같은 섹션 안에서도 표마다 단위가 다른 게 정상이라, 표 하나하나가 아니라 섹션 단위로 "등장하는 단위 종류"가 이전과 달라졌는지만 봅니다 — 실제 어느 표가 문제인지는 직접 확인해주세요.
+      </p>
+      {% else %}
+      <p style="color:var(--text-muted); font-size:0.85rem;">단위 표기가 이전과 달라진 곳이 없습니다.</p>
+      {% endif %}
+
+      <h3 style="font-size:0.92rem; margin-top:20px;">맞춤법/문법</h3>
+      {% if not spell_report %}
+      <p style="color:var(--text-muted); font-size:0.85rem;">이번 검토에서는 맞춤법 검사를 실행하지 않았습니다.</p>
+      {% else %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">검사 엔진: {{ spell_report.backend_used or '연결 실패' }}</p>
+        {% if spell_report.errors %}
+          {% if spell_report.backend_used %}
+          <p style="color:var(--text-muted); font-size:0.78rem;">
+            참고: 1차로 시도한 엔진이 연결되지 않아 자동으로 다른 엔진으로 전환해 정상적으로 검사했습니다. ({{ spell_report.errors[0] }})
+          </p>
+          {% else %}
+          <div class="flash error">{{ spell_report.errors[-1] }}</div>
+          {% endif %}
+        {% endif %}
+
+        {% set other = spell_report.corrections | selectattr('kind','equalto','other') | list %}
+        {% set spacing = spell_report.corrections | selectattr('kind','equalto','spacing') | list %}
+
+        <h3 style="font-size:0.92rem;">철자/표현 (우선 확인, {{ other|length }}건)</h3>
+        {% if other %}
+        <table class="admin-table">
+          <thead><tr><th>원문</th><th>제안</th><th>등장 위치</th></tr></thead>
+          <tbody>
+          {% for c in other %}
+            <tr>
+              <td class="review-before">{{ c.original }}</td>
+              <td class="review-after">{{ c.suggestion }}</td>
+              <td class="section-tag">{{ c.section_title }}{% if c.count > 1 %} 외 {{ c.count - 1 }}곳{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted); font-size:0.85rem;">발견된 항목이 없습니다.</p>
+        {% endif %}
+
+        <h3 style="font-size:0.92rem; margin-top:18px;">띄어쓰기 제안 (참고용, {{ spacing|length }}건)</h3>
+        {% if spacing %}
+        <table class="admin-table">
+          <thead><tr><th>원문</th><th>제안</th><th>등장 위치</th></tr></thead>
+          <tbody>
+          {% for c in spacing %}
+            <tr>
+              <td>{{ c.original }}</td>
+              <td>{{ c.suggestion }}</td>
+              <td class="section-tag">{{ c.section_title }}{% if c.count > 1 %} 외 {{ c.count - 1 }}곳{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted); font-size:0.85rem;">발견된 항목이 없습니다.</p>
+        {% endif %}
+        <p style="color:var(--text-muted); font-size:0.78rem; margin-top:10px;">
+          반복적으로 오탐이 나는 회사명·전문용어는 disclosure_review/spellcheck/exclude_terms.json에 추가하면 다음부터 걸러집니다.
+        </p>
+      {% endif %}
+    </div>
+
+    <!-- ===== AI 검수 ===== -->
+    <div class="admin-section">
+      <h2>④ AI 검수(작성지침서 기준)</h2>
+      <p style="color:var(--text-secondary); font-size:0.82rem; margin-top:-8px;">
+        위 ①은 지침서 소제목이 목차에 있는지만 기계적으로 확인하지만, 여기는 실제 기재
+        내용이 작성지침서(정기공시_작성지침서.docx) 기준에 맞는지 AI가 직접 읽고 검토한
+        결과입니다 — <b>참고용입니다. 최종 판단은 반드시 직접 확인해주세요.</b>
+      </p>
+      {% if ai_review is none %}
+      <p style="color:var(--text-muted); font-size:0.85rem;">이번 검토에서는 AI 검수를 실행하지 않았습니다(체크박스 미선택).</p>
+      {% elif ai_review.error %}
+      <div class="flash error">{{ ai_review.error }}</div>
+      {% else %}
+      <p style="font-size:0.88rem; margin-bottom:10px;">{{ ai_review.overall_summary }}</p>
+      {% if not ai_review.findings %}
+      <p style="color:var(--text-muted); font-size:0.85rem;">지침서 기준으로 지적할 만한 항목을 찾지 못했습니다.</p>
+      {% else %}
+      <table class="admin-table">
+        <thead><tr><th style="width:80px;">중요도</th><th style="width:140px;">장/위치</th><th>문제ㆍ근거ㆍ제안</th></tr></thead>
+        <tbody>
+        {% for f in ai_review.findings %}
+          <tr>
+            <td><span class="badge {{ {'critical':'fail','warning':'warn','info':'pass'}[f.severity] }}">{{ {'critical':'필수누락','warning':'확인필요','info':'참고'}[f.severity] }}</span></td>
+            <td class="section-tag">{{ f.chapter }}<br>{{ f.location }}</td>
+            <td style="font-size:0.85rem;">
+              <b>{{ f.issue }}</b><br>
+              <span style="color:var(--text-secondary); font-size:0.78rem;">근거: {{ f.guide_basis }}</span><br>
+              <span style="color:var(--text-secondary); font-size:0.78rem;">제안: {{ f.suggestion }}</span>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <script>
+    document.getElementById('closeTabLink').addEventListener('click', function (e) {
+      e.preventDefault();
+      window.close();
+    });
+  </script>
+</body>
+</html>

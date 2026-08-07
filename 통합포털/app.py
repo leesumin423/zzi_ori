@@ -43,6 +43,7 @@ import disclosure_review.doc_parser
 import disclosure_review.diff_engine
 import disclosure_review.spellcheck
 import disclosure_review.standards.rules
+import disclosure_review.ai_review
 
 # (주)동양 정기공시 정확도 검토가 목적인 기능이라 다른 회사는 다루지 않는다.
 PERIODIC_REVIEW_STOCK_CODE = '001520'
@@ -1165,7 +1166,12 @@ def periodic_review_run():
         return redirect(url_for('periodic_review'))
 
     diff_result = disclosure_review.diff_engine.diff_documents(baseline_doc, draft_doc)
-    standards_results = disclosure_review.standards.rules.run_all(draft_doc)
+    standards_run = disclosure_review.standards.rules.run_all(draft_doc)
+    checklist_by_chapter = {}
+    for item in standards_run['checklist_items']:
+        checklist_by_chapter.setdefault(item.chapter, {'chapter': item.chapter, 'title': item.chapter_title, 'entries': []})
+        checklist_by_chapter[item.chapter]['entries'].append(item)
+    checklist_chapters = [checklist_by_chapter[k] for k in sorted(checklist_by_chapter)]
     unit_mismatches = disclosure_review.diff_engine.check_unit_consistency(baseline_doc, draft_doc)
 
     spell_report = None
@@ -1178,12 +1184,19 @@ def periodic_review_run():
         ]
         spell_report = disclosure_review.spellcheck.check_paragraphs(paragraphs)
 
+    ai_review_result = None
+    if request.form.get('run_ai_review') == 'on':
+        ai_review_result = disclosure_review.ai_review.review_document(draft_doc)
+
     return render_template(
         'periodic_review_result.html', user=current_user(),
         draft_doc=draft_doc, baseline_rcept_no=rcept_no,
         diff=diff_result, unified_changes=diff_result.to_unified_rows(),
-        standards_results=standards_results, spell_report=spell_report,
-        unit_mismatches=unit_mismatches,
+        standards_results=standards_run['results'], report_type=standards_run['report_type'],
+        checklist_chapters=checklist_chapters,
+        hub_periodic_guide_url=url_for('static', filename='guides/정기공시_작성지침서.docx'),
+        spell_report=spell_report, unit_mismatches=unit_mismatches,
+        ai_review=ai_review_result,
     )
 
 
