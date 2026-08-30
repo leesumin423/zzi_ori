@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { width: 300px; font-family: -apple-system, "Malgun Gothic", sans-serif; padding: 14px; margin: 0; }
+  h1 { font-size: 14px; margin: 0 0 10px; }
+  button { width: 100%; padding: 10px; font-size: 13px; font-weight: 600; border: none; border-radius: 6px;
+           background: #2563eb; color: #fff; cursor: pointer; }
+  button:disabled { background: #9ca3af; cursor: default; }
+  #status { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.5; white-space: pre-wrap; }
+  #status.error { color: #b3261e; }
+  #status.ok { color: #0f7b3f; }
+  details { margin-top: 12px; font-size: 11px; color: #777; }
+  input[type=text] { width: 100%; box-sizing: border-box; padding: 5px 7px; font-size: 12px; margin-top: 4px; }
+  .save-btn { width: auto; padding: 4px 10px; font-size: 11px; margin-top: 6px; background: #555; }
+</style>
+</head>
+<body>
+  <h1>📤 통합포털 — 기안 문서 전송</h1>
+  <button id="sendBtn">지금 보는 문서 통합포털로 보내기</button>
+  <div id="status"></div>
+  <details>
+    <summary>통합포털 주소 설정</summary>
+    <input type="text" id="baseUrlInput" placeholder="http://10.62.15.197:9000">
+    <button class="save-btn" id="saveBaseUrlBtn">저장</button>
+  </details>
+  <script src="popup.js"></script>
+</body>
+</html>

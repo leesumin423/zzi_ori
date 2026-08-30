@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 정기공시 협조전</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>📧 공시 · 정기공시 협조전</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님</span>
+      <a href="#" id="closeTabLink">← 닫기</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="admin-section">
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        오늘 날짜 기준으로 가장 최근에 끝난 정기보고서 기간을 자동으로 잡아 협조전을 준비합니다.
+        버튼을 누르면 그룹웨어 창이 뜨고 제목ㆍ참조자ㆍ본문(작성내용표 포함)을 자동으로 채운 뒤
+        <b>임시저장</b>까지만 진행합니다 — 작성기준 PDFㆍ직전 보고서 원문 첨부와 실제 제출(기안)은
+        그룹웨어 창에서 직접 해주세요.
+      </p>
+
+      <div class="admin-section" style="background:rgba(59,130,246,0.06); border:1px solid var(--border);">
+        <h2 style="font-size:0.95rem; margin-top:0;">📅 이번 요청 대상 기간</h2>
+        <p style="font-size:0.9rem; margin:4px 0;"><strong>제목:</strong> {{ title_preview }}</p>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin:4px 0;">
+          작성기준일: {{ period.base_date.strftime('%Y년 %m월 %d일') }}
+          ({{ period.period_start.strftime('%Y.%m.%d') }} ~ {{ period.base_date.strftime('%Y.%m.%d') }})
+          · 법정 제출기한: {{ period.statutory_deadline.strftime('%Y.%m.%d') }}
+          · <b>회신기한: {{ period.reply_deadline.strftime('%Y.%m.%d') }}</b>
+        </p>
+      </div>
+
+      {% if last_sent %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">
+          마지막 임시저장: {{ last_sent[1] }} 기준 ({{ last_sent[0] }}, 참조자 {{ last_sent[2] }}명,
+          {{ '자동' if last_sent[3] == 'auto' else '수동' }})
+        </p>
+      {% else %}
+        <p style="color:var(--text-secondary); font-size:0.82rem;">아직 임시저장 이력이 없습니다.</p>
+      {% endif %}
+
+      <h2 style="font-size:1rem;">작성내용 ({{ items|length }}개 장)</h2>
+      <table class="admin-table">
+        <thead><tr><th style="width:6%;">순번</th><th style="width:44%;">내용</th><th style="width:28%;">담당부서</th><th style="width:22%;">비고</th></tr></thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td style="text-align:center;">{{ item.no }}</td>
+            <td><b>{{ item.title }}</b>{% if item.sub %}<br><span class="section-tag">{{ item.sub|join(' · ') }}</span>{% endif %}</td>
+            <td>{{ item.dept }}</td>
+            <td class="section-tag">{{ item.note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h2 style="font-size:1rem; margin-top:20px;">참조자 목록 ({{ recipients|length }}명)</h2>
+      {% if not recipients %}
+        <p style="color:var(--text-secondary);">
+          등록된 참조자가 없습니다 — <a href="{{ url_for('admin_periodic_mail') }}">수신자 설정</a>에서 먼저 등록해주세요.
+        </p>
+      {% else %}
+        <ul style="color:var(--text-primary); font-size:0.88rem; line-height:1.9; columns:2; margin:0 0 12px;">
+          {% for r in recipients %}
+            <li>{{ r[2] or '-' }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('periodic_send_now') }}">
+        <button type="submit" class="btn-sm approve" style="padding:10px 20px; font-size:0.95rem;"
+                {% if not recipients %}disabled{% endif %}>📝 협조전 임시저장</button>
+      </form>
+      <p style="color:var(--text-secondary); font-size:0.78rem; margin-top:8px;">
+        버튼을 누르면 새 브라우저 창이 뜹니다 — 그 창에서 직접 로그인해주세요.
+      </p>
+    </div>
+  </div>
+  <script>
+    document.getElementById('closeTabLink').addEventListener('click', function (e) {
+      e.preventDefault();
+      window.close();
+    });
+  </script>
+</body>
+</html>

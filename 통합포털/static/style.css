@@ -284,6 +284,30 @@ table.admin-table th {
 }
 .badge.admin { background: var(--accent-bg); color: var(--accent-dark); }
 .badge.pending { background: rgba(255, 176, 32, 0.12); color: #b26a00; }
+.badge.pass { background: rgba(18, 184, 134, 0.1); color: var(--success); }
+.badge.fail { background: rgba(240, 68, 82, 0.08); color: var(--danger); }
+.badge.warn { background: rgba(255, 176, 32, 0.12); color: #b26a00; }
+.review-before { color: var(--danger); text-decoration: line-through; }
+.review-after { color: var(--success); }
+.review-summary { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.review-summary .stat { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; min-width: 110px; }
+.review-summary .stat .num { font-size: 1.3rem; font-weight: 700; }
+.review-summary .stat .label { font-size: 0.76rem; color: var(--text-secondary); }
+.section-tag { color: var(--text-muted); font-size: 0.78rem; }
+
+/* 정기공시 검수 결과 표 — 칸 너비를 고정하고 긴 줄글은 단어 단위로
+   줄바꿈해서, 좁은 칸에 글자가 세로로 한 자씩 쌓이는 걸 막는다. */
+table.diff-table { table-layout: fixed; width: 100%; }
+table.diff-table col.col-category { width: 17%; }
+table.diff-table col.col-before, table.diff-table col.col-after { width: 30%; }
+table.diff-table col.col-change { width: 13%; }
+table.diff-table col.col-note { width: 10%; }
+table.diff-table td, table.diff-table th {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    white-space: normal;
+    vertical-align: top;
+}
 
 .inline-form { display: inline-block; margin-right: 6px; }
 .btn-sm {

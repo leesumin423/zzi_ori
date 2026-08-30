@@ -38,6 +38,7 @@ class ChecklistItem:
     must: str
     found: bool
     omitted: bool = False
+    actual_content: str = ''
 
 
 def load_ruleset(report_type_key: str = 'quarterly_report') -> dict:
@@ -117,54 +118,81 @@ def load_checklist(checklist_key: str = 'periodic_report_checklist') -> list:
         return (yaml.safe_load(f) or {}).get('items', [])
 
 
-def _keyword_found(titles: list, keywords: list) -> bool:
-    for title in titles:
+def _find_matching_section(doc, keywords: list):
+    for s in doc.sections:
+        title = (s.title or '').strip()
+        if not title:
+            continue
         for kw in keywords:
             if kw and (kw in title or title in kw):
-                return True
-    return False
+                return s
+    return None
+
+
+_ACTUAL_CONTENT_MAX_CHARS = 600
+
+
+def _extract_actual_content(section) -> str:
+    """체크리스트 항목과 매칭된 섹션에서 "실제 기재 내용"으로 보여줄 텍스트를
+    뽑는다 — found/not-found 배지 대신, 지침서 요구사항과 나란히 놓고 담당자가
+    직접 비교할 수 있게 하기 위함."""
+    if section is None:
+        return ''
+    paragraphs = [p.strip() for p in section.paragraphs if p and p.strip()]
+    text = '\n'.join(paragraphs)
+    if len(text) > _ACTUAL_CONTENT_MAX_CHARS:
+        text = text[:_ACTUAL_CONTENT_MAX_CHARS] + ' …(이하 생략, 본문에서 직접 확인)'
+    table_count = len(section.tables)
+    if table_count:
+        note = f'[표 {table_count}개 포함 — 표 내용은 위 ②/본문에서 직접 확인]'
+        text = f'{text}\n{note}' if text else note
+    return text or '(본문 텍스트를 찾지 못했습니다 — 목차 제목 표현이 달라 매칭이 안 됐을 수 있습니다)'
 
 
 def check_full_checklist(doc, checklist: list) -> tuple:
-    """정기보고서_작성지침서(12개 장 44개 항목) 기반 확장 체크.
+    """정기보고서_작성지침서(12개 장 44개 항목) 기반 참고 체크.
 
-    제목 키워드가 초안 목차에 있는지만 보는 구조적 체크라 fail은 내지 않는다
-    (found=False라도 warn까지만 — RuleResult 목록에 섞어 넣는다).
-    두 번째 반환값은 결과 화면에서 항상 노출할 장별 '필수 체크' 참고 목록이다.
+    "목차에 이 제목이 있다/없다"만으로는 실질적인 정보가 아니라는 피드백에 따라
+    (DSD로 제출하면 목차 자체는 자동 생성됨), found/not-found 배지 대신 매칭된
+    섹션의 "실제 기재 내용"을 지침서 필수 체크 문구와 나란히 보여준다 — 담당자가
+    직접 대조해서 판단하는 용도. ①표에는 안 올리고(노이즈 방지) 별도 참고
+    섹션으로만 노출한다.
     """
     report_type = detect_report_type(doc.doc_name)
-    titles = _all_section_titles(doc)
-
-    rule_results = []
     checklist_items = []
     for item in checklist:
         omitted = report_type in (item.get('omit_for') or [])
-        found = _keyword_found(titles, item.get('keywords') or [])
+        matched_section = _find_matching_section(doc, item.get('keywords') or [])
         checklist_items.append(ChecklistItem(
             rule_id=item['id'], chapter=item['chapter'], chapter_title=item['chapter_title'],
-            title=item['title'], must=item.get('must', ''), found=found, omitted=omitted,
+            title=item['title'], must=item.get('must', ''), found=matched_section is not None,
+            omitted=omitted, actual_content=_extract_actual_content(matched_section),
         ))
-        if omitted:
-            continue
-        rule_results.append(RuleResult(
-            rule_id=f"guide-{item['id']}",
-            description=f"[{item['chapter']}장] {item['title']}",
-            status='pass' if found else 'warn',
-            detail='' if found else '초안 목차에서 이 소제목을 찾지 못했습니다 — 실제 누락인지, 표현 차이인지 직접 확인해주세요.',
-        ))
-    return rule_results, checklist_items
+    return [], checklist_items
 
 
 def run_all(doc) -> dict:
     report_type = detect_report_type(doc.doc_name)
-    ruleset = load_ruleset('quarterly_report')
     results = []
-    results += check_required_sections(doc, ruleset)
+    # check_required_sections(순수 "목차 있다/없다")는 뺐다 — DSD로 제출하면
+    # 목차 항목 자체는 자동으로 다 생기기 때문에 실질적인 정보가 아니라는
+    # 피드백에 따른 것. check_full_checklist는 아래에서 별도로 호출해
+    # "실제 기재 내용" 대조용 참고 목록(checklist_items)만 만들고, ①표
+    # 노이즈(찾음/못찾음 pass/warn)는 더 이상 섞지 않는다.
     results += check_cover_fields(doc)
 
     checklist = load_checklist()
-    guide_results, checklist_items = check_full_checklist(doc, checklist)
-    results += guide_results
+    _, checklist_items = check_full_checklist(doc, checklist)
+
+    # AI 검수(Anthropic API) 없이도 규칙만으로 잡을 수 있는 자기모순 체크 —
+    # 실제 반기보고서 검수 중 발견된 문제(증감표 산술 불일치, 분기 라벨 잔존)에서
+    # 착안. arithmetic_checks.py 참고.
+    from . import arithmetic_checks
+    results += arithmetic_checks.check_increase_decrease_arithmetic(doc)
+    results += arithmetic_checks.check_period_label_residue(doc, report_type)
+    results += arithmetic_checks.check_subsidiary_change_consistency(doc)
+    results += arithmetic_checks.check_history_five_years(doc)
+    results += arithmetic_checks.check_share_totals_consistency(doc)
 
     return {
         'results': results,

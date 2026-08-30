@@ -207,11 +207,50 @@ def _get_conn():
         )
         """
     )
+    # 정기공시(사업ㆍ반기ㆍ분기보고서) 협조전 — danpan_mail_*과 동일한 구조(수신자/
+    # 발송이력/전담권한). 실제 서식ㆍ발송 로직은 아직 정해지지 않아 수신자ㆍ담당자
+    # 관리만 먼저 만들어둔다.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS periodic_mail_recipients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            label TEXT,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS periodic_mail_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_label TEXT NOT NULL,
+            sent_at TEXT NOT NULL,
+            recipient_count INTEGER NOT NULL,
+            triggered_by TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS periodic_mail_admins (
+            user_id INTEGER PRIMARY KEY,
+            granted_at TEXT NOT NULL
+        )
+        """
+    )
     # 기존에 만들어진 DB 파일에도 새 컬럼이 반영되도록, 이미 있으면 조용히 무시합니다.
     for table, column, coldef in [
         ("users", "email", "TEXT"),
         ("users", "team", "TEXT"),
         ("access_requests", "team", "TEXT"),
+        # AI 검수(정기공시/전자문서 결재 check)는 서버에 로그인된 Claude 구독 계정
+        # 하나를 공용으로 쓴다 — 여러 명이 계속 그 한도를 나눠 쓰면 금방 바닥나므로,
+        # 사람마다 "claude setup-token"으로 발급받은 본인 개인 토큰을 등록해두면
+        # 그 사람 요청은 본인 한도로 처리하고, 등록 전에는 공용 계정을 딱 1회만
+        # 무료로 쓸 수 있게 한다(ai_shared_uses로 횟수 추적).
+        ("users", "claude_oauth_token", "TEXT"),
+        ("users", "ai_shared_uses", "INTEGER NOT NULL DEFAULT 0"),
     ]:
         try:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}")
@@ -256,7 +295,8 @@ def verify_login(username, password):
 def get_user_by_id(user_id):
     conn = _get_conn()
     row = conn.execute(
-        "SELECT id, username, display_name, is_admin, email, team FROM users WHERE id = ?", (user_id,)
+        "SELECT id, username, display_name, is_admin, email, team, claude_oauth_token, ai_shared_uses "
+        "FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     conn.close()
     if not row:
@@ -264,6 +304,7 @@ def get_user_by_id(user_id):
     return {
         "id": row[0], "username": row[1], "display_name": row[2], "is_admin": bool(row[3]),
         "email": row[4], "team": row[5],
+        "claude_oauth_token": row[6], "ai_shared_uses": row[7] or 0,
     }
 
 
@@ -304,6 +345,30 @@ def change_password(user_id, new_password):
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (generate_password_hash(new_password), user_id),
         )
+    conn.close()
+
+
+FREE_SHARED_AI_USES = 1  # 개인 토큰 등록 전, 공용(서버 로그인) 계정으로 봐줄 수 있는 무료 횟수
+
+
+def set_claude_oauth_token(user_id, token):
+    """'claude setup-token'으로 발급받은 본인 개인 토큰을 등록합니다. 등록하면 그
+    사람의 AI 검수 요청은 이후 이 토큰으로 처리되어 서버 공용 계정 한도를 안 씁니다."""
+    conn = _get_conn()
+    with conn:
+        conn.execute("UPDATE users SET claude_oauth_token = ? WHERE id = ?", (token.strip() or None, user_id))
+    conn.close()
+
+
+def clear_claude_oauth_token(user_id):
+    set_claude_oauth_token(user_id, '')
+
+
+def increment_ai_shared_uses(user_id):
+    """개인 토큰이 없는 사람이 공용 계정으로 AI 검수를 1회 실행했을 때 호출합니다."""
+    conn = _get_conn()
+    with conn:
+        conn.execute("UPDATE users SET ai_shared_uses = ai_shared_uses + 1 WHERE id = ?", (user_id,))
     conn.close()
 
 
@@ -951,3 +1016,89 @@ def get_ftc_disclosure_template_file(slot):
     ).fetchone()
     conn.close()
     return (row[0], row[1]) if row else None
+
+
+# ── 정기공시(사업ㆍ반기ㆍ분기보고서) 협조전 ──────────────────────────
+# danpan_mail_* 과 완전히 같은 구조 — 함수 이름만 periodic_mail로 바꿔 그대로 복제.
+
+def list_periodic_mail_recipients():
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT id, email, label FROM periodic_mail_recipients ORDER BY id"
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def add_periodic_mail_recipient(email, label=None):
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO periodic_mail_recipients (email, label, created_at) VALUES (?, ?, ?)",
+            (email, label, _now()),
+        )
+    conn.close()
+
+
+def delete_periodic_mail_recipient(recipient_id):
+    conn = _get_conn()
+    with conn:
+        conn.execute("DELETE FROM periodic_mail_recipients WHERE id = ?", (recipient_id,))
+    conn.close()
+
+
+def log_periodic_mail(period_label, recipient_count, triggered_by):
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            "INSERT INTO periodic_mail_log (period_label, sent_at, recipient_count, triggered_by) "
+            "VALUES (?, ?, ?, ?)",
+            (period_label, _now(), recipient_count, triggered_by),
+        )
+    conn.close()
+
+
+def get_last_periodic_mail():
+    """가장 최근 발송 기록 1건(없으면 None) — (period_label, sent_at, recipient_count, triggered_by)."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT period_label, sent_at, recipient_count, triggered_by "
+        "FROM periodic_mail_log ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    return row
+
+
+# ── 정기공시 협조전 전담(부분 관리자) 권한 ────────────────────────
+
+def is_periodic_mail_admin(user_id):
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT 1 FROM periodic_mail_admins WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def grant_periodic_mail_admin(user_id):
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO periodic_mail_admins (user_id, granted_at) VALUES (?, ?)",
+            (user_id, _now()),
+        )
+    conn.close()
+
+
+def revoke_periodic_mail_admin(user_id):
+    conn = _get_conn()
+    with conn:
+        conn.execute("DELETE FROM periodic_mail_admins WHERE user_id = ?", (user_id,))
+    conn.close()
+
+
+def list_periodic_mail_admin_ids():
+    conn = _get_conn()
+    rows = conn.execute("SELECT user_id FROM periodic_mail_admins").fetchall()
+    conn.close()
+    return {r[0] for r in rows}

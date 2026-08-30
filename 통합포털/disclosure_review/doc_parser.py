@@ -168,12 +168,25 @@ def _walk(el, sections: list, counter: list):
 
 
 _STRAY_AMPERSAND_RE = re.compile(r'&(?!(?:amp|lt|gt|quot|apos|cr);|#\d+;|#x[0-9a-fA-F]+;)')
+# XML 1.0에서 아예 허용되지 않는 제어문자(탭·개행·캐리지리턴 제외) — DART 원문에
+# 이런 바이트가 섞여 들어오면 "not well-formed (invalid token)"으로 파싱이 통째로
+# 실패한다(실제로 반기보고서 대사 중 재현됨). 파싱 실패보다는 해당 바이트만
+# 제거하고 나머지 문서는 정상적으로 검토할 수 있게 하는 게 낫다.
+_INVALID_XML_CHAR_RE = re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+# "5<10%"처럼 부등호로 쓴 "<"가 이스케이프 안 된 채로 섞여 있는 경우 —
+# 태그 시작(문자/"/"/"!"/"?")이 아닌 "<"만 골라 이스케이프한다. 위 제어문자
+# 제거로도 안 잡히던 "not well-formed (invalid token)" 오류가 실제로 이거였다
+# (반기보고서 대사 중 재현, 같은 줄에서 반복 실패).
+_STRAY_LT_RE = re.compile(r'<(?![a-zA-Z_/!?])')
 
 
 def _sanitize_xml_text(text: str) -> str:
     # DART 문서에는 "M&A"처럼 이스케이프 안 된 "&"가 종종 섞여 있어 그대로
     # 파싱하면 ParseError가 난다. 유효한 엔티티가 아닌 "&"만 골라 이스케이프.
-    return _STRAY_AMPERSAND_RE.sub('&amp;', text)
+    text = _STRAY_AMPERSAND_RE.sub('&amp;', text)
+    text = _INVALID_XML_CHAR_RE.sub('', text)
+    text = _STRAY_LT_RE.sub('&lt;', text)
+    return text
 
 
 def parse_xml_bytes(raw: bytes) -> ParsedDocument:

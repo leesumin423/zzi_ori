@@ -45,6 +45,7 @@ if exist "%PENSION_DIR%" (
 echo 4) 통합포털 허브 시작 (포트 9000)...
 cd /d "%BASE%"
 %PYCMD% -m pip install --disable-pip-version-check -q -r requirements.txt
+%PYCMD% -m playwright install chromium
 start "통합포털허브-9000" cmd /k "chcp 65001 >nul & %PYCMD% app.py"
 
 echo.

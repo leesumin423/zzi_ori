@@ -7,9 +7,15 @@ beautifulsoup4>=4.12
 PyYAML>=6.0
 python-docx>=1.1
 
-# 정기공시 AI 검수(disclosure_review/ai_review.py)용 — 사용하려면 통합포털 폴더에
-# .anthropic_api_key 파일을 만들거나 ANTHROPIC_API_KEY 환경변수를 설정해야 합니다.
-# 키 발급: https://console.anthropic.com
+# 공통 > 전자문서 결재 check(general_document_review.py)의 첨부파일 읽기용
+openpyxl>=3.1
+PyMuPDF>=1.24
+
+# 정기공시 AI 검수(disclosure_review/ai_review.py)용 — 기본은 이 PC에 설치된
+# Claude Code CLI(별도 설치, `npm install -g @anthropic-ai/claude-code` 후
+# `claude login`)를 헤드리스로 호출하며, 이 anthropic 패키지는 CLI가 없을 때만
+# 쓰는 대체 경로입니다(쓰려면 통합포털 폴더에 .anthropic_api_key 파일을 만들거나
+# ANTHROPIC_API_KEY 환경변수를 설정 — 키 발급: https://console.anthropic.com).
 anthropic>=0.68
 
 # 협조전 임시저장 자동화(groupware_rpa.py)용 — pip install 후 최초 1회

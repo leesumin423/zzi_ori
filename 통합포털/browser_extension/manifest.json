@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "통합포털 - 기안 문서 전송",
+  "version": "1.0.0",
+  "description": "지금 보고 있는 그룹웨어 기안 문서를 통합포털 'AI 검수'로 보냅니다. 로그인된 이 브라우저 화면을 그대로 읽어서 보내므로 복사-붙여넣기가 필요 없습니다.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "통합포털로 보내기"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "https://gw.eugenes.co.kr/*",
+    "http://10.62.15.197:9000/*",
+    "http://localhost:9000/*",
+    "http://127.0.0.1:9000/*"
+  ]
+}

@@ -44,6 +44,7 @@ import disclosure_review.diff_engine
 import disclosure_review.spellcheck
 import disclosure_review.standards.rules
 import disclosure_review.ai_review
+import general_document_review
 
 # (주)동양 정기공시 정확도 검토가 목적인 기능이라 다른 회사는 다루지 않는다.
 PERIODIC_REVIEW_STOCK_CODE = '001520'
@@ -61,7 +62,7 @@ app.secret_key = hub_config.SECRET_KEY
 # 퇴직연금 iframe URL에 붙이는 캐시버스터 — 그 앱의 index.html/style.css/app.js를
 # 고칠 때마다 이 값을 올려주면(예: 날짜 문자열) 브라우저가 예전 index.html을
 # 계속 캐시해서 통합포털에서 새 화면이 안 보이는 문제를 막을 수 있다.
-PENSION_ASSET_VERSION = '20260803h'
+PENSION_ASSET_VERSION = '20260820c'
 
 # 대여/운용은 단일 시트·단순 표라 화면에서 직접 조회+수정(editable=True)이 가능하고,
 # 자금수지(표지 포함)·어음현황·전체(표지부터 전체출력)는 다단 헤더/대량 병합셀에 시트도
@@ -114,6 +115,7 @@ REPORT_SUBNAV = ['lend', 'invest', 'borrow', 'manage', 'other']
 # 같다(자금 하위의 차입/월간보고서/관리는 따로 안 나눔). portal()의 tabs 순서도
 # 항상 이 순서를 따른다.
 HUB_SECTIONS = [
+    {'id': 'common', 'label': '🔧 공통'},
     {'id': 'stock', 'label': '📈 주가'},
     {'id': 'disclosure', 'label': '📋 공시'},
     {'id': 'treasury', 'label': '💰 자금'},
@@ -327,6 +329,28 @@ def current_user():
     if not uid:
         return None
     return hub_db.get_user_by_id(uid)
+
+
+def _resolve_ai_review_auth(user):
+    """AI 검수(정기공시/전자문서 결재 check 공통) 실행 전에 호출 — 반환:
+    (oauth_token, blocked_message). oauth_token이 있으면 그 사람 개인 토큰으로
+    실행하면 되고, 없고 무료 체험도 다 썼으면 blocked_message가 채워진다(이 경우
+    실제 AI 호출을 하지 말고 이 메시지를 그대로 결과의 error로 보여주면 된다).
+
+    관리자는 예외 — 서버에 로그인된 공용 Claude 계정이 애초에 관리자 본인 계정이라
+    무제한으로 쓸 수 있게 한다. 무료체험 제한은 관리자가 아닌 사람에게만 적용된다."""
+    if user.get('is_admin'):
+        return None, None
+    token = (user.get('claude_oauth_token') or '').strip()
+    if token:
+        return token, None
+    if (user.get('ai_shared_uses') or 0) >= hub_db.FREE_SHARED_AI_USES:
+        return None, (
+            f"AI 검수 무료 체험({hub_db.FREE_SHARED_AI_USES}회)을 이미 사용하셨습니다 — "
+            "계속 쓰려면 본인 Claude 계정 토큰이 필요합니다. PC에서 'claude setup-token' "
+            "실행 후 발급받은 토큰을 '내 정보' 화면에 등록해주세요."
+        )
+    return None, None
 
 
 def login_required(view):
@@ -564,7 +588,75 @@ def portal():
             'url': url_for('finance_admin'),
         })
 
+    # 퇴직연금 앱의 관리(⚙️)ㆍ작성 매뉴얼(📖) 페이지는 원래 퇴직연금 앱(포트 8000) 안에서
+    # target="_blank"로 새 탭을 열어 접속했는데, 사내망 보안정책상 주소창이 9000 밖으로
+    # 바뀌면(=새 탭이 다른 포트로 직접 이동하면) 접속이 막힌다는 걸 확인했다. 이 그룹의
+    # 다른 하위탭들(treasury-report 등)처럼 허브 자신의 iframe 전환 방식으로 열면 브라우저
+    # 주소창은 계속 이 포털(9000)에 머물러 있으므로(대시보드 탭도 이미 이 방식으로 문제없이
+    # 열리고 있다), 관리ㆍ매뉴얼도 같은 방식의 하위탭으로 옮겨서 우회한다 — 별도 프록시 없이
+    # 퇴직연금 앱 코드는 그대로 두고 허브 쪽 탭 구성만 바꾸는 것으로 해결된다.
+    # 대시보드/규약/적립금운용위원회는 전부 퇴직연금 앱의 같은 index.html 하나를
+    # 공유한다 — 안에 자체 탭바(대시보드ㆍ규약ㆍ적립금운용위원회)가 있는데, 이렇게
+    # 허브 하위탭으로 셋을 따로 노출하면 탭이 두 겹으로 겹쳐 보이므로, index.html의
+    # committee.js가 iframe 안에서 열린 걸 감지해 자체 탭바는 숨기고 ?view= 쿼리로
+    # 지정된 패널만 보여준다(view 생략 시 대시보드).
+    pension_children = [
+        {
+            'id': 'pension-dashboard', 'label': '🧓 대시보드', 'type': 'iframe',
+            # 퇴직연금 앱의 index.html 자체를 브라우저가 오래 캐시해서, 그 안의
+            # style.css/app.js 버전을 올려도 iframe이 예전 index.html을 계속
+            # 재사용해 반영이 안 되는 문제가 있었다 — iframe src에 버전 쿼리를
+            # 붙여 이 앱을 고칠 때마다(PENSION_ASSET_VERSION만 올리면) 강제로
+            # 새로 받아오게 한다.
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/?_v={PENSION_ASSET_VERSION}',
+        },
+        {
+            'id': 'pension-bylaws', 'label': '📜 규약', 'type': 'iframe',
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/?_v={PENSION_ASSET_VERSION}&view=bylaws',
+        },
+        {
+            'id': 'pension-committee', 'label': '🗳️ 적립금운용위원회', 'type': 'iframe',
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/?_v={PENSION_ASSET_VERSION}&view=committee',
+        },
+        {
+            'id': 'pension-funding', 'label': '💰 연 추가적립금 현황', 'type': 'iframe',
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/?_v={PENSION_ASSET_VERSION}&view=funding',
+        },
+        {
+            'id': 'pension-manual', 'label': '📖 작성 매뉴얼', 'type': 'iframe',
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/manual.html',
+        },
+    ]
+    if user['is_admin']:
+        pension_children.append({
+            'id': 'pension-admin', 'label': '⚙️ 관리', 'type': 'iframe',
+            'url': f'http://{host}:{hub_config.PORT_PENSION}/admin',
+        })
+    pension_tab = {
+        'id': 'pension',
+        'label': '🧓 퇴직연금',
+        'type': 'group',
+        'children': pension_children,
+    }
+
+    common_tab = {
+        'id': 'common',
+        'label': '🔧 공통',
+        'type': 'group',
+        'children': [
+            {
+                'id': 'common-document-check', 'label': '📝 전자문서 결재 check', 'type': 'iframe',
+                'url': url_for('common_document_check'),
+            },
+            {
+                'id': 'common-groupware-checklist', 'label': '🔔 그룹웨어 체크리스트', 'type': 'iframe',
+                'url': url_for('common_groupware_checklist'),
+            },
+        ],
+    }
+
     tabs = [
+        common_tab,
         {
             'id': 'stock',
             'label': '📈 주가',
@@ -585,17 +677,7 @@ def portal():
             'type': 'group',
             'children': treasury_children,
         },
-        {
-            'id': 'pension',
-            'label': '🧓 퇴직연금',
-            'type': 'iframe',
-            # 퇴직연금 앱의 index.html 자체를 브라우저가 오래 캐시해서, 그 안의
-            # style.css/app.js 버전을 올려도 iframe이 예전 index.html을 계속
-            # 재사용해 반영이 안 되는 문제가 있었다 — iframe src에 버전 쿼리를
-            # 붙여 이 앱을 고칠 때마다(PENSION_ASSET_VERSION만 올리면) 강제로
-            # 새로 받아오게 한다.
-            'url': f'http://{host}:{hub_config.PORT_PENSION}/?_v={PENSION_ASSET_VERSION}',
-        },
+        pension_tab,
     ]
     if allowed_sections is not None:
         tabs = [t for t in tabs if t['id'] in allowed_sections]
@@ -629,7 +711,10 @@ def account():
     # 메일 항목이 아직 비어있으면(과거 계정 등) 그룹웨어 규칙(아이디@도메인)으로
     # 자동 채워서 보여준다 — 메일링 발송 시 이 값을 그대로 쓰므로 비워두지 않도록 유도.
     default_email = user['email'] or mailer.email_for_username(user['username'])
-    return render_template('account.html', user=user, default_email=default_email)
+    return render_template(
+        'account.html', user=user, default_email=default_email,
+        ai_free_uses=hub_db.FREE_SHARED_AI_USES,
+    )
 
 
 @app.route('/account/profile', methods=['POST'])
@@ -645,6 +730,28 @@ def account_profile():
     else:
         hub_db.update_profile(user['id'], team, email)
         flash('내 정보를 수정했습니다.', 'success')
+    return redirect(url_for('account'))
+
+
+@app.route('/account/claude-token', methods=['POST'])
+@login_required
+def account_claude_token():
+    user = current_user()
+    token = request.form.get('claude_oauth_token', '').strip()
+    if not token:
+        flash('토큰 값을 입력해주세요.', 'error')
+    else:
+        hub_db.set_claude_oauth_token(user['id'], token)
+        flash('개인 토큰을 등록했습니다 — 이제부터 AI 검수는 이 토큰으로 실행됩니다.', 'success')
+    return redirect(url_for('account'))
+
+
+@app.route('/account/claude-token/clear', methods=['POST'])
+@login_required
+def account_clear_claude_token():
+    user = current_user()
+    hub_db.clear_claude_oauth_token(user['id'])
+    flash('개인 토큰을 삭제했습니다.', 'info')
     return redirect(url_for('account'))
 
 
@@ -1160,9 +1267,24 @@ def periodic_review_run():
 
     try:
         baseline_xml = disclosure_review.dart_client.fetch_document_xml(rcept_no)
-        baseline_doc = disclosure_review.doc_parser.parse_xml_bytes(baseline_xml)
     except disclosure_review.dart_client.DartApiError as e:
         flash(f'기준 원문을 가져오지 못했습니다: {e}', 'error')
+        return redirect(url_for('periodic_review'))
+
+    try:
+        baseline_doc = disclosure_review.doc_parser.parse_xml_bytes(baseline_xml)
+    except Exception as e:
+        # 진단용 — DART 원문에 XML로 파싱 안 되는 문자가 섞여 있는 경우가 실제로
+        # 있었다(제어문자/이스케이프 안 된 특수기호 등). 500 에러만 띄우고 끝내지
+        # 않고, 원문을 파일로 남겨서 다음에 정확히 뭐가 문제인지 바로 볼 수 있게 한다.
+        try:
+            import os
+            debug_path = os.path.join(os.path.dirname(__file__), '_debug_baseline_xml.bin')
+            with open(debug_path, 'wb') as f:
+                f.write(baseline_xml)
+        except Exception:
+            pass
+        flash(f'기준 원문을 파싱하지 못했습니다: {e}', 'error')
         return redirect(url_for('periodic_review'))
 
     diff_result = disclosure_review.diff_engine.diff_documents(baseline_doc, draft_doc)
@@ -1186,17 +1308,183 @@ def periodic_review_run():
 
     ai_review_result = None
     if request.form.get('run_ai_review') == 'on':
-        ai_review_result = disclosure_review.ai_review.review_document(draft_doc)
+        review_user = current_user()
+        oauth_token, blocked_msg = _resolve_ai_review_auth(review_user)
+        if blocked_msg:
+            ai_review_result = {"available": True, "overall_summary": '', "findings": [], "error": blocked_msg}
+        else:
+            ai_review_result = disclosure_review.ai_review.review_document(draft_doc, oauth_token=oauth_token)
+            if not oauth_token and ai_review_result.get('error') is None:
+                hub_db.increment_ai_shared_uses(review_user['id'])
 
     return render_template(
         'periodic_review_result.html', user=current_user(),
-        draft_doc=draft_doc, baseline_rcept_no=rcept_no,
+        draft_doc=draft_doc, baseline_doc=baseline_doc, baseline_rcept_no=rcept_no,
         diff=diff_result, unified_changes=diff_result.to_unified_rows(),
         standards_results=standards_run['results'], report_type=standards_run['report_type'],
         checklist_chapters=checklist_chapters,
         hub_periodic_guide_url=url_for('static', filename='guides/정기공시_작성지침서.docx'),
         spell_report=spell_report, unit_mismatches=unit_mismatches,
         ai_review=ai_review_result,
+    )
+
+
+@app.route('/common/groupware-checklist')
+@login_required
+def common_groupware_checklist():
+    """그룹웨어 메일ㆍ결재 마감일 체크리스트 — 통합포털(서버)이 아니라 각자 자기
+    PC에 설치해둔 프로그램을 커스텀 URL 프로토콜(tongyang-gwcheck://)로 실행시키는
+    안내 화면. 로그인 정보나 문서 내용이 통합포털 서버를 거치지 않는다."""
+    return render_template('common_groupware_checklist.html', user=current_user())
+
+
+@app.route('/common/document-check')
+@login_required
+def common_document_check():
+    """정기공시처럼 지침서가 따로 없는 일반 전자결재(기안) 문서를, 그룹웨어에 상신하기
+    전에 본문을 붙여넣어 AI로 미리 훑어보는 화면. 부서·문서 종류를 가리지 않는다.
+
+    ?import_token= 이 있으면(브라우저 확장 "통합포털로 보내기"로 들어온 경우) 캐시에서
+    본문을 미리 채워 보여준다 — 자동으로 검토를 실행하지는 않고, 사람이 내용을 한 번
+    보고 확인 버튼을 눌러야 실행된다(엉뚱한 페이지를 잘못 보냈을 때 그대로 AI 검수가
+    돌아가버리는 걸 막기 위해)."""
+    import_token = request.args.get('import_token', '').strip()
+    imported = _document_check_import_cache.pop(import_token, None) if import_token else None
+    return render_template(
+        'common_document_check.html', user=current_user(),
+        ai_available=general_document_review.is_available(),
+        title=(imported or {}).get('title', ''),
+        document_text=(imported or {}).get('document_text', ''),
+        imported_from=(imported or {}).get('source_url', '') if imported else '',
+    )
+
+
+# 브라우저 확장("통합포털로 보내기")이 보낸 본문을 잠깐 들고 있다가, GET 화면에서
+# 한 번 읽고 버리는 캐시 — DB에 넣을 만큼 오래 둘 내용이 아니고(민감할 수 있는 사내
+# 문서 원문), 여러 명이 동시에 쓰는 걸 고려해 토큰별로 구분한다. 5분 이상 안 가져가면
+# 버린다(브라우저 확장 오작동 등으로 계속 쌓이는 것 방지).
+import uuid as _uuid_module
+_document_check_import_cache = {}
+_IMPORT_CACHE_TTL_SECONDS = 300
+
+
+def _prune_import_cache():
+    now = _time_module.time()
+    stale = [k for k, v in _document_check_import_cache.items() if now - v['ts'] > _IMPORT_CACHE_TTL_SECONDS]
+    for k in stale:
+        _document_check_import_cache.pop(k, None)
+
+
+@app.route('/common/document-check/import', methods=['POST', 'OPTIONS'])
+def common_document_check_import():
+    """브라우저 확장 전용 엔드포인트 — 지금 보고 있는 그룹웨어 기안 문서 페이지에서
+    긁어온 텍스트를 받아, 검토 화면으로 이어지는 1회용 토큰을 돌려준다. 확장이 다른
+    출처(chrome-extension://)에서 fetch로 호출하므로 CORS 헤더를 직접 붙인다."""
+    origin = request.headers.get('Origin', '')
+    if request.method == 'OPTIONS':
+        resp = Response(status=204)
+    else:
+        _prune_import_cache()
+        user = current_user()
+        if not user:
+            resp = jsonify({'ok': False, 'error': '통합포털에 로그인되어 있지 않습니다. 이 브라우저로 먼저 통합포털에 로그인해주세요.'})
+        else:
+            data = request.get_json(force=True, silent=True) or {}
+            document_text = (data.get('document_text') or '').strip()
+            if not document_text:
+                resp = jsonify({'ok': False, 'error': '가져온 본문 내용이 비어 있습니다.'})
+            else:
+                token = _uuid_module.uuid4().hex
+                _document_check_import_cache[token] = {
+                    'title': (data.get('title') or '').strip()[:200],
+                    'document_text': document_text,
+                    'source_url': (data.get('source_url') or '').strip()[:500],
+                    'ts': _time_module.time(),
+                }
+                resp = jsonify({'ok': True, 'redirect': url_for('common_document_check', import_token=token, _external=True)})
+    if origin:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return resp
+
+
+# 무료체험을 다 쓴 사람이 "그 자리에서" 토큰 등록하고 바로 이어서 검토할 수 있게,
+# 막힌 시점의 본문·첨부파일을 잠깐 들고 있는 캐시 — 브라우저 확장 import 캐시와
+# 같은 이유(민감할 수 있는 사내 문서라 DB에 넣지 않고, 몇 분 지나면 버림)로 별도로 둔다.
+_pending_review_cache = {}
+_PENDING_REVIEW_TTL_SECONDS = 600
+
+
+def _prune_pending_review_cache():
+    now = _time_module.time()
+    stale = [k for k, v in _pending_review_cache.items() if now - v['ts'] > _PENDING_REVIEW_TTL_SECONDS]
+    for k in stale:
+        _pending_review_cache.pop(k, None)
+
+
+@app.route('/common/document-check/run', methods=['POST'])
+@login_required
+def common_document_check_run():
+    user = current_user()
+    title = request.form.get('title', '').strip()
+    document_text = request.form.get('document_text', '')
+    uploaded = [f for f in request.files.getlist('attachments') if f and f.filename]
+    attachments = [(f.filename, f.read()) for f in uploaded]
+
+    oauth_token, blocked_msg = _resolve_ai_review_auth(user)
+    if blocked_msg:
+        _prune_pending_review_cache()
+        pending_token = _uuid_module.uuid4().hex
+        _pending_review_cache[pending_token] = {
+            'user_id': user['id'], 'title': title, 'document_text': document_text,
+            'attachments': attachments, 'ts': _time_module.time(),
+        }
+        result = {
+            "available": True, "overall_summary": '', "findings": [], "attachment_notes": [],
+            "error": blocked_msg, "blocked": True, "pending_token": pending_token,
+        }
+    else:
+        result = general_document_review.review_text(document_text, title=title, attachments=attachments, oauth_token=oauth_token)
+        if not oauth_token and result.get('error') is None:
+            hub_db.increment_ai_shared_uses(user['id'])
+
+    return render_template(
+        'common_document_check.html', user=user,
+        ai_available=general_document_review.is_available(),
+        result=result, title=title, document_text=document_text,
+    )
+
+
+@app.route('/common/document-check/register-token-and-retry', methods=['POST'])
+@login_required
+def common_document_check_register_token_and_retry():
+    """무료체험 소진 화면에서 그 자리에 바로 토큰을 붙여넣었을 때 — 토큰을 등록하고,
+    막혔던 그 검토를 곧바로 이어서 실행한다(다시 본문을 붙여넣거나 첨부파일을
+    다시 올릴 필요 없이)."""
+    user = current_user()
+    token = request.form.get('claude_oauth_token', '').strip()
+    pending_token = request.form.get('pending_token', '').strip()
+    _prune_pending_review_cache()
+    pending = _pending_review_cache.pop(pending_token, None)
+
+    if not token:
+        flash('토큰 값을 입력해주세요.', 'error')
+        return redirect(url_for('common_document_check'))
+    if not pending or pending['user_id'] != user['id']:
+        flash('입력하시던 내용을 찾지 못했습니다(시간이 지났을 수 있어요) — 토큰은 등록해뒀으니, 본문을 다시 붙여넣고 검토를 시작해주세요.', 'error')
+        hub_db.set_claude_oauth_token(user['id'], token)
+        return redirect(url_for('common_document_check'))
+
+    hub_db.set_claude_oauth_token(user['id'], token)
+    title = pending['title']
+    document_text = pending['document_text']
+    result = general_document_review.review_text(document_text, title=title, attachments=pending['attachments'], oauth_token=token)
+    return render_template(
+        'common_document_check.html', user=user,
+        ai_available=general_document_review.is_available(),
+        result=result, title=title, document_text=document_text,
     )
 
 

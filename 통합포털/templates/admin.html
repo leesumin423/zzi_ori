@@ -39,13 +39,13 @@
       {% endif %}
     {% endif %}
 
-    <div class="hub-tabbar admin-tabbar">
-      <button type="button" class="hub-tab admin-tab active" data-admin-tab="access">🔐 권한설정</button>
-      <button type="button" class="hub-tab admin-tab" data-admin-tab="danpan">📧 단판공시</button>
-      <button type="button" class="hub-tab admin-tab" data-admin-tab="cashflow">📧 자금계획</button>
-      <button type="button" class="hub-tab admin-tab" data-admin-tab="ftc">📧 공정위공시</button>
-      <button type="button" class="hub-tab admin-tab" data-admin-tab="accounts">👥 계정관리</button>
+    <div class="hub-tabbar admin-tabbar" id="adminTopTabs">
+      <button type="button" class="hub-tab admin-tab active" data-admin-group="access">🔐 권한설정</button>
+      <button type="button" class="hub-tab admin-tab" data-admin-group="disclosure">📋 공시</button>
+      <button type="button" class="hub-tab admin-tab" data-admin-group="treasury">💰 자금</button>
+      <button type="button" class="hub-tab admin-tab" data-admin-group="accounts">👥 계정관리</button>
     </div>
+    <div class="hub-tabbar hub-subtabbar admin-subtabbar" id="adminSubTabs" style="display:none;"></div>
 
     <div class="admin-tab-panel" data-admin-panel="access">
       <div class="admin-section">
@@ -107,6 +107,21 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <a class="btn-sm approve" href="{{ url_for('admin_ftc_disclosure_mail') }}" style="padding:9px 16px; text-decoration:none;">📧 수신자/서식 설정</a>
           <a class="btn-sm approve" href="{{ url_for('admin_ftc_disclosure_mail_access') }}" style="padding:9px 16px; text-decoration:none;">🔑 담당자 지정</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-tab-panel" data-admin-panel="periodic" style="display:none">
+      <div class="admin-section">
+        <h2>📧 정기공시(사업ㆍ반기ㆍ분기보고서) 협조전 설정</h2>
+        <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px; margin-bottom:12px;">
+          정기공시 협조전 수신자를 관리합니다. 실제 서식ㆍ발송 문구는 아직 정해지지 않아 우선
+          수신자 명단만 관리합니다. 발신자ㆍ담당자가 아직 정해지지 않았으면 "담당자 지정"에서
+          관리자가 지정해주면, 지정된 사람이 수신자 관리를 직접 할 수 있습니다.
+        </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a class="btn-sm approve" href="{{ url_for('admin_periodic_mail') }}" style="padding:9px 16px; text-decoration:none;">📧 수신자 설정</a>
+          <a class="btn-sm approve" href="{{ url_for('admin_periodic_mail_access') }}" style="padding:9px 16px; text-decoration:none;">🔑 담당자 지정</a>
         </div>
       </div>
     </div>
@@ -221,13 +236,60 @@
   </div>
 
   <script>
-    document.querySelectorAll('.admin-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.adminTab;
-        document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
-        document.querySelectorAll('.admin-tab-panel').forEach(p => {
-          p.style.display = (p.dataset.adminPanel === target) ? '' : 'none';
+    // 최상단 탭: 권한설정ㆍ공시ㆍ자금ㆍ계정관리. "공시"ㆍ"자금"은 그룹이라 실제
+    // 설정 화면(패널)은 하위 서브탭에서 고른다 — 자금은 자금계획 하나뿐이라
+    // 서브탭 없이 바로 그 패널을 보여준다.
+    const ADMIN_GROUPS = {
+      disclosure: { danpan: '📧 단판공시', ftc: '📧 공정위공시', periodic: '📧 정기공시' },
+      treasury: { cashflow: '📧 자금계획' },
+    };
+
+    const topTabs = document.getElementById('adminTopTabs');
+    const subTabs = document.getElementById('adminSubTabs');
+
+    function showPanel(panelKey) {
+      document.querySelectorAll('.admin-tab-panel').forEach(p => {
+        p.style.display = (p.dataset.adminPanel === panelKey) ? '' : 'none';
+      });
+    }
+
+    function renderSubtabs(groupKey) {
+      const children = ADMIN_GROUPS[groupKey];
+      const keys = Object.keys(children);
+      if (keys.length <= 1) {
+        subTabs.style.display = 'none';
+        subTabs.innerHTML = '';
+        showPanel(keys[0]);
+        return;
+      }
+      subTabs.style.display = 'flex';
+      subTabs.innerHTML = '';
+      keys.forEach((key, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'hub-tab admin-tab' + (i === 0 ? ' active' : '');
+        btn.textContent = children[key];
+        btn.addEventListener('click', () => {
+          subTabs.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          showPanel(key);
         });
+        subTabs.appendChild(btn);
+      });
+      showPanel(keys[0]);
+    }
+
+    topTabs.querySelectorAll('.admin-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const group = btn.dataset.adminGroup;
+        topTabs.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
+        if (ADMIN_GROUPS[group]) {
+          renderSubtabs(group);
+        } else {
+          subTabs.style.display = 'none';
+          subTabs.innerHTML = '';
+          showPanel(group);
+        }
       });
     });
   </script>

@@ -26,10 +26,12 @@ DART_API_KEY = _load_dart_api_key()
 CORP_CODE_CACHE_PATH = os.path.join(PORTAL_ROOT, '.corp_code_cache.json')
 
 
-# 정기공시 AI 검수(ai_review.py)용 Anthropic API 키 — DART_API_KEY와 같은 관례로
-# 환경변수 또는 .gitignore된 로컬 파일(.anthropic_api_key)에서만 읽는다. 둘 다
-# 없으면 AI 검수 기능은 꺼지고(구조적 체크ㆍ전기대비 비교ㆍ맞춤법 검사는 그대로 동작),
-# 화면에 키 설정 방법을 안내한다. 키 발급: https://console.anthropic.com
+# 정기공시 AI 검수(ai_review.py)는 기본적으로 이 PC에 설치된 Claude Code CLI를
+# 헤드리스로 호출한다(구독 한도 안에서 동작, 별도 결제 없음) — 그게 없을 때만
+# 아래 ANTHROPIC_API_KEY로 대체한다. DART_API_KEY와 같은 관례로 환경변수 또는
+# .gitignore된 로컬 파일(.anthropic_api_key)에서만 읽는다. CLI도 키도 없으면
+# AI 검수만 꺼지고(구조적 체크ㆍ산술 체크ㆍ전기대비 비교ㆍ맞춤법 검사는 그대로
+# 동작), 화면에 claude login 안내가 뜬다. 키 발급(선택): https://console.anthropic.com
 def _load_anthropic_api_key() -> str:
     key = os.getenv('ANTHROPIC_API_KEY', '').strip()
     if key:

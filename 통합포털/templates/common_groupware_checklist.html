@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>통합 자금포털 — 그룹웨어 체크리스트</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <div class="hub-brand"><span class="dot"></span>🔔 공통 · 그룹웨어 태스크 체크리스트</div>
+    <div class="hub-user">
+      <span>{{ user.display_name or user.username }}님</span>
+      <a href="#" id="closeTabLink">← 닫기</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    <div class="admin-section">
+      <h2>내 그룹웨어 메일ㆍ결재 마감일 체크</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:0;">
+        받은 메일ㆍ결재 문서에서 마감일이 있는 업무를 자동으로 찾아 데스크톱 알림으로
+        보여주는 프로그램입니다. <b>이 프로그램은 통합포털(서버)이 아니라 본인 PC에서
+        직접 실행</b>됩니다 — 각자 자기 그룹웨어 계정으로 로그인해서 봐야 하는 개인별
+        내용이라서요. 그래서 통합포털은 "실행 신호"만 보내고, 실제 실행은 본인 PC에
+        미리 설치해둔 프로그램이 합니다.
+      </p>
+
+      <div class="doc-summary-box" style="background:#eef2f5;">
+        <div class="doc-summary-label" style="color:#5c6b78;">▶ 지금은 이렇게 실행하세요</div>
+        <p class="doc-summary-text">
+          포털에서 클릭 한 번으로 자동 실행하는 기능은 회사 브라우저 보안정책
+          (외부 프로그램 자동 실행 화이트리스트)에 막혀 있어서 IT팀 승인이 필요합니다 —
+          그 전까지는 설치 폴더의 <code>3_실행.bat</code>을 <b>바탕화면 바로가기로 만들어두고
+          직접 더블클릭</b>해서 사용해주세요. (승인되면 아래 버튼도 그대로 작동하게 됩니다 —
+          그때 다시 안내할게요.)
+        </p>
+      </div>
+
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer; color:var(--text-muted); font-size:0.82rem;">🔒 (참고) 포털 버튼으로 자동 실행 — IT 승인 전까지는 동작 안 함</summary>
+        <div style="margin-top:10px;">
+          <button type="button" id="runChecklistBtn" class="btn-sm">🔔 체크리스트 실행 시도</button>
+          <p style="color:var(--text-muted); font-size:0.78rem; margin-top:8px;">
+            IT팀에 "tongyang-gwcheck 프로토콜을 브라우저 자동실행 허용목록(AutoLaunchProtocolsFromOrigins)에
+            추가해달라"고 요청하면 이 버튼이 실제로 동작하게 됩니다.
+          </p>
+        </div>
+      </details>
+
+      <h3 style="font-size:0.95rem; margin-top:22px;">최초 1회 설치 방법 (PC마다 각자 진행)</h3>
+      <ol style="font-size:0.85rem; line-height:1.9;">
+        <li>그룹웨어 체크리스트 프로그램 받기: <a href="https://github.com/leesumin423/-AI-" target="_blank">GitHub 저장소</a>에서 <code>groupware-task-checklist</code> 폴더를 다운로드</li>
+        <li><code>1_설치.bat</code> 더블클릭 (최초 1회, 몇 분 걸림)</li>
+        <li><code>2_로그인설정.bat</code> 더블클릭 → 뜨는 브라우저 창에서 본인 그룹웨어 계정으로 로그인 (이 로그인 정보는 이 PC에만 저장되고 통합포털로 전송되지 않습니다)</li>
+        <li><code>3_실행.bat</code>을 바탕화면에 바로가기로 만들어두고, 평소엔 그걸 더블클릭해서 사용하세요</li>
+      </ol>
+      <p style="color:var(--text-muted); font-size:0.78rem;">
+        (참고) <code>6_포털연동_등록.bat</code>은 IT 승인 후 위 자동 실행 버튼을 쓰고 싶을 때만
+        실행하면 됩니다 — 해제는 <code>7_포털연동_해제.bat</code>.
+      </p>
+    </div>
+  </div>
+  <script>
+    document.getElementById('closeTabLink').addEventListener('click', function (e) {
+      e.preventDefault();
+      window.close();
+    });
+
+    var runBtn = document.getElementById('runChecklistBtn');
+    if (runBtn) {
+      runBtn.addEventListener('click', function () {
+        try {
+          window.top.location.href = 'tongyang-gwcheck://run';
+        } catch (e) {
+          window.location.href = 'tongyang-gwcheck://run';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

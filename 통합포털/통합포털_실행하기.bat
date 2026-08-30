@@ -26,6 +26,7 @@ if "%PYCMD%"=="" (
 )
 
 %PYCMD% -m pip install --disable-pip-version-check -q -r requirements.txt
+%PYCMD% -m playwright install chromium
 
 start "통합포털 허브" cmd /k "chcp 65001 >nul & %PYCMD% app.py"
 timeout /t 2 /nobreak > nul

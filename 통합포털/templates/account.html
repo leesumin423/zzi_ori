@@ -54,6 +54,32 @@
     </div>
 
     <div class="admin-section">
+      <h2>AI 검수 — 개인 Claude 토큰</h2>
+      <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px;">
+        정기공시 검수ㆍ전자문서 결재 check의 "AI 검수"는 기본적으로 서버 공용 계정 한도를
+        같이 나눠 씁니다 — 공용 계정으로는 <b>{{ ai_free_uses }}회까지 무료</b>이고
+        (지금까지 {{ user.ai_shared_uses or 0 }}회 사용), 그 이후로는 본인 개인 토큰이 있어야
+        계속 쓸 수 있습니다. 본인 PC에서 터미널을 열고 <code>claude setup-token</code>을
+        실행하면 토큰이 발급됩니다 — 그 값을 여기에 붙여넣어주세요.
+      </p>
+      {% if user.claude_oauth_token %}
+      <p style="font-size:0.85rem;"><span class="badge pass">등록됨</span> 개인 토큰으로 AI 검수가 실행됩니다.</p>
+      <form method="post" action="{{ url_for('account_clear_claude_token') }}" onsubmit="return confirm('등록된 토큰을 삭제할까요? 이후엔 다시 공용 계정 한도를 쓰게 됩니다(무료 횟수를 이미 썼다면 새 토큰을 등록하기 전까진 AI 검수를 못 씁니다).');">
+        <button type="submit" class="btn-sm">토큰 삭제</button>
+      </form>
+      {% else %}
+      <p style="font-size:0.85rem;"><span class="badge warn">미등록</span> 아직 개인 토큰이 없습니다.</p>
+      {% endif %}
+      <form method="post" action="{{ url_for('account_claude_token') }}" style="margin-top:10px;">
+        <div class="auth-field">
+          <label for="claude_oauth_token">개인 토큰</label>
+          <input type="password" id="claude_oauth_token" name="claude_oauth_token" placeholder="claude setup-token 실행 후 나온 값 붙여넣기">
+        </div>
+        <button type="submit" class="btn-primary">토큰 등록/교체</button>
+      </form>
+    </div>
+
+    <div class="admin-section">
       <h2>비밀번호 변경</h2>
       <form method="post">
         <div class="auth-field">
