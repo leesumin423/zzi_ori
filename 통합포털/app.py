@@ -334,8 +334,9 @@ def current_user():
 def _resolve_ai_review_auth(user):
     """AI 검수(정기공시/전자문서 결재 check 공통) 실행 전에 호출 — 반환:
     (oauth_token, blocked_message). oauth_token이 있으면 그 사람 개인 토큰으로
-    실행하면 되고, 없고 무료 체험도 다 썼으면 blocked_message가 채워진다(이 경우
-    실제 AI 호출을 하지 말고 이 메시지를 그대로 결과의 error로 보여주면 된다).
+    실행하면 되고, 없고 오늘 무료 체험도 이미 썼으면 blocked_message가 채워진다
+    (이 경우 실제 AI 호출을 하지 말고 이 메시지를 그대로 결과의 error로 보여주면 됨).
+    무료 체험은 평생 1회가 아니라 "하루 1회"— 매일 자정 지나면 다시 채워진다.
 
     관리자는 예외 — 서버에 로그인된 공용 Claude 계정이 애초에 관리자 본인 계정이라
     무제한으로 쓸 수 있게 한다. 무료체험 제한은 관리자가 아닌 사람에게만 적용된다."""
@@ -344,10 +345,10 @@ def _resolve_ai_review_auth(user):
     token = (user.get('claude_oauth_token') or '').strip()
     if token:
         return token, None
-    if (user.get('ai_shared_uses') or 0) >= hub_db.FREE_SHARED_AI_USES:
+    if hub_db.used_shared_ai_today(user):
         return None, (
-            f"AI 검수 무료 체험({hub_db.FREE_SHARED_AI_USES}회)을 이미 사용하셨습니다 — "
-            "계속 쓰려면 본인 Claude 계정 토큰이 필요합니다. PC에서 'claude setup-token' "
+            "오늘의 AI 검수 무료 체험을 이미 사용하셨습니다 — 내일 다시 1회 무료로 쓸 수 있어요. "
+            "지금 바로 계속 쓰려면 본인 Claude 계정 토큰이 필요합니다. PC에서 'claude setup-token' "
             "실행 후 발급받은 토큰을 '내 정보' 화면에 등록해주세요."
         )
     return None, None

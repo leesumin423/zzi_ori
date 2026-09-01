@@ -251,6 +251,9 @@ def _get_conn():
         # 무료로 쓸 수 있게 한다(ai_shared_uses로 횟수 추적).
         ("users", "claude_oauth_token", "TEXT"),
         ("users", "ai_shared_uses", "INTEGER NOT NULL DEFAULT 0"),
+        # 무료체험은 평생 1회가 아니라 "하루 1회"다 — 그날 마지막으로 공용 계정을
+        # 쓴 날짜만 저장해두고, 오늘 날짜와 같으면 이미 썼다고 본다.
+        ("users", "ai_shared_use_date", "TEXT"),
     ]:
         try:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}")
@@ -295,8 +298,8 @@ def verify_login(username, password):
 def get_user_by_id(user_id):
     conn = _get_conn()
     row = conn.execute(
-        "SELECT id, username, display_name, is_admin, email, team, claude_oauth_token, ai_shared_uses "
-        "FROM users WHERE id = ?", (user_id,)
+        "SELECT id, username, display_name, is_admin, email, team, claude_oauth_token, "
+        "ai_shared_uses, ai_shared_use_date FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     conn.close()
     if not row:
@@ -304,7 +307,7 @@ def get_user_by_id(user_id):
     return {
         "id": row[0], "username": row[1], "display_name": row[2], "is_admin": bool(row[3]),
         "email": row[4], "team": row[5],
-        "claude_oauth_token": row[6], "ai_shared_uses": row[7] or 0,
+        "claude_oauth_token": row[6], "ai_shared_uses": row[7] or 0, "ai_shared_use_date": row[8],
     }
 
 
@@ -365,11 +368,21 @@ def clear_claude_oauth_token(user_id):
 
 
 def increment_ai_shared_uses(user_id):
-    """개인 토큰이 없는 사람이 공용 계정으로 AI 검수를 1회 실행했을 때 호출합니다."""
+    """개인 토큰이 없는 사람이 공용 계정으로 AI 검수를 1회 실행했을 때 호출합니다.
+    ai_shared_uses는 누적(참고용) 카운트, ai_shared_use_date는 "오늘 이미 썼는지"
+    판단용 — 매일 자정 지나면 자동으로 다시 1회 무료가 된다."""
+    today = datetime.now().strftime("%Y-%m-%d")
     conn = _get_conn()
     with conn:
-        conn.execute("UPDATE users SET ai_shared_uses = ai_shared_uses + 1 WHERE id = ?", (user_id,))
+        conn.execute(
+            "UPDATE users SET ai_shared_uses = ai_shared_uses + 1, ai_shared_use_date = ? WHERE id = ?",
+            (today, user_id),
+        )
     conn.close()
+
+
+def used_shared_ai_today(user) -> bool:
+    return user.get('ai_shared_use_date') == datetime.now().strftime("%Y-%m-%d")
 
 
 def update_profile(user_id, team, email):

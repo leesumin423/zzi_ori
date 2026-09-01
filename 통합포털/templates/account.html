@@ -57,14 +57,16 @@
       <h2>AI 검수 — 개인 Claude 토큰</h2>
       <p style="color:var(--text-secondary); font-size:0.85rem; margin-top:-8px;">
         정기공시 검수ㆍ전자문서 결재 check의 "AI 검수"는 기본적으로 서버 공용 계정 한도를
-        같이 나눠 씁니다 — 공용 계정으로는 <b>{{ ai_free_uses }}회까지 무료</b>이고
-        (지금까지 {{ user.ai_shared_uses or 0 }}회 사용), 그 이후로는 본인 개인 토큰이 있어야
-        계속 쓸 수 있습니다. 본인 PC에서 터미널을 열고 <code>claude setup-token</code>을
-        실행하면 토큰이 발급됩니다 — 그 값을 여기에 붙여넣어주세요.
+        같이 나눠 씁니다 — 공용 계정으로는 <b>하루 {{ ai_free_uses }}회까지 무료</b>이고
+        (자정 지나면 다시 채워짐, 지금까지 누적 {{ user.ai_shared_uses or 0 }}회 사용,
+        {% if user.ai_shared_use_date %}마지막 사용일 {{ user.ai_shared_use_date }}{% else %}아직 사용 안 함{% endif %}),
+        오늘 이미 다 썼는데 더 쓰려면 본인 개인 토큰이 있어야 합니다. 본인 PC에서 터미널을
+        열고 <code>claude setup-token</code>을 실행하면 토큰이 발급됩니다 — 그 값을 여기에
+        붙여넣어주세요.
       </p>
       {% if user.claude_oauth_token %}
       <p style="font-size:0.85rem;"><span class="badge pass">등록됨</span> 개인 토큰으로 AI 검수가 실행됩니다.</p>
-      <form method="post" action="{{ url_for('account_clear_claude_token') }}" onsubmit="return confirm('등록된 토큰을 삭제할까요? 이후엔 다시 공용 계정 한도를 쓰게 됩니다(무료 횟수를 이미 썼다면 새 토큰을 등록하기 전까진 AI 검수를 못 씁니다).');">
+      <form method="post" action="{{ url_for('account_clear_claude_token') }}" onsubmit="return confirm('등록된 토큰을 삭제할까요? 이후엔 다시 공용 계정 한도(하루 1회)를 쓰게 됩니다.');">
         <button type="submit" class="btn-sm">토큰 삭제</button>
       </form>
       {% else %}
