@@ -339,6 +339,42 @@ html, body {
 .up   { color: var(--up); }
 .down { color: var(--down); }
 
+/* ── 종목 로고 + 코드 (회사명 셀) ────────────────────────────── */
+.stock-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stock-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.stock-name-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  min-width: 0;
+}
+.stock-code {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* ── 당일 주가 + 전일대비(등락폭/등락율) ─────────────────────── */
+.price-cell { line-height: 1.4; }
+.price-main { font-variant-numeric: tabular-nums; }
+.price-change {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 /* NXT(넥스트레이드) 프리마켓ㆍ애프터마켓 시세로 대체됐을 때 표시하는 배지 */
 .nxt-badge {
   display: inline-block;

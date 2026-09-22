@@ -2368,6 +2368,18 @@ function renderThemes(data) {
   });
 }
 
+// ── 전일대비(당일 등락) 표기 — 네이버 증권 스타일: ▲/▼ + 등락폭(+등락율%) ──
+function renderDailyChange(item) {
+  const diff = Number(item.diff ?? 0);
+  const rate = Number(item.rate ?? 0);
+  const dir = item.direction || '';
+  if (!diff && !rate) return '';
+  const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '-';
+  const diffAbs = Math.abs(diff).toLocaleString();
+  const rateStr = `${rate >= 0 ? '+' : ''}${rate.toFixed(2)}%`;
+  return `<span class="price-change ${dir}">${arrow}${diffAbs} (${rateStr})</span>`;
+}
+
 // ── Generic Table ─────────────────────────────────────────────
 function renderTable(tableId, list) {
   const tbody = document.querySelector(`#${tableId} tbody`);
@@ -2381,14 +2393,26 @@ function renderTable(tableId, list) {
     const isDown = changeRate.startsWith('-');
     const rateClass = isUp ? 'up' : isDown ? 'down' : '';
     const name = item.display_name ?? item.name ?? '';
+    const ticker = item.ticker ?? '';
     const nxtBadge = b.source === 'NXT' ? ' <span class="nxt-badge" title="현재 넥스트레이드(NXT) 프리마켓ㆍ애프터마켓 시세">NXT</span>' : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="clickable-name" onclick="showInvestorModal('${item.ticker ?? ''}', '${name}')">${name}</span></td>
+      <td>
+        <div class="stock-name-cell">
+          <img class="stock-logo" src="https://ssl.pstatic.net/imgstock/fn/real/logo/stock/${ticker}.png" alt="" loading="lazy" onerror="this.style.display='none'">
+          <div class="stock-name-text">
+            <span class="clickable-name" onclick="showInvestorModal('${ticker}', '${name}')">${name}</span>
+            <span class="stock-code">${ticker}</span>
+          </div>
+        </div>
+      </td>
       <td class="num">${item.shares ?? ''}</td>
       <td class="num">${item.capital_billion ?? ''}</td>
       <td class="num">${item.price_prev_year ?? ''}</td>
-      <td class="num">${b.price ?? ''}${nxtBadge}</td>
+      <td class="num price-cell">
+        <div class="price-main">${b.price ?? ''}${nxtBadge}</div>
+        ${renderDailyChange(item)}
+      </td>
       <td class="num">${item.marketcap_prev ?? ''}</td>
       <td class="num">${b.marketcap ?? ''}</td>
       <td class="num ${rateClass}">${changeRate}</td>
