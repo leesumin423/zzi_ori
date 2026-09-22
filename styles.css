@@ -136,6 +136,31 @@ html, body {
   word-break: keep-all;
   line-height: 1.3;
 }
+.snapshot-refs {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.snapshot-ref-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.snapshot-ref-label {
+  font-size: 9.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.snapshot-ref-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 .snapshot-financials {
   margin-top: 6px;
   padding-top: 8px;
@@ -252,6 +277,13 @@ html, body {
 .tab-btn + .tab-btn { border-left: 1px solid var(--border); }
 .tab-btn:hover { background: rgba(25,31,40,0.1); }
 .tab-btn.active { background: var(--accent); color: #fff; }
+
+/* 공시 탭은 항목이 많아(8개) 줄바꿈을 허용하되 단어 중간에서 잘리지 않게 한다 */
+#disclosureTabs { flex-wrap: wrap; overflow: visible; }
+#disclosureTabs .tab-btn {
+  flex: 1 0 auto; white-space: nowrap; padding: 8px 12px;
+  border-left: 1px solid var(--border);
+}
 
 /* #ftcRangeTabs — 두 버튼 모두 동일한 높이의 2줄로 통일(라벨 길이가 달라
    한쪽만 줄바꿈되면서 크기가 들쭉날쭉해 보이는 문제 수정) */
@@ -373,6 +405,15 @@ html, body {
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 52주 최고/최저 (한 칸에 2줄로 묶어 표시) ─────────────────── */
+.range-cell { line-height: 1.5; }
+.range-high, .range-low {
+  display: block;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* NXT(넥스트레이드) 프리마켓ㆍ애프터마켓 시세로 대체됐을 때 표시하는 배지 */
@@ -422,9 +463,35 @@ th {
   text-transform: uppercase;
   letter-spacing: .04em;
   text-align: center;          /* 헤더 가운데 정렬 */
+  vertical-align: middle;      /* rowspan 셀(회사명 등) 세로 중앙 정렬 */
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+/* ── 2단 헤더: 상위 그룹셀(주가(원)/시가총액(억원))이 한 줄이라 하위 셀
+   (전년말 / 당일<br>(전일대비), 2줄)보다 얇아 두 줄 높이가 어긋나 보이는 문제 —
+   px를 고정으로 맞추면 브라우저/폰트에 따라 다시 어긋나므로, 보이지 않는
+   2줄짜리 스페이서(.th-group-spacer)를 정상 흐름에 넣어 "실제 줄 수"를
+   맞춰 셀 높이를 자동으로 하위 셀과 같게 만든다. 그런데 그 스페이서만으로는
+   보이는 글자("주가(원)")가 스페이서의 1번째 줄 자리에 그대로 남아 셀
+   위쪽에 붙어 보이므로(세로 가운데 정렬이 안 됨), 실제 보이는 글자는 별도로
+   absolute + flex 오버레이(.th-group-label)로 셀 전체 높이 기준 정가운데에
+   띄운다 — 높이는 스페이서가, 정렬은 오버레이가 담당. */
+/* 헤더 칸이 좁아지면 "(전일대비)"처럼 <br>로 이미 나눠놓은 줄이 폭 부족으로
+   또 한 번 줄바꿈되면서 의도한 "정확히 2줄" 가정이 깨져 위/아래 헤더 행
+   높이가 어긋난다 — 헤더 안에서는 <br>로 명시한 줄바꿈 외에는 자동 줄바꿈을
+   막아 항상 정확히 의도한 줄 수로만 렌더링되게 한다. */
+#companies-table thead th, #cement-table thead th { white-space: nowrap; }
+
+.th-group { position: relative; }
+.th-group-spacer { visibility: hidden; }
+.th-group-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 tr:hover td { background: rgba(25,31,40,0.025); }
@@ -633,6 +700,7 @@ tr:hover td { background: rgba(25,31,40,0.025); }
 .disclosure-type-badge.type-equity   { background: rgba(5, 150, 105, 0.12); color: #047857; }
 .disclosure-type-badge.type-large_holding { background: rgba(219, 39, 119, 0.12); color: #be185d; }
 .disclosure-type-badge.type-periodic { background: rgba(13, 148, 136, 0.12); color: #0d9488; }
+.disclosure-type-badge.type-other    { background: rgba(100, 116, 139, 0.14); color: #475569; }
 
 /* ── 공시 점검(K-CLIC식 키워드 검색 결과 카드) ───────────────────── */
 .check-result-card {
@@ -756,6 +824,154 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   font-weight: 600;
 }
 
+/* ── 공시 캘린더 ─────────────────────────────────────────────── */
+/* 유형별 대표색 — 범례 칩ㆍ셀 안 일정 막대ㆍ상세 배지가 모두 이 색을 쓴다 */
+.type-danpan        { --cal-c: #4338ca; }
+.type-ftc           { --cal-c: #c2410c; }
+.type-equity        { --cal-c: #047857; }
+.type-large_holding { --cal-c: #be185d; }
+.type-periodic      { --cal-c: #0d9488; }
+.type-other         { --cal-c: #64748b; }
+.type-danpan-end    { --cal-c: #b91c1c; }
+.type-deadline      { --cal-c: #b48214; }
+
+/* ── 다가오는 일정 패널 ─────────────────────────────────────── */
+.cal-upcoming { margin-bottom: 16px; }
+.cal-upcoming:empty { display: none; }
+.cal-upcoming-loading { font-size: 12px; color: var(--muted); padding: 8px 0; }
+.cal-upcoming-head {
+  font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+}
+.cal-upcoming-head span { font-weight: 500; font-size: 11.5px; color: var(--muted); }
+.cal-upcoming-list {
+  list-style: none; margin: 0; padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+}
+.cal-upcoming-list li {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px; cursor: pointer;
+}
+.cal-upcoming-list li:last-child { border-bottom: none; }
+.cal-upcoming-list li:hover { background: rgba(91, 106, 240, 0.05); }
+.cal-upcoming-list li.soon { background: rgba(180, 130, 20, 0.07); }
+.cal-upcoming-list li.overdue { background: rgba(185, 28, 28, 0.06); }
+.cal-upcoming-dday {
+  flex: none; min-width: 52px; text-align: center;
+  font-size: 11.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+  color: var(--muted); background: var(--card);
+}
+.cal-upcoming-list li.soon .cal-upcoming-dday { color: #92660f; background: rgba(180, 130, 20, 0.16); }
+.cal-upcoming-list li.overdue .cal-upcoming-dday { color: #b91c1c; background: rgba(185, 28, 28, 0.13); }
+.cal-upcoming-date { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); }
+.cal-upcoming-title { flex: 1 1 200px; color: var(--text); font-weight: 600; }
+.cal-upcoming-sub { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.cal-upcoming-note { font-size: 11.5px; color: var(--muted); line-height: 1.6; margin: 8px 0 0; }
+.cal-upcoming-loading-inline { color: var(--accent); }
+
+/* 단판 계약기간 종료 = 실제 공시 아님(다가오는 일정) → 테두리로 구분 */
+.cal-ev-danpan-end {
+  color: #b91c1c; background: rgba(185, 28, 28, 0.10);
+  border: 1px dashed #b91c1c; font-weight: 700;
+}
+
+.cal-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.cal-nav { display: flex; align-items: center; gap: 8px; }
+.cal-month-label { font-size: 16px; font-weight: 700; color: var(--text); min-width: 110px; text-align: center; }
+.cal-view-toggle { margin: 0; }
+
+/* 범례 = 청약캘린더식 on/off 필터 칩 */
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.cal-legend-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px 4px 8px; font-size: 11.5px; font-weight: 700; font-family: inherit;
+  color: #fff; background: var(--cal-c, var(--muted));
+  border: 1px solid var(--cal-c, var(--muted)); border-radius: 999px; cursor: pointer;
+  transition: opacity .12s, background .12s;
+}
+.cal-legend-chip .cal-legend-check { font-size: 10px; width: 11px; text-align: center; }
+.cal-legend-chip.off {
+  background: transparent; color: var(--muted);
+  border-color: var(--border); border-style: dashed; text-decoration: line-through;
+}
+.cal-legend-chip:hover { opacity: 0.85; }
+.cal-legend-reset {
+  padding: 4px 12px; font-size: 11.5px; font-weight: 700; font-family: inherit;
+  color: var(--accent); background: transparent;
+  border: 1px solid var(--accent); border-radius: 999px; cursor: pointer;
+}
+.cal-legend-reset:hover { background: rgba(91, 106, 240, 0.08); }
+
+/* 격자 — 셀 사이를 1px 라인으로 채워 표처럼 컬럼이 뚜렷하게 나뉘도록 */
+#calGridView {
+  border: 1px solid var(--cal-line, #c8ccd4); border-radius: 8px; overflow: hidden;
+  background: var(--cal-line, #c8ccd4);
+}
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px; background: var(--cal-line, #c8ccd4);
+}
+.cal-grid-head { margin-bottom: 1px; }
+.cal-grid-head > div {
+  text-align: center; font-size: 11px; font-weight: 800; color: var(--muted);
+  padding: 7px 0; background: var(--card);
+}
+.cal-grid-head > div:first-child { color: #b91c1c; }
+.cal-grid-head > div:last-child { color: #1d4ed8; }
+
+.cal-cell {
+  min-height: 96px; border: none; background: var(--surface);
+  padding: 4px 5px 5px; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 3px; font-family: inherit; position: relative;
+}
+.cal-cell-empty { background: var(--card); cursor: default; }
+.cal-cell:hover:not(.cal-cell-empty) { background: rgba(91, 106, 240, 0.06); }
+.cal-cell.cal-today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-cell.cal-selected { box-shadow: inset 0 0 0 2px var(--title); background: rgba(125, 211, 252, 0.08); }
+.cal-daynum { font-size: 12px; font-weight: 700; color: var(--text); padding: 1px 2px; }
+.cal-cell.cal-sun .cal-daynum { color: #b91c1c; }
+.cal-cell.cal-sat .cal-daynum { color: #1d4ed8; }
+
+.cal-evs { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.cal-ev {
+  display: block; font-size: 10.5px; font-weight: 600; line-height: 1.35;
+  padding: 1px 5px; border-radius: 3px; color: #fff; background: var(--cal-c, var(--muted));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cal-ev-more { font-size: 10px; font-weight: 700; color: var(--muted); padding: 0 4px; }
+/* 법정 제출기한 = 실제 공시가 아니라 마감일 표시라 색을 채우지 않고 테두리로 구분 */
+.cal-ev-deadline {
+  color: #92660f; background: rgba(180, 130, 20, 0.12);
+  border: 1px dashed #b48214; font-weight: 700;
+}
+
+.cal-day-detail { margin-top: 18px; }
+.cal-day-detail h4 { font-size: 13px; font-weight: 700; color: var(--title); margin: 0 0 8px; }
+.cal-detail-list { list-style: none; padding: 0; margin: 0; }
+.cal-detail-list li {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.cal-detail-list li:last-child { border-bottom: none; }
+.cal-detail-title { font-weight: 600; color: var(--text); }
+.cal-detail-sub { font-size: 12px; color: var(--muted); }
+.disclosure-type-badge.type-deadline { background: rgba(180, 130, 20, 0.14); color: #92660f; }
+
+/* ── 참고 사이트 카드 ───────────────────────────────────────── */
+.ref-site-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ref-site-card {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 14px 16px; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); text-decoration: none; transition: border-color .12s;
+}
+.ref-site-card:hover { border-color: var(--accent); }
+.ref-site-name { font-size: 13.5px; font-weight: 700; color: var(--title); }
+.ref-site-name::after { content: ' ↗'; font-size: 11px; color: var(--muted); }
+.ref-site-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
 /* ── Print ───────────────────────────────────────────────────── */
 /* 이 블록은 반드시 파일 맨 끝에 있어야 한다 — 동일 우선순위(specificity)일 때
    CSS는 소스 순서상 나중에 나온 규칙이 이기므로, 위쪽 기본 규칙(.clickable-name
@@ -764,7 +980,12 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   .modal-overlay { display: none !important; }
 
   /* A4 세로, 여백 14mm×10mm */
-  @page { size: A4 portrait; margin: 14mm 10mm; }
+  /* 우측만 살짝 더 여백을 둔다 — 카드ㆍ코멘트 박스 우측 테두리가 인쇄 가능 영역
+     딱 끝에 걸쳐서, PDF로 뽑으면 좌측 테두리보다 우측 테두리가 살짝 얇게/잘려
+     보이는 문제가 있었다(그리드 컬럼 폭 반올림 오차로 추정 — 실제 인쇄에서만
+     보이고 화면/DOM 측정으로는 재현 안 됨). 좌측 여백은 그대로 두고 우측에만
+     여유를 더해 우측 테두리가 인쇄 영역 경계에 딱 붙지 않게 한다. */
+  @page { size: A4 portrait; margin: 14mm 13mm 14mm 10mm; }
 
   /* 색상 그대로 인쇄 */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -812,24 +1033,30 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   /* 표 폰트 축소 */
   table { font-size: 9px; }
   th, td { padding: 4px 5px; }
+  th { font-size: 8px; line-height: 1.3; }
+  .price-change { font-size: 8px; }
+  .stock-code { font-size: 8px; }
 
   /* 회사명 클릭 링크 밑줄 제거 (인쇄본에서는 클릭 불가능하므로) */
   .clickable-name { text-decoration: none !important; }
 
-  /* "당일 주가" 컬럼(5번째) 빨간색 강조 테두리 — 칸마다 다 두르면 안쪽 가로줄까지
-     굵어지므로, 컬럼 전체를 감싸는 바깥쪽 테두리만 굵게 (좌/우는 전 행 공통,
-     위쪽은 헤더만, 아래쪽은 마지막 행만) */
-  #companies-table th:nth-child(5), #companies-table td:nth-child(5),
-  #cement-table th:nth-child(5),    #cement-table td:nth-child(5) {
+  /* "당일 주가" 컬럼 빨간색 강조 테두리 — 헤더가 2단(주가(원) 상위 + 전년말/당일
+     하위)으로 바뀌면서 더 이상 열 순서(nth-child)로 안정적으로 찾을 수 없어,
+     헤더의 "당일" 하위셀(.th-highlight)과 본문의 당일 주가 셀(.price-cell)을
+     클래스로 직접 지정한다. 칸마다 다 두르면 안쪽 가로줄까지 굵어지므로, 컬럼
+     전체를 감싸는 바깥쪽 테두리만 굵게 (좌/우는 전 행 공통, 위쪽은 헤더만,
+     아래쪽은 마지막 행만) */
+  #companies-table th.th-highlight, #companies-table td.price-cell,
+  #cement-table th.th-highlight,    #cement-table td.price-cell {
     border-left: 2px solid var(--up) !important;
     border-right: 2px solid var(--up) !important;
   }
-  #companies-table th:nth-child(5),
-  #cement-table th:nth-child(5) {
+  #companies-table th.th-highlight,
+  #cement-table th.th-highlight {
     border-top: 2px solid var(--up) !important;
   }
-  #companies-table tbody tr:last-child td:nth-child(5),
-  #cement-table tbody tr:last-child td:nth-child(5) {
+  #companies-table tbody tr:last-child td.price-cell,
+  #cement-table tbody tr:last-child td.price-cell {
     border-bottom: 2px solid var(--up) !important;
   }
 
@@ -841,6 +1068,28 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   .btn { display: none; }
   .tab-group { display: none; }
   .rule-btn { display: none; }
-  #danpan-check-section { display: none; }
+
+  /* 단판공시 대상여부 사전검증: 예전엔 섹션 전체를 숨겼는데, 화면에서 미리
+     "판단하기"를 눌러 결과(#checkResult)를 띄워둔 상태라면 그 판정 결과도
+     인쇄/PDF에 나와야 한다는 요청(사용자 확인)에 따라 섹션 자체는 보여주고,
+     인쇄해봐야 의미 없는 입력 폼(날짜/금액 입력칸·버튼)만 숨긴다. 결과 텍스트
+     안에 입력했던 계약일자ㆍ금액이 그대로 다시 적히므로(renderDanpanCheckResult
+     참고) 입력 폼을 숨겨도 정보 손실이 없다.
+     아직 아무것도 조회하지 않아 #checkResult가 비어있으면(화면에서 "판단하기"를
+     한 번도 안 누른 채 바로 인쇄) 빈 상자만 찍히는 대신 안내 문구를 보여준다. */
+  #danpan-check-section .check-form { display: none; }
+  #checkResult:empty::before {
+    content: "※ 화면에서 먼저 '판단하기'를 눌러 결과를 확인한 뒤 인쇄해주세요.";
+    color: var(--muted);
+    font-style: italic;
+    font-size: 9px;
+  }
+
+  /* 공시 캘린더: 인쇄 시 도구모음 숨김, 격자선 진하게 */
+  .cal-toolbar { display: none; }
+  #calGridView, .cal-grid, .cal-grid-head { background: #999 !important; }
+  .cal-cell { min-height: 54px; }
+  .cal-ev { font-size: 8px; padding: 0 3px; }
+  .cal-legend-chip { border-color: #999 !important; }
 }
 
