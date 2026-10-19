@@ -1,0 +1,942 @@
+<title>대체조제 사후통보 전산화</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Nanum+Pen+Script&display=swap">
+<style>
+/* Layout: a 16:9 presentation stage on a deep-navy surround; each slide is a white sheet with
+   isometric 3D illustrations. Under 900px wide (or short screens) the slides stack as a scrolling document. */
+:root{
+  --navy:#0E2A5A; --deep:#081B3D; --blue:#3D7FD9; --sky:#E8F0FB; --orange:#F2622E; --peach:#FFE3D4;
+  --ink:#14223A; --muted:#5A6A82; --line:#D8E1EE; --paper:#FBFCFE; --surround:#071632; --on-dark:#E9F0FB; --on-dark-muted:#9FB3D1;
+  --f-display:"Black Han Sans","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-hand:"Nanum Pen Script","IBM Plex Sans KR",cursive;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--surround);color:var(--ink);font-family:var(--f-body);letter-spacing:-.02em;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+b,strong{font-weight:700}
+svg text{font-family:var(--f-body)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+
+/* ---------- stacked (phone / small window) defaults ---------- */
+.deck{padding-block:16px 24px}
+.controls{display:none}
+.notes-panel{display:none}
+.slide{position:relative;background:var(--paper);border-radius:16px;overflow:hidden;margin:0 auto 16px;max-width:1100px;container-type:inline-size}
+.sl{--t-hero:40px;--t-h2:27px;--t-h3:18px;--t-body:15px;--t-small:13px;--t-num:46px;--gap:16px;
+  padding:30px 20px 46px;display:grid;gap:var(--gap);align-content:start;font-size:var(--t-body)}
+.chrome{position:absolute;left:20px;right:20px;bottom:12px;display:flex;justify-content:space-between;gap:12px;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;color:#97A5BA;text-transform:uppercase}
+.notes{display:none}
+.art svg{display:block;width:100%;height:auto;max-width:100%;overflow:visible}
+
+/* ---------- type ---------- */
+.eyebrow{display:flex;align-items:center;gap:10px;font-family:var(--f-mono);font-weight:600;font-size:var(--t-small);letter-spacing:.14em;color:var(--orange);text-transform:uppercase;margin:0}
+.eyebrow::before{content:"";width:2.2em;height:2px;background:var(--orange)}
+.h2{font-size:var(--t-h2);line-height:1.22;letter-spacing:-.05em;color:var(--navy);margin:0;font-weight:700;text-wrap:balance}
+.h2 em{font-style:normal;color:var(--orange)}
+.lead{margin:0;color:var(--muted);max-width:40em;text-wrap:pretty}
+.hl{background:linear-gradient(transparent 56%,var(--peach) 56%) no-repeat;background-size:100% 100%;padding:0 .1em;color:var(--navy)}
+.hand{font-family:var(--f-hand);color:var(--orange);font-size:calc(var(--t-h3)*1.45);line-height:1.15;margin:0;font-weight:400;letter-spacing:0}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-small);font-weight:700;padding:.2em .7em;border-radius:999px;white-space:nowrap}
+.tag.o{background:var(--orange);color:#fff}.tag.n{background:var(--navy);color:#fff}.tag.g{background:#E4E9F1;color:#5A6A82}.tag.s{background:var(--sky);color:var(--navy)}
+.src{font-family:var(--f-mono);font-size:var(--t-small);color:#8B99AE;letter-spacing:.02em}
+.head{display:grid;gap:8px}
+
+/* ---------- cover ---------- */
+.s-cover .sl{background:radial-gradient(120% 90% at 85% 30%,#EAF1FC 0,var(--paper) 60%)}
+.cover-grid{display:grid;gap:12px}
+.cover-copy{display:grid;gap:14px;align-content:center}
+h1{font-family:var(--f-display);font-weight:400;font-size:var(--t-hero);line-height:1.08;letter-spacing:-.02em;color:var(--navy);margin:0}
+h1 span{display:block;color:var(--orange)}
+.cover-sub{margin:0;font-size:var(--t-h3);font-weight:700;color:var(--navy);letter-spacing:-.03em}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:.35em .9em;font-size:var(--t-small);font-weight:600;color:var(--muted)}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.cover-art{max-width:560px;justify-self:center;width:100%}
+
+/* ---------- agenda ---------- */
+.agenda{display:grid;gap:12px}
+.ag{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.ag .num{font-family:var(--f-mono);font-size:var(--t-small);font-weight:600;color:var(--orange);letter-spacing:.1em}
+.ag h3{margin:2px 0 4px;font-size:var(--t-h3);color:var(--navy);letter-spacing:-.04em;line-height:1.3}
+.ag p{margin:0;color:var(--muted);font-size:var(--t-small);line-height:1.6}
+
+/* ---------- generic cards ---------- */
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:grid;gap:6px;align-content:start;min-width:0}
+.card h3{margin:0;font-size:var(--t-h3);color:var(--navy);letter-spacing:-.04em;line-height:1.3}
+.card p{margin:0;color:var(--muted);font-size:var(--t-small);line-height:1.65}
+.ico{width:100%;max-width:92px;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.card:hover .ico,.ag:hover .ico,.step:hover .ico{transform:translateY(-5px) scale(1.05)}
+
+/* definition */
+.def-grid{display:grid;gap:14px}
+.quote{border-left:4px solid var(--orange);padding:4px 0 4px 16px;display:grid;gap:8px}
+.quote p{margin:0;font-size:calc(var(--t-h3)*1.08);line-height:1.6;color:var(--ink);font-weight:500}
+.def-art{display:grid;gap:4px;justify-items:center;text-align:center}
+.def-art .art{width:min(100%,300px)}
+.ex-title{margin:0;font-weight:700;color:var(--navy);font-size:var(--t-body)}
+.ex-grid{display:grid;gap:10px}
+.ex .k{font-family:var(--f-mono);font-size:var(--t-small);font-weight:600;color:var(--orange)}
+.ex.main{border-color:var(--orange);box-shadow:0 0 0 3px #F2622E1A}
+
+/* duty */
+.duty{display:grid;gap:12px}
+.dp{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;padding:18px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+.dp .who{font-size:var(--t-small);font-weight:700;color:var(--muted)}
+.dp .big{font-family:var(--f-display);font-size:var(--t-num);line-height:1;color:var(--navy);letter-spacing:-.01em}
+.dp .big small{font-family:var(--f-body);font-size:.36em;font-weight:700;color:var(--orange);margin-left:.3em;letter-spacing:-.02em}
+.dp p{margin:0;color:var(--muted);font-size:var(--t-small);grid-column:1/-1}
+.dp .art{width:clamp(70px,22cqw,130px)}
+.dp.accent{background:var(--navy);border-color:var(--navy)}
+.dp.accent .who{color:var(--on-dark-muted)}.dp.accent .big{color:#fff}.dp.accent p{color:var(--on-dark-muted)}
+.except{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:12px 16px;border-radius:12px;background:var(--sky);color:var(--navy);font-size:var(--t-small)}
+.except b{white-space:nowrap}
+
+/* before / after */
+.ba{display:grid;gap:12px;align-items:stretch}
+.side{border-radius:18px;padding:18px;display:grid;gap:10px;align-content:start;border:1px solid var(--line);background:#fff}
+.side.new{background:linear-gradient(160deg,#10306A,var(--deep));border-color:var(--deep);color:var(--on-dark)}
+.side h3{margin:0;font-size:var(--t-h3);letter-spacing:-.04em;color:var(--navy)}
+.side.new h3{color:#fff}
+.side .art{width:min(100%,260px);justify-self:center}
+.side ul{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:var(--t-small)}
+.side li{display:grid;grid-template-columns:18px 1fr;gap:8px;color:var(--muted)}
+.side li::before{content:"–";color:#A3B0C2;font-weight:700}
+.side.new li{color:#C9D7EC}.side.new li::before{content:"✓";color:#FF8A5E}
+.side.old{filter:saturate(.7)}
+.ba-arrow{display:grid;place-items:center;color:var(--orange);font-size:28px;font-weight:700}
+.ba-arrow span{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--orange);color:#fff;box-shadow:0 10px 24px #F2622E40}
+.ba-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ok{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--navy);font-size:var(--t-body)}
+.ok i{display:grid;place-items:center;width:1.4em;height:1.4em;border-radius:50%;background:var(--navy);color:#fff;font-style:normal;font-size:.8em}
+
+/* flow */
+.flow-art{width:100%;max-width:900px;justify-self:center}
+.flow-labels{display:grid;gap:10px}
+.fl{text-align:left;display:grid;gap:4px;padding:12px 14px;border-radius:14px;background:#fff;border:1px solid var(--line)}
+.fl .k{font-family:var(--f-mono);font-size:var(--t-small);font-weight:600;color:var(--orange);letter-spacing:.08em}
+.fl h3{margin:0;color:var(--navy);font-size:var(--t-h3);letter-spacing:-.04em}
+.fl p{margin:0;color:var(--muted);font-size:var(--t-small)}
+.fl.mid{background:var(--navy);border-color:var(--navy)}.fl.mid h3{color:#fff}.fl.mid p{color:var(--on-dark-muted)}
+.band{border-radius:16px;background:var(--deep);color:var(--on-dark);padding:16px 20px;display:grid;gap:4px;position:relative;overflow:hidden}
+.band strong{font-size:var(--t-h3);letter-spacing:-.04em;line-height:1.45;color:#fff;text-wrap:balance}
+.band strong em{font-style:normal;color:#FF8A5E}
+.band span{font-size:var(--t-small);color:var(--on-dark-muted)}
+
+/* process steps */
+.steps{display:grid;gap:10px;position:relative}
+.step{position:relative;display:grid;grid-template-columns:64px 1fr;gap:4px 12px;align-items:center;padding:12px;border-radius:16px;background:#fff;border:1px solid var(--line)}
+.step .ico{max-width:64px;grid-row:span 3}
+.step .no{font-family:var(--f-mono);font-size:var(--t-small);font-weight:600;color:#93A2B8;letter-spacing:.08em}
+.step h3{margin:0;font-size:var(--t-h3);color:var(--navy);letter-spacing:-.04em;line-height:1.3}
+.step p{margin:0;font-size:var(--t-small);color:var(--muted);line-height:1.55}
+.step .tag{position:absolute;top:10px;right:10px;font-size:11px}
+.step.touch{border-color:var(--orange);box-shadow:0 0 0 3px #F2622E1F}
+.step.touch .no{color:var(--orange)}
+.step.sys{border-color:var(--navy);box-shadow:0 0 0 3px #0E2A5A14}
+.callout{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:12px 16px;border:2px dashed #F6A585;border-radius:14px;background:#FFF7F2}
+.callout p{margin:0;color:var(--ink);font-size:var(--t-body)}
+
+/* compare table */
+.tbl-wrap{overflow-x:auto;border-radius:16px;border:1px solid var(--line);background:#fff}
+table{width:100%;border-collapse:collapse;font-size:var(--t-small);min-width:560px}
+th,td{padding:.85em 1.1em;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{font-size:var(--t-small);letter-spacing:.02em;color:var(--muted);background:#F3F6FB;font-weight:700}
+thead th.new{background:var(--navy);color:#fff}
+tbody th{color:var(--navy);font-weight:700;white-space:nowrap}
+td.new{background:#F2F7FE;color:var(--navy);font-weight:600}
+td.old{color:var(--muted)}
+tr:last-child th,tr:last-child td{border-bottom:0}
+tr.key td.new{background:var(--peach);color:#9A3412}
+tr.key th{color:var(--orange)}
+
+/* impact */
+.impact{display:grid;gap:12px}
+.imp{position:relative;overflow:hidden}
+.imp .ico{max-width:110px}
+.imp .k{font-family:var(--f-mono);font-size:var(--t-small);font-weight:600;color:#93A2B8;letter-spacing:.1em}
+.imp h3 em{font-style:normal;color:var(--orange)}
+
+/* dealer cycle */
+.cycle{display:grid;gap:10px}
+.cy{position:relative}
+.cy .ico{max-width:76px}
+.cy .chk{margin-top:4px;padding-top:8px;border-top:1px dashed var(--line);font-size:var(--t-small);color:var(--navy);font-weight:600}
+.cy .chk::before{content:"CHECK  ";font-family:var(--f-mono);color:var(--orange);font-weight:600;letter-spacing:.06em}
+.loop{display:flex;align-items:center;gap:10px;color:var(--navy);font-weight:700;font-size:var(--t-body)}
+.loop::before{content:"↻";display:grid;place-items:center;width:1.8em;height:1.8em;border-radius:50%;background:var(--orange);color:#fff;font-size:1.1em}
+
+/* checklist */
+.checks{display:grid;gap:12px}
+.cl{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:10px;align-content:start}
+.cl h3{margin:0;display:flex;justify-content:space-between;align-items:center;font-size:var(--t-h3);color:var(--navy);letter-spacing:-.04em}
+.cl h3 small{font-family:var(--f-mono);font-size:var(--t-small);color:var(--orange);letter-spacing:.06em}
+.cl label{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;font-size:var(--t-small);color:var(--ink);cursor:pointer;line-height:1.55}
+.cl input{appearance:none;width:20px;height:20px;margin:1px 0 0;border:2px solid #B8C5D8;border-radius:6px;display:grid;place-items:center;background:#fff;transition:.2s}
+.cl input:checked{background:var(--orange);border-color:var(--orange)}
+.cl input:checked::after{content:"✓";color:#fff;font-size:13px;font-weight:700}
+.cl label:has(input:checked) span{color:var(--muted);text-decoration:line-through;text-decoration-color:#F2622E80}
+.meter{display:flex;align-items:center;gap:12px;font-size:var(--t-small);color:var(--muted);font-weight:600}
+.meter .bar{flex:1;height:8px;border-radius:99px;background:#E4EAF3;overflow:hidden}
+.meter .bar i{display:block;height:100%;width:0;background:var(--orange);border-radius:99px;transition:width .4s}
+.meter output{font-family:var(--f-mono);color:var(--navy);font-variant-numeric:tabular-nums}
+
+/* closing */
+.s-close .sl{background:linear-gradient(150deg,#0F2D63 0%,var(--deep) 70%);color:var(--on-dark)}
+.s-close .chrome{color:#6F86AA}
+.close-grid{display:grid;gap:14px;align-items:center}
+.close-msg{display:grid;gap:12px}
+.close-msg h2{font-family:var(--f-display);font-weight:400;font-size:calc(var(--t-h2)*1.25);line-height:1.25;margin:0;color:#fff;letter-spacing:-.01em;text-wrap:balance}
+.close-msg h2 em{font-style:normal;color:#FF7A48}
+.close-msg p{margin:0;color:var(--on-dark-muted)}
+.close-art{width:min(100%,340px);justify-self:center}
+.ka{display:grid;gap:1px;border-radius:16px;overflow:hidden;background:#FFFFFF22;border:1px solid #FFFFFF22}
+.ka div{background:#0C2858;padding:14px 16px;display:grid;gap:2px}
+.ka .n{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;color:#7F9BC4}
+.ka h3{margin:0;font-size:var(--t-h3);color:#fff;letter-spacing:-.04em}
+.ka p{margin:0;font-size:var(--t-small);color:var(--on-dark-muted);line-height:1.55}
+.ka .lbl{background:var(--orange);color:#fff;font-family:var(--f-mono);font-weight:600;letter-spacing:.1em;font-size:var(--t-small);align-content:center}
+
+/* 3D motion */
+.float{animation:float 4.5s ease-in-out infinite;transform-box:fill-box}
+.float.d2{animation-delay:-1.5s}.float.d3{animation-delay:-3s}
+.flowline{stroke-dasharray:5 9;animation:dash 1.1s linear infinite}
+.pulse{animation:pulse 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes dash{to{stroke-dashoffset:-28}}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes mark{from{background-size:0 100%}to{background-size:100% 100%}}
+
+/* ---------- tablet-ish stacked: two columns where it helps ---------- */
+@media (min-width:640px){
+  .agenda,.ex-grid,.impact,.checks,.flow-labels{grid-template-columns:repeat(2,1fr)}
+  .steps,.cycle{grid-template-columns:repeat(2,1fr)}
+  .ka{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ---------- presentation mode ---------- */
+@media (min-width:900px) and (min-height:520px){
+  html,body{height:100%;overflow:hidden}
+  body{padding:0}
+  .deck{height:100%;display:grid;grid-template-rows:1fr auto;padding-block:0}
+  .stage{min-height:0;display:grid;place-items:center;padding:18px max(24px,env(safe-area-inset-right,0px)) 10px max(24px,env(safe-area-inset-left,0px))}
+  .slide{display:none;width:min(100%,calc((100dvh - 96px)*16/9));max-width:none;aspect-ratio:16/9;margin:0;border-radius:18px;box-shadow:0 30px 80px #00000055}
+  .slide.active{display:block}
+  .sl{position:absolute;inset:0;--t-hero:5.4cqw;--t-h2:3.25cqw;--t-h3:1.72cqw;--t-body:1.42cqw;--t-small:1.17cqw;--t-num:5cqw;--gap:1.9cqw;
+    padding:4cqw 5cqw 4.6cqw;gap:var(--gap);grid-auto-rows:min-content;align-content:center}
+  .chrome{left:5cqw;right:5cqw;bottom:1.7cqw;font-size:.82cqw}
+  .art svg{max-height:100%}
+
+  .cover-grid{grid-template-columns:1.08fr .92fr;gap:3cqw;height:100%;align-items:center}
+  .s-cover .sl{grid-template-rows:1fr}
+  .cover-art{max-width:none}
+  .chip{padding:.4em 1em}
+
+  .agenda{grid-template-columns:repeat(4,1fr);gap:1.4cqw;margin-top:1cqw}
+  .ag{grid-template-columns:1fr;padding:1.8cqw 1.6cqw;gap:1cqw;align-content:start}
+  .ag .ico{max-width:9cqw}
+  .agenda-foot{margin-top:1.4cqw}
+
+  .def-grid{grid-template-columns:1.35fr .65fr;align-items:center;gap:3cqw}
+  .ex-grid{grid-template-columns:repeat(3,1fr);gap:1.2cqw}
+  .card{padding:1.4cqw 1.6cqw;border-radius:1.3cqw}
+
+  .duty{grid-template-columns:1fr 1fr;gap:1.6cqw}
+  .dp{padding:2cqw 2.2cqw;border-radius:1.5cqw}
+  .dp .art{width:10.5cqw}
+
+  .ba{grid-template-columns:1fr 6cqw 1fr;gap:1.2cqw}
+  .side{padding:1.8cqw 2cqw;border-radius:1.5cqw;grid-template-columns:1fr 1fr;align-items:center}
+  .side .head-s{grid-column:1/-1}
+  .side .art{width:100%}
+  .ba-arrow span{width:4.6cqw;height:4.6cqw;font-size:2.2cqw}
+
+  .flow-art{max-width:62cqw}
+  .flow-labels{grid-template-columns:repeat(3,1fr);gap:1.6cqw;max-width:78cqw;justify-self:center;width:100%}
+  .band{padding:1.5cqw 2cqw;border-radius:1.4cqw}
+
+  .steps{grid-template-columns:repeat(6,1fr);gap:1cqw;margin-top:.6cqw}
+  .step{grid-template-columns:1fr;padding:1.3cqw 1.2cqw 1.5cqw;align-content:start;gap:.4cqw;border-radius:1.3cqw}
+  .step .ico{max-width:6.6cqw;grid-row:auto;margin-bottom:.4cqw}
+  .step .tag{top:1cqw;right:1cqw;font-size:.82cqw}
+  .steps::before{content:"";position:absolute;left:4%;right:4%;top:4.6cqw;height:2px;background:repeating-linear-gradient(90deg,#C3D0E2 0 8px,transparent 8px 14px);z-index:0}
+  .step{z-index:1}
+  .callout{padding:1.2cqw 1.6cqw;border-radius:1.3cqw}
+
+  .impact{grid-template-columns:repeat(3,1fr);gap:1.6cqw}
+  .imp{padding:2cqw 2cqw 2.2cqw}
+  .imp .ico{max-width:9cqw;margin-bottom:.6cqw}
+
+  .cycle{grid-template-columns:repeat(5,1fr);gap:1.2cqw}
+  .cy:not(:last-child)::after{content:"→";position:absolute;right:-1.15cqw;top:3.4cqw;transform:translateX(50%);z-index:2;width:1.9cqw;height:1.9cqw;display:grid;place-items:center;border-radius:50%;background:var(--orange);color:#fff;font-size:1.1cqw;font-weight:700}
+  .cy .ico{max-width:6.8cqw}
+
+  .checks{grid-template-columns:repeat(3,1fr);gap:1.4cqw}
+  .cl{padding:1.6cqw 1.8cqw;gap:1cqw;border-radius:1.4cqw}
+  .cl input{width:1.45cqw;height:1.45cqw;border-radius:.4cqw}
+  .cl label{grid-template-columns:1.6cqw 1fr;gap:.8cqw}
+  .cl input:checked::after{font-size:1cqw}
+
+  .s-close .sl{grid-template-rows:1fr auto}
+  .close-grid{grid-template-columns:1.3fr .7fr;gap:3cqw}
+  .ka{grid-template-columns:.7fr repeat(4,1fr);border-radius:1.4cqw}
+  .ka div{padding:1.4cqw 1.6cqw}
+  .ka .n{font-size:.8cqw}
+
+  /* entrance + emphasis, only while presenting */
+  .slide.active .rise{animation:rise .65s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 90ms)}
+  .slide.active .hl{animation:mark .9s .45s cubic-bezier(.3,.7,.2,1) both}
+
+  .controls{display:flex;align-items:center;gap:10px;padding:0 max(24px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(24px,env(safe-area-inset-left,0px));color:var(--on-dark)}
+  .controls .btn{border:1px solid #FFFFFF2E;background:#FFFFFF0D;color:var(--on-dark);border-radius:10px;height:38px;min-width:38px;padding:0 12px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+  .controls .btn:hover{background:#FFFFFF1F}
+  .controls .btn[aria-pressed="true"]{background:var(--orange);border-color:var(--orange)}
+  .count{font-family:var(--f-mono);font-size:13px;color:var(--on-dark-muted);font-variant-numeric:tabular-nums;min-width:62px;text-align:center}
+  .count b{color:#fff}
+  .ctitle{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--on-dark-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dots{display:flex;gap:5px}
+  .dots button{width:9px;height:9px;padding:0;border-radius:50%;border:0;background:#FFFFFF33}
+  .dots button.on{background:var(--orange);width:22px;border-radius:5px}
+  .hint{font-size:11px;color:#6F86AA;white-space:nowrap}
+  .notes-panel.open{display:block;position:fixed;right:max(24px,env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));width:min(420px,40vw);max-height:46vh;overflow:auto;background:#0D2450F2;color:var(--on-dark);border:1px solid #FFFFFF26;border-radius:14px;padding:16px 18px;font-size:14px;line-height:1.7;box-shadow:0 20px 50px #00000060;z-index:5}
+  .notes-panel h4{margin:0 0 6px;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;color:#FF8A5E}
+  .notes-panel p{margin:0 0 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+
+<div class="deck">
+<div class="stage" id="stage">
+
+<!-- 1 · Cover -->
+<section class="slide s-cover" data-title="표지 · 대체조제 사후통보 전산화">
+  <div class="sl">
+    <div class="cover-grid">
+      <div class="cover-copy">
+        <p class="hand rise">현장 영업의 변화, 지금이 대응의 골든타임!</p>
+        <h1 class="rise" style="--i:1">대체조제 사후통보<span>전산화 시행</span></h1>
+        <p class="cover-sub rise" style="--i:2">시스템 이해 · 업무 프로세스 · 영업 대응</p>
+        <p class="lead rise" style="--i:3">사후통보 수단이 전화·팩스에서 <b class="hl">심평원 정보시스템</b>으로 확대됩니다. 약국에서 대체조제가 어떻게 처리되는지, 그 흐름 안에서 영업은 어디에 서야 하는지 정리했습니다.</p>
+        <div class="chips rise" style="--i:4"><span class="chip on">시행 2026.02.02</span><span class="chip">근거 · 약사법 제27조</span><span class="chip">현장 영업 브리핑</span></div>
+      </div>
+      <div class="cover-art art rise" style="--i:2" data-scene="hero" aria-label="약국, 심평원 정보시스템 모니터, 병원이 데이터로 연결된 3D 일러스트"></div>
+    </div>
+  </div>
+  <div class="notes">오늘은 2026년 2월 2일부터 시행된 대체조제 사후통보 전산화를 다룹니다. 제도가 무엇인지, 시스템이 어떻게 연결되는지, 약국 업무가 어떤 순서로 흘러가는지 본 다음, 영업 현장에서 무엇을 할지로 마무리합니다.</div>
+</section>
+
+<!-- 2 · Agenda -->
+<section class="slide" data-title="목차">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Contents</p><h2 class="h2">오늘 다룰 <em>네 가지</em></h2></div>
+    <div class="agenda">
+      <article class="ag rise" style="--i:1"><div class="ico art" data-scene="doc"></div><div><div class="num">PART 01</div><h3>제도 이해</h3><p>대체조제의 정의와 약사의 사후통보 의무</p></div></article>
+      <article class="ag rise" style="--i:2"><div class="ico art" data-scene="monitor"></div><div><div class="num">PART 02</div><h3>시스템</h3><p>전화·팩스에서 심평원 정보시스템으로, 무엇이 바뀌었나</p></div></article>
+      <article class="ag rise" style="--i:3"><div class="ico art" data-scene="pharmacy"></div><div><div class="num">PART 03</div><h3>업무 프로세스</h3><p>처방전 접수부터 의료기관 확인까지 약국 처리 6단계</p></div></article>
+      <article class="ag rise" style="--i:4"><div class="ico art" data-scene="target"></div><div><div class="num">PART 04</div><h3>영업 대응</h3><p>딜러의 약국 관리 프로세스와 방문 체크리스트</p></div></article>
+    </div>
+    <p class="hand rise agenda-foot" style="--i:5">핵심은 하나 → “처방 이후, 약국까지 관리한다”</p>
+  </div>
+  <div class="notes">네 파트로 진행합니다. 앞의 두 파트는 제도와 시스템을 정확히 이해하는 시간이고, 뒤의 두 파트는 그 이해를 약국 현장 실행으로 옮기는 시간입니다.</div>
+</section>
+
+<!-- 3 · Definition -->
+<section class="slide" data-title="PART 01 · 대체조제란">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 01 · 제도 이해</p><h2 class="h2">대체조제란 무엇인가</h2></div>
+    <div class="def-grid">
+      <div class="quote rise" style="--i:1">
+        <p>처방전에 적힌 의약품을 <b class="hl">성분·함량·제형이 같은</b> 다른 의약품으로 바꾸어 조제하는 것. 원칙은 <b>처방 의사의 사전 동의</b>입니다.</p>
+        <span class="src">약사법 제27조 제1항</span>
+      </div>
+      <div class="def-art rise" style="--i:2"><div class="art" data-scene="swap" aria-label="두 캡슐이 서로 바뀌는 3D 일러스트"></div><p class="hand">생동 인정 품목 = 우리 제품이 선택되는 자리!</p></div>
+    </div>
+    <p class="ex-title rise" style="--i:3">사전 동의 없이 대체조제할 수 있는 경우 <span class="src">(제27조 제2항)</span></p>
+    <div class="ex-grid">
+      <article class="card ex main rise" style="--i:4"><span class="k">CASE 1 · 가장 일반적</span><h3>생동성 인정 품목</h3><p>식약처장이 생물학적 동등성을 인정한 품목으로 대체. 단, 처방전에 ‘대체조제 불가’와 임상적 사유를 적은 품목은 제외.</p></article>
+      <article class="card ex rise" style="--i:5"><span class="k">CASE 2</span><h3>같은 제조사 · 다른 함량</h3><p>같은 제조사의 성분·제형이 같고 함량만 다른 의약품으로 같은 용량을 조제. 전문은 전문으로, 일반은 일반으로.</p></article>
+      <article class="card ex rise" style="--i:6"><span class="k">CASE 3</span><h3>지역처방의약품 목록</h3><p>다른 시·군·구 의료기관의 처방 의약품이 지역 목록에 없고, 사전 동의를 받기 어려운 부득이한 경우.</p></article>
+    </div>
+  </div>
+  <div class="notes">대체조제는 성분, 함량, 제형이 모두 같은 다른 약으로 바꾸는 것입니다. 원칙은 사전 동의지만, 현장에서 대부분은 첫 번째 경우, 즉 생동성 인정 품목으로 대체합니다. 우리 제품이 생동 인정 품목이라면 약국에서 선택될 수 있는 후보라는 뜻입니다.</div>
+</section>
+
+<!-- 4 · Duty -->
+<section class="slide" data-title="PART 01 · 사후통보 의무">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 01 · 제도 이해</p><h2 class="h2">대체조제 후, <em>두 가지 알림 의무</em></h2></div>
+    <div class="duty">
+      <article class="dp rise" style="--i:1">
+        <div><div class="who">처방전을 지닌 사람(환자)에게</div><div class="big">즉시</div></div>
+        <div class="art" data-scene="person" aria-label="환자 3D 일러스트"></div>
+        <p>대체조제한 내용을 바로 알립니다. <span class="src">제27조 제3항</span></p>
+      </article>
+      <article class="dp accent rise" style="--i:2">
+        <div><div class="who">처방전을 발행한 의사·치과의사에게</div><div class="big">1일<small>이내 (부득이한 사유 3일)</small></div></div>
+        <div class="art" data-scene="calendar" aria-label="1일이 표시된 3D 달력"></div>
+        <p>사전 동의 없이 대체조제한 경우 그 내용을 통보합니다. <b style="color:#fff">이 통보 수단이 전산화됩니다.</b> <span class="src" style="color:#8FA6C8">제27조 제4항</span></p>
+      </article>
+    </div>
+    <div class="except rise" style="--i:3"><b>통보 예외</b><span>미리 의사의 동의를 받은 경우</span><span>·</span><span>처방전에 적힌 전화·팩스번호가 사실과 다른 경우 등 (보건복지부령)</span></div>
+    <p class="hand rise" style="--i:4">바뀐 것은 ‘알릴지 말지’가 아니라 ‘어떻게 알리느냐’!</p>
+  </div>
+  <div class="notes">약사에게는 두 가지 알림 의무가 있습니다. 환자에게는 즉시, 처방 의사에게는 1일 이내, 부득이하면 3일 이내입니다. 이번 전산화는 의무 자체가 아니라 의사에게 알리는 방법을 바꾼 것입니다.</div>
+</section>
+
+<!-- 5 · Before / After -->
+<section class="slide" data-title="PART 02 · 무엇이 바뀌었나">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 02 · 시스템</p><h2 class="h2">무엇이 바뀌었나: <em>통보 수단의 전산화</em></h2></div>
+    <div class="ba">
+      <article class="side old rise" style="--i:1">
+        <div class="head-s"><span class="tag g">기존</span></div>
+        <div class="art" data-scene="phonefax" aria-label="전화기와 팩스 3D 일러스트"></div>
+        <div style="display:grid;gap:8px"><h3>전화 · 팩스</h3>
+        <ul><li>처방전에 적힌 번호를 찾아 직접 연락</li><li>통화 중·번호 오류면 다시 시도</li><li>통보 기록은 약국마다 따로 보관</li></ul></div>
+      </article>
+      <div class="ba-arrow rise" style="--i:2"><span>→</span></div>
+      <article class="side new rise" style="--i:3">
+        <div class="head-s"><span class="tag o">변경 후 · 2026.02.02</span></div>
+        <div class="art" data-scene="monitor-big" aria-label="심평원 정보시스템 화면의 3D 모니터"></div>
+        <div style="display:grid;gap:8px"><h3>심평원 정보시스템</h3>
+        <ul><li>시스템에서 대체조제 내용을 입력·전송</li><li>통보 이력이 전산으로 남음</li><li>의료기관은 시스템에서 확인</li></ul></div>
+      </article>
+    </div>
+    <div class="ba-foot rise" style="--i:4"><span class="ok"><i>✓</i>통보 절차 간소화</span><span class="ok"><i>✓</i>약국 업무 부담 감소</span><span class="hand" style="margin-left:auto">통보가 쉬워지면 대체조제도 쉬워진다</span></div>
+  </div>
+  <div class="notes">예전에는 약사가 처방전의 번호를 보고 전화나 팩스로 일일이 알려야 했습니다. 이제는 심평원 정보시스템으로 통보할 수 있도록 수단이 확대되었습니다. 절차가 간소해지고 기록이 남으니 약국 입장에서 대체조제의 번거로움이 줄어듭니다.</div>
+</section>
+
+<!-- 6 · System flow -->
+<section class="slide" data-title="PART 02 · 시스템 연결 구조">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 02 · 시스템</p><h2 class="h2">시스템은 이렇게 연결됩니다</h2></div>
+    <div class="flow-art art rise" style="--i:1" data-scene="flow" aria-label="약국에서 심평원 서버를 거쳐 병원으로 데이터가 흐르는 3D 다이어그램"></div>
+    <div class="flow-labels">
+      <article class="fl rise" style="--i:2"><span class="k">SEND</span><h3>약국</h3><p>대체조제 내용을 시스템에 입력·전송</p></article>
+      <article class="fl mid rise" style="--i:3"><span class="k">RECORD</span><h3>심평원 정보시스템</h3><p>통보 내역 수신 및 전산 기록</p></article>
+      <article class="fl rise" style="--i:4"><span class="k">CHECK</span><h3>의료기관 · 처방 의사</h3><p>대체조제 내역을 시스템에서 확인</p></article>
+    </div>
+    <div class="band rise" style="--i:5"><strong>대체조제 한 건 한 건이 <em>전산 기록</em>으로 남습니다.</strong><span>통보 부담이 줄어든 만큼 약국의 대체조제 문턱도 낮아질 수 있습니다.</span></div>
+  </div>
+  <div class="notes">구조는 단순합니다. 약국이 입력하고, 심평원 시스템이 받아 기록하고, 처방한 의료기관이 확인합니다. 중요한 점은 통보가 전화 한 통으로 사라지지 않고 기록으로 남는다는 것입니다.</div>
+</section>
+
+<!-- 7 · Pharmacy process -->
+<section class="slide" data-title="PART 03 · 약국 업무 프로세스">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 03 · 업무 프로세스</p><h2 class="h2">약국의 대체조제 업무 프로세스</h2></div>
+    <div class="steps">
+      <article class="step rise" style="--i:1"><div class="ico art" data-scene="doc"></div><span class="no">STEP 1</span><h3>처방전 접수</h3><p>처방 의약품과 ‘대체조제 불가’ 표시 확인</p></article>
+      <article class="step touch rise" style="--i:2"><span class="tag o">영업 접점</span><div class="ico art" data-scene="boxes"></div><span class="no">STEP 2</span><h3>대체 가능 판단</h3><p>생동 인정 품목 여부와 약국 재고 확인</p></article>
+      <article class="step rise" style="--i:3"><div class="ico art" data-scene="swap"></div><span class="no">STEP 3</span><h3>대체조제</h3><p>성분·함량·제형이 같은 의약품으로 조제</p></article>
+      <article class="step rise" style="--i:4"><div class="ico art" data-scene="person"></div><span class="no">STEP 4</span><h3>환자 고지</h3><p>대체한 내용을 환자에게 즉시 안내</p></article>
+      <article class="step sys rise" style="--i:5"><span class="tag n">전산화</span><div class="ico art" data-scene="monitor"></div><span class="no">STEP 5</span><h3>시스템 통보</h3><p>심평원 정보시스템으로 1일(부득이 3일) 이내</p></article>
+      <article class="step rise" style="--i:6"><div class="ico art" data-scene="hospital"></div><span class="no">STEP 6</span><h3>의료기관 확인</h3><p>처방 의사가 대체조제 내역 확인</p></article>
+    </div>
+    <div class="callout rise" style="--i:7"><span class="tag o">KEY</span><p><b>STEP 2에서 약국 선반에 우리 제품이 있어야 선택됩니다.</b> 재고가 없으면 대체 후보에도 오르지 못합니다.</p></div>
+  </div>
+  <div class="notes">약국 안에서는 여섯 단계로 처리됩니다. 전산화로 바뀐 곳은 다섯 번째 통보 단계입니다. 영업이 개입할 수 있는 곳은 두 번째, 대체 가능 여부와 재고를 확인하는 순간입니다. 이때 우리 제품이 재고에 있어야 선택지에 오릅니다.</div>
+</section>
+
+<!-- 8 · Compare -->
+<section class="slide" data-title="PART 03 · 기존 vs 전산 비교">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 03 · 업무 프로세스</p><h2 class="h2">기존 방식과 전산 방식, <em>한눈에 비교</em></h2></div>
+    <div class="tbl-wrap rise" style="--i:1">
+      <table>
+        <thead><tr><th scope="col">구분</th><th scope="col">기존 · 전화/팩스</th><th scope="col" class="new">전산 · 심평원 정보시스템</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">통보 방법</th><td class="old">처방전에 적힌 번호로 전화·팩스</td><td class="new">시스템에 입력해 전송</td></tr>
+          <tr><th scope="row">통보 기한</th><td class="old">1일 이내 (부득이한 사유 3일)</td><td class="new">동일 · 기한은 바뀌지 않음</td></tr>
+          <tr><th scope="row">기록 관리</th><td class="old">약국별 개별 보관</td><td class="new">전산 이력으로 관리</td></tr>
+          <tr><th scope="row">의료기관 확인</th><td class="old">팩스 수신·전화 응대</td><td class="new">시스템에서 조회</td></tr>
+          <tr><th scope="row">약국 업무</th><td class="old">수작업, 번호 오류 시 재시도</td><td class="new">입력 절차로 간소화</td></tr>
+          <tr class="key"><th scope="row">영업 영향</th><td class="old">통보 번거로움이 대체조제를 막는 요인</td><td class="new">대체조제 활성화 가능성 ↑ · 약국 선택이 매출을 좌우</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hand rise" style="--i:2">의무와 기한은 그대로, 방법만 쉬워졌습니다</p>
+  </div>
+  <div class="notes">표로 정리하면 통보 기한과 의무는 그대로이고 방법과 기록 방식이 바뀌었습니다. 마지막 줄이 우리에게 중요한 부분입니다. 통보가 귀찮아서 대체조제를 피하던 이유가 줄어듭니다.</div>
+</section>
+
+<!-- 9 · Why -->
+<section class="slide" data-title="PART 03 · 왜 중요한가">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 03 · 시장 영향</p><h2 class="h2">왜 영업이 바뀌어야 하나</h2></div>
+    <div class="impact">
+      <article class="card imp rise" style="--i:1"><div class="ico art" data-scene="bars"></div><span class="k">IMPACT 01</span><h3>대체조제 <em>증가 가능성</em></h3><p>통보 부담이 줄면서 제네릭 사용이 늘어날 수 있습니다. 약국 현장의 변화와 제품 취급 상황을 계속 확인해야 합니다.</p></article>
+      <article class="card imp rise" style="--i:2"><div class="ico art" data-scene="people"></div><span class="k">IMPACT 02</span><h3>동일성분 <em>경쟁 심화</em></h3><p>약사의 선택 폭이 넓어질수록 같은 성분 제품끼리 경쟁이 치열해집니다. 차별점을 분명히 전달해야 합니다.</p></article>
+      <article class="card imp rise" style="--i:3"><div class="ico art" data-scene="pharmacy"></div><span class="k">IMPACT 03</span><h3>약국 영향력 <em>확대</em></h3><p>처방 이후 ‘조제 단계’에서 제품이 결정되는 비중이 커집니다. 약국과의 관계 관리가 중요해집니다.</p></article>
+    </div>
+    <div class="band rise" style="--i:4"><strong>처방(병원)에서 끝나던 경쟁이 <em>조제(약국)</em> 단계로 넘어옵니다.</strong><span>영업의 시야를 처방 이후, 약국까지 넓혀야 합니다.</span></div>
+  </div>
+  <div class="notes">시장에는 세 가지 변화가 예상됩니다. 대체조제가 늘 수 있고, 같은 성분끼리 경쟁이 세지고, 약국의 영향력이 커집니다. 결국 처방에서 끝나던 경쟁이 약국 조제 단계까지 이어집니다.</div>
+</section>
+
+<!-- 10 · Dealer cycle -->
+<section class="slide" data-title="PART 04 · 딜러의 약국 관리 프로세스">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 04 · 영업 대응</p><h2 class="h2">딜러의 <em>약국 관리 프로세스</em></h2></div>
+    <div class="cycle">
+      <article class="card cy rise" style="--i:1"><div class="ico art" data-scene="calendar-plain"></div><h3>방문 주기 관리</h3><p>처방 유입 규모별로 약국을 나누고 정기 방문 일정을 고정</p><div class="chk">이번 달 방문 누락 약국</div></article>
+      <article class="card cy rise" style="--i:2"><div class="ico art" data-scene="talk"></div><h3>약사 관계 강화</h3><p>제도 변화 안내와 문의 대응으로 신뢰를 쌓고 꾸준히 소통</p><div class="chk">시스템 사용 불편 청취</div></article>
+      <article class="card cy rise" style="--i:3"><div class="ico art" data-scene="boxes"></div><h3>재고 모니터링</h3><p>제품별 재고와 유통기한을 확인해 적정 재고 유지, 품절 예방</p><div class="chk">대체 수요 품목 재고</div></article>
+      <article class="card cy rise" style="--i:4"><div class="ico art" data-scene="shield"></div><h3>제품 차별점 어필</h3><p>품질·안전성·유통 안정성을 근거와 함께 명확히 전달</p><div class="chk">경쟁품 대비 강점 자료</div></article>
+      <article class="card cy rise" style="--i:5"><div class="ico art" data-scene="target"></div><h3>약국 맞춤형 마케팅</h3><p>약국별 니즈에 맞는 정보와 혜택을 골라 제안</p><div class="chk">약국별 제안 이력 기록</div></article>
+    </div>
+    <p class="loop rise" style="--i:6">방문할 때마다 다섯 단계를 반복합니다. 한 번의 안내로 끝나지 않습니다.</p>
+  </div>
+  <div class="notes">현장 대응은 다섯 단계를 반복하는 사이클입니다. 방문 주기를 정하고, 약사와 관계를 쌓고, 재고를 확인하고, 차별점을 전하고, 약국에 맞는 제안을 합니다. 각 카드 아래 CHECK는 방문 때 바로 확인할 항목입니다.</div>
+</section>
+
+<!-- 11 · Checklist -->
+<section class="slide" data-title="PART 04 · 약국 방문 체크리스트">
+  <div class="sl">
+    <div class="head rise"><p class="eyebrow">Part 04 · 영업 대응</p><h2 class="h2">약국 방문 <em>체크리스트</em></h2></div>
+    <div class="checks">
+      <fieldset class="cl rise" style="--i:1;border:1px solid var(--line);margin:0"><h3>방문 전 <small>BEFORE</small></h3>
+        <label><input type="checkbox" id="c1"><span>인근 병원의 처방 품목과 동일성분 경쟁품 파악</span></label>
+        <label><input type="checkbox" id="c2"><span>지난 방문 기록과 미결 요청 사항 확인</span></label>
+        <label><input type="checkbox" id="c3"><span>생동 인정 품목·제품 차별점 자료 준비</span></label>
+      </fieldset>
+      <fieldset class="cl rise" style="--i:2;border:1px solid var(--line);margin:0"><h3>방문 중 <small>DURING</small></h3>
+        <label><input type="checkbox" id="c4"><span>제품별 재고·유통기한 확인</span></label>
+        <label><input type="checkbox" id="c5"><span>사후통보 시스템 사용 여부와 불편 사항 청취</span></label>
+        <label><input type="checkbox" id="c6"><span>약국 니즈에 맞는 제품 정보·혜택 안내</span></label>
+      </fieldset>
+      <fieldset class="cl rise" style="--i:3;border:1px solid var(--line);margin:0"><h3>방문 후 <small>AFTER</small></h3>
+        <label><input type="checkbox" id="c7"><span>주문·품절 요청에 빠르게 대응</span></label>
+        <label><input type="checkbox" id="c8"><span>상담 내용과 제안 이력 기록</span></label>
+        <label><input type="checkbox" id="c9"><span>다음 방문 일정 확정</span></label>
+      </fieldset>
+    </div>
+    <div class="meter rise" style="--i:4"><span>완료</span><div class="bar"><i id="meterBar"></i></div><output id="meterOut">0 / 9</output><button class="chip" type="button" id="resetChecks">초기화</button></div>
+    <p class="hand rise" style="--i:5">항목을 눌러 체크해 보세요. 현장에서 그대로 쓰는 리스트입니다</p>
+  </div>
+  <div class="notes">방문 전, 중, 후로 나눈 아홉 가지 체크리스트입니다. 화면에서 직접 체크할 수 있고, 체크 상태는 보는 사람의 브라우저에만 저장됩니다.</div>
+</section>
+
+<!-- 12 · Closing -->
+<section class="slide s-close" data-title="마무리 · 핵심 메시지">
+  <div class="sl">
+    <div class="close-grid">
+      <div class="close-msg">
+        <p class="eyebrow rise">The core message</p>
+        <h2 class="rise" style="--i:1">병원 처방이 끝이 아닙니다.<br><em>약국까지 관리하는 딜러</em>가<br>매출을 지킵니다.</h2>
+        <p class="rise" style="--i:2">통보는 쉬워졌고, 선택은 약국에서 일어납니다. 처방 이후 조제 단계까지 바라보며 약국 파트너십을 강화해 주세요.</p>
+      </div>
+      <div class="close-art art rise" style="--i:2" data-scene="podium" aria-label="상승 그래프와 과녁이 놓인 3D 단상"></div>
+    </div>
+    <div class="ka rise" style="--i:3">
+      <div class="lbl">KEY<br>ACTIONS</div>
+      <div><span class="n">01</span><h3>변화 이해</h3><p>사후통보 전산화의 의미 파악</p></div>
+      <div><span class="n">02</span><h3>현장 적용</h3><p>약국 중심 방문·재고 관리 실행</p></div>
+      <div><span class="n">03</span><h3>성과 창출</h3><p>조제 채널 관리로 매출 확대</p></div>
+      <div><span class="n">04</span><h3>지속 성장</h3><p>파트너십 기반 동반 성장</p></div>
+    </div>
+  </div>
+  <div class="notes">정리하면, 통보가 쉬워진 만큼 선택은 약국에서 일어납니다. 병원 처방에서 멈추지 말고 약국까지 관리하는 딜러가 매출을 지킵니다. 변화 이해, 현장 적용, 성과 창출, 지속 성장 순서로 실행해 주세요.</div>
+</section>
+
+</div>
+
+<nav class="controls" aria-label="슬라이드 이동">
+  <button class="btn" type="button" id="prev" aria-label="이전 슬라이드">←</button>
+  <span class="count" id="count"><b>01</b> / 12</span>
+  <button class="btn" type="button" id="next" aria-label="다음 슬라이드">→</button>
+  <div class="dots" id="dots"></div>
+  <span class="ctitle" id="ctitle"></span>
+  <span class="hint">← → 이동 · N 발표 노트</span>
+  <button class="btn" type="button" id="notesBtn" aria-pressed="false">발표 노트</button>
+  <button class="btn" type="button" id="fsBtn">전체 화면</button>
+</nav>
+<aside class="notes-panel" id="notesPanel" aria-live="polite"><h4>SPEAKER NOTES</h4><p id="notesText"></p></aside>
+</div>
+
+<script>
+/* ================= isometric 3D engine ================= */
+const C30 = Math.cos(Math.PI / 6);
+const P = (x, y, z = 0) => [(x - y) * C30, (x + y) * 0.5 - z];
+const COL = {navy:'#16397A', deep:'#0B2350', blue:'#3D7FD9', sky:'#CFE0F7', white:'#F4F8FE', orange:'#F2622E', peach:'#FFB48F', grey:'#C3CEDD', skin:'#F3CBAA', gold:'#FFC857', card:'#E9B07F'};
+function mix(hex, amt) {
+  const n = parseInt(hex.slice(1), 16), t = amt < 0 ? 0 : 255, p = Math.abs(amt);
+  const ch = v => Math.round(v + (t - v) * p);
+  return `rgb(${ch(n >> 16)},${ch(n >> 8 & 255)},${ch(n & 255)})`;
+}
+let UID = 0;
+class Scene {
+  constructor() { this.out = []; this.defs = []; this.b = [1e9, 1e9, -1e9, -1e9]; this.gc = {}; }
+  grow(X, Y) { const b = this.b; b[0] = Math.min(b[0], X); b[1] = Math.min(b[1], Y); b[2] = Math.max(b[2], X); b[3] = Math.max(b[3], Y); }
+  pts(a) { a.forEach(([X, Y]) => this.grow(X, Y)); return a.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '); }
+  poly(a, fill, extra = '') { this.out.push(`<polygon points="${this.pts(a)}" fill="${fill}" stroke="${fill}" stroke-width=".7" stroke-linejoin="round" ${extra}/>`); }
+  open(cls) { this.out.push(`<g${cls ? ` class="${cls}"` : ''}>`); }
+  close() { this.out.push('</g>'); }
+  box(x, y, z, w, d, h, col, o = {}) {
+    this.open(o.cls);
+    this.poly([P(x, y + d, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x, y + d, z + h)], mix(col, o.l ?? 0));
+    this.poly([P(x + w, y, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x + w, y, z + h)], mix(col, o.r ?? -0.2));
+    this.poly([P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)], mix(col, o.t ?? 0.3));
+    if (!o.keep) this.close();
+  }
+  /* draw flat content onto a face, in face-local units (u → right, v → down) */
+  faceL(x, y, z, svg) { const [X, Y] = P(x, y, z); this.out.push(`<g transform="matrix(${C30},.5,0,1,${X.toFixed(1)},${Y.toFixed(1)})">${svg}</g>`); }
+  faceR(x, y, z, svg) { const [X, Y] = P(x, y, z); this.out.push(`<g transform="matrix(${C30},-.5,0,1,${X.toFixed(1)},${Y.toFixed(1)})">${svg}</g>`); }
+  faceT(x, y, z, svg) { const [X, Y] = P(x, y, z); this.out.push(`<g transform="matrix(${C30},.5,${-C30},.5,${X.toFixed(1)},${Y.toFixed(1)})">${svg}</g>`); }
+  grad(col) {
+    if (this.gc[col]) return this.gc[col];
+    const id = 'g' + (++UID);
+    this.defs.push(`<linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="${mix(col, .18)}"/><stop offset=".45" stop-color="${col}"/><stop offset="1" stop-color="${mix(col, -.32)}"/></linearGradient>`);
+    return this.gc[col] = id;
+  }
+  cyl(cx, cy, z, r, h, col, cls) {
+    const [X, Y0] = P(cx, cy, z), Y1 = Y0 - h, rx = 1.2247 * r, ry = .7071 * r, g = this.grad(col);
+    this.grow(X - rx, Y1 - ry); this.grow(X + rx, Y0 + ry);
+    this.out.push(`<g${cls ? ` class="${cls}"` : ''}><ellipse cx="${X}" cy="${Y0}" rx="${rx}" ry="${ry}" fill="url(#${g})"/><rect x="${X - rx}" y="${Y1}" width="${2 * rx}" height="${h}" fill="url(#${g})"/><ellipse cx="${X}" cy="${Y1}" rx="${rx}" ry="${ry}" fill="${mix(col, .32)}"/></g>`);
+  }
+  sphere(cx, cy, z, r, col, cls) {
+    const [X, Y] = P(cx, cy, z + r), id = 'r' + (++UID);
+    this.defs.push(`<radialGradient id="${id}" cx=".38" cy=".32" r=".75"><stop offset="0" stop-color="${mix(col, .6)}"/><stop offset=".5" stop-color="${col}"/><stop offset="1" stop-color="${mix(col, -.38)}"/></radialGradient>`);
+    this.grow(X - r, Y - r); this.grow(X + r, Y + r);
+    this.out.push(`<circle${cls ? ` class="${cls}"` : ''} cx="${X}" cy="${Y}" r="${r}" fill="url(#${id})"/>`);
+  }
+  shadow(cx, cy, z, r, op = .2) {
+    const [X, Y] = P(cx, cy, z), id = 's' + (++UID);
+    this.defs.push(`<radialGradient id="${id}"><stop offset="0" stop-color="#0A1F45" stop-opacity="${op}"/><stop offset="1" stop-color="#0A1F45" stop-opacity="0"/></radialGradient>`);
+    this.out.push(`<ellipse cx="${X}" cy="${Y}" rx="${r * 1.35}" ry="${r * .78}" fill="url(#${id})"/>`);
+  }
+  raw(svg, x0, y0, x1, y1) { this.grow(x0, y0); this.grow(x1, y1); this.out.push(svg); }
+  person(x, y, z, col, s = 1) {
+    this.shadow(x, y, z, 16 * s, .22);
+    this.cyl(x, y, z, 13 * s, 26 * s, col);
+    this.sphere(x, y, z + 28 * s, 11 * s, COL.skin);
+  }
+  capsule(X, Y, len, rad, ang, a, b, cls) {
+    const id = 'c' + (++UID);
+    this.defs.push(`<linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(a, .45)}"/><stop offset=".5" stop-color="${a}"/><stop offset="1" stop-color="${mix(a, -.35)}"/></linearGradient><linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="${b}"/><stop offset="1" stop-color="${mix(b, -.25)}"/></linearGradient>`);
+    const h = len / 2;
+    const svg = `<g${cls ? ` class="${cls}"` : ''}><g transform="translate(${X},${Y}) rotate(${ang})">
+      <ellipse cx="0" cy="${rad * 1.9}" rx="${h + rad * .6}" ry="${rad * .45}" fill="#0A1F45" opacity=".14"/>
+      <path d="M0,${-rad} H${-h + rad} A${rad},${rad} 0 0 0 ${-h + rad},${rad} H0 Z" fill="url(#${id}a)"/>
+      <path d="M0,${-rad} H${h - rad} A${rad},${rad} 0 0 1 ${h - rad},${rad} H0 Z" fill="url(#${id}b)"/>
+      <rect x="${-h + rad * .6}" y="${-rad * .62}" width="${len - rad * 1.2}" height="${rad * .28}" rx="${rad * .14}" fill="#fff" opacity=".55"/>
+      <line x1="0" y1="${-rad}" x2="0" y2="${rad}" stroke="${mix(a, -.3)}" stroke-width="1"/></g></g>`;
+    const e = h + rad;
+    this.raw(svg, X - e, Y - e, X + e, Y + e);
+  }
+  svg(pad = 8) {
+    const [x0, y0, x1, y1] = this.b, w = x1 - x0 + pad * 2, h = y1 - y0 + pad * 2;
+    return `<svg viewBox="${(x0 - pad).toFixed(1)} ${(y0 - pad).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-hidden="true"><defs>${this.defs.join('')}</defs>${this.out.join('')}</svg>`;
+  }
+}
+const lines = (rows, fill = COL.sky) => rows.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(2, h / 2)}" fill="${fill}"/>`).join('');
+const checkMark = (cx, cy, r, bg = COL.deep) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${bg}"/><path d="M${cx - r * .45},${cy + r * .02} l${r * .32},${r * .32} l${r * .6},${-r * .62}" fill="none" stroke="#fff" stroke-width="${r * .22}" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+/* ---- reusable 3D parts ---- */
+function monitor(s, x, y, z, w, h, screen, o = {}) {
+  const cx = x + w / 2;
+  s.shadow(cx, y + 8, z, w * .32, .22);
+  s.box(cx - w * .2, y - 6, z, w * .4, 26, 4, COL.deep, {t: .25});
+  s.box(cx - 5, y + 2, z + 4, 10, 8, h * .42, COL.navy);
+  s.box(x, y - 4, z + h * .36, w, 10, h, COL.deep, {l: .08, r: -.25, t: .35, cls: o.cls, keep: true});
+  s.faceL(x, y + 6, z + h * 1.36, screen);
+  s.close();
+}
+function screenUI(w, h, title) {
+  const m = w * .045;
+  return `<rect x="${m}" y="${m}" width="${w - 2 * m}" height="${h - 2 * m}" rx="3" fill="#F7FAFF"/>
+    <rect x="${m}" y="${m}" width="${w - 2 * m}" height="${h * .17}" rx="3" fill="${COL.blue}"/>
+    <text x="${m * 2.2}" y="${m + h * .125}" font-size="${h * .1}" font-weight="700" fill="#fff">${title}</text>
+    ${checkMark(w * .24, h * .56, h * .17)}
+    ${lines([[w * .42, h * .4, w * .44, h * .065], [w * .42, h * .53, w * .34, h * .065], [w * .42, h * .66, w * .4, h * .065]])}
+    <rect x="${w * .66}" y="${h * .76}" width="${w * .24}" height="${h * .1}" rx="${h * .05}" fill="${COL.orange}"/>
+    <text x="${w * .78}" y="${h * .835}" font-size="${h * .065}" font-weight="700" fill="#fff" text-anchor="middle">통보 완료</text>`;
+}
+function building(s, x, y, z, w, d, h, kind) {
+  s.shadow(x + w / 2, y + d / 2, z, w * .55, .2);
+  s.box(x, y, z, w, d, h, COL.white, {l: -.03, r: -.13, t: .2});
+  const roof = kind === 'pharmacy' ? COL.orange : COL.blue;
+  s.box(x - 4, y - 4, z + h, w + 8, d + 8, 7, roof, {t: .22});
+  const win = (n, cols, ww, top, gapx, gapy, wh) => { let r = ''; for (let i = 0; i < n; i++) { const c = i % cols, rw = Math.floor(i / cols); r += `<rect x="${gapx + c * (ww + gapx)}" y="${top + rw * (wh + gapy)}" width="${ww}" height="${wh}" rx="1.2" fill="${COL.blue}" opacity=".45"/>`; } return r; };
+  if (kind === 'pharmacy') {
+    s.faceL(x, y + d, z + h, `<rect x="${w * .12}" y="${h * .1}" width="${w * .76}" height="${h * .24}" rx="2" fill="${COL.navy}"/><text x="${w / 2}" y="${h * .275}" font-size="${h * .16}" font-weight="700" fill="#fff" text-anchor="middle">약국</text><rect x="${w * .36}" y="${h * .5}" width="${w * .28}" height="${h * .5}" rx="1.5" fill="${COL.sky}"/><rect x="${w * .08}" y="${h * .5}" width="${w * .2}" height="${h * .22}" rx="1.2" fill="${COL.blue}" opacity=".45"/><rect x="${w * .72}" y="${h * .5}" width="${w * .2}" height="${h * .22}" rx="1.2" fill="${COL.blue}" opacity=".45"/>`);
+    s.faceR(x + w, y + d, z + h, win(4, 2, d * .3, h * .2, d * .13, h * .12, h * .2));
+  } else {
+    const cw = w * .16;
+    s.faceL(x, y + d, z + h, `<rect x="${w / 2 - cw / 2}" y="${h * .08}" width="${cw}" height="${cw * 3}" rx="1.5" fill="${COL.orange}"/><rect x="${w / 2 - cw * 1.5}" y="${h * .08 + cw}" width="${cw * 3}" height="${cw}" rx="1.5" fill="${COL.orange}"/>${win(4, 2, w * .3, h * .52, w * .13, h * .08, h * .14).replace(/x="/g, 'x="')}<rect x="${w * .38}" y="${h * .82}" width="${w * .24}" height="${h * .18}" fill="${COL.sky}"/>`);
+    s.faceR(x + w, y + d, z + h, win(9, 3, d * .2, h * .1, d * .1, h * .1, h * .18));
+  }
+}
+function server(s, cx, cy, z) {
+  s.shadow(cx, cy, z, 36, .22);
+  for (let i = 0; i < 3; i++) {
+    const zz = z + i * 22;
+    s.box(cx - 28, cy - 28, zz, 56, 56, 18, COL.deep, {l: .1, r: -.2, t: .3});
+    s.faceL(cx - 28, cy + 28, zz + 18, `<rect x="6" y="6" width="26" height="4" rx="2" fill="${COL.sky}" opacity=".5"/><circle cx="42" cy="8" r="2.6" fill="${i === 1 ? COL.orange : '#6FD39B'}" class="pulse"/><circle cx="49" cy="8" r="2.6" fill="${COL.blue}"/>`);
+    s.faceR(cx + 28, cy + 28, zz + 18, `<rect x="6" y="6" width="44" height="3" rx="1.5" fill="${COL.sky}" opacity=".35"/><rect x="6" y="11" width="30" height="3" rx="1.5" fill="${COL.sky}" opacity=".25"/>`);
+  }
+  s.sphere(cx, cy, z + 70, 9, COL.orange, 'float');
+}
+
+/* ---- scenes ---- */
+const SCENES = {
+  hero() {
+    const s = new Scene();
+    s.box(0, 0, 0, 300, 300, 16, '#DCE6F4', {t: .45, l: -.02, r: -.12});
+    building(s, 225, 30, 16, 60, 60, 70, 'pharmacy');
+    building(s, 30, 225, 16, 60, 60, 100, 'hospital');
+    monitor(s, 72, 150, 16, 156, 100, screenUI(156, 100, '심평원 정보시스템'));
+    const A = P(250, 60, 100), M = P(150, 150, 196), B = P(60, 255, 132);
+    s.raw(`<path class="flowline" d="M${A} Q${(A[0] + M[0]) / 2 + 10},${Math.min(A[1], M[1]) - 50} ${M} Q${(M[0] + B[0]) / 2 - 10},${Math.min(M[1], B[1]) - 50} ${B}" fill="none" stroke="${COL.orange}" stroke-width="2.4" stroke-linecap="round"/>`, A[0], M[1] - 60, B[0], B[1]);
+    s.box(190, 90, 210, 12, 12, 12, COL.orange, {cls: 'float'});
+    s.box(96, 196, 205, 12, 12, 12, COL.blue, {cls: 'float d2'});
+    const c = P(285, 140, 140); s.capsule(c[0] + 18, c[1] - 30, 54, 13, -28, COL.orange, '#FFFFFF', 'float d3');
+    s.sphere(10, 140, 150, 9, COL.peach, 'float d2');
+    return s.svg(14);
+  },
+  doc() {
+    const s = new Scene();
+    s.shadow(32, 42, 0, 44, .2);
+    s.box(0, 0, 0, 64, 84, 6, COL.white, {t: .1, r: -.18, l: -.06, keep: true});
+    s.faceT(0, 0, 6, `<text x="8" y="22" font-size="17" font-weight="700" fill="${COL.navy}">Rx</text>${lines([[8, 32, 46, 4], [8, 42, 36, 4], [8, 52, 42, 4]], COL.grey)}<circle cx="48" cy="70" r="7" fill="${COL.orange}" opacity=".9"/>`);
+    s.close();
+    s.cyl(56, 10, 6, 5, 24, COL.orange, 'float');
+    return s.svg(6);
+  },
+  monitor() {
+    const s = new Scene();
+    monitor(s, 0, 0, 0, 92, 60, screenUI(92, 60, '정보시스템'));
+    return s.svg(6);
+  },
+  'monitor-big'() {
+    const s = new Scene();
+    s.box(-30, -40, -12, 190, 120, 12, '#2A4E8F', {t: .2, l: -.05, r: -.25});
+    monitor(s, 0, 0, 0, 130, 84, screenUI(130, 84, '심평원 정보시스템'));
+    s.box(120, -26, 150, 12, 12, 12, COL.orange, {cls: 'float'});
+    s.box(-10, 50, 120, 10, 10, 10, COL.sky, {cls: 'float d2'});
+    return s.svg(8);
+  },
+  phonefax() {
+    const s = new Scene();
+    s.box(-20, -20, -10, 210, 120, 10, '#E3E9F2', {t: .4, r: -.12});
+    // fax
+    s.shadow(45, 40, 0, 48, .2);
+    s.box(15, -12, 26, 54, 8, 36, '#FFFFFF', {t: 0, l: -.03, r: -.1});
+    s.box(0, 0, 0, 90, 70, 30, '#DCE3EE', {t: .3, keep: true});
+    s.faceT(0, 0, 30, `<rect x="56" y="12" width="26" height="14" rx="2" fill="#9FB0C8"/>${lines([[58, 34, 6, 6], [68, 34, 6, 6], [58, 44, 6, 6], [68, 44, 6, 6]], '#B7C3D4')}`);
+    s.faceL(0, 70, 30, `<rect x="16" y="8" width="58" height="5" rx="2" fill="#7F90AA"/>`);
+    s.close();
+    // phone
+    s.shadow(140, 40, 0, 36, .2);
+    s.box(110, 14, 0, 60, 52, 14, '#DCE3EE', {t: .3, keep: true});
+    s.faceT(110, 14, 14, lines([[30, 8, 7, 6], [40, 8, 7, 6], [50, 8, 7, 6], [30, 18, 7, 6], [40, 18, 7, 6], [50, 18, 7, 6], [30, 28, 7, 6], [40, 28, 7, 6], [50, 28, 7, 6]], '#AAB8CB'));
+    s.close();
+    s.box(112, 16, 14, 14, 48, 8, '#8E9DB4');
+    s.box(108, 14, 22, 22, 12, 7, '#8E9DB4');
+    s.box(108, 52, 22, 22, 12, 7, '#8E9DB4');
+    return s.svg(8);
+  },
+  pharmacy() {
+    const s = new Scene();
+    building(s, 0, 0, 0, 60, 60, 62, 'pharmacy');
+    s.sphere(64, -6, 70, 7, COL.orange, 'float');
+    return s.svg(6);
+  },
+  hospital() {
+    const s = new Scene();
+    building(s, 0, 0, 0, 58, 58, 80, 'hospital');
+    return s.svg(6);
+  },
+  person() {
+    const s = new Scene();
+    s.person(0, 0, 0, COL.navy, 1.25);
+    const [X, Y] = P(0, 0, 66);
+    s.raw(`<g class="float"><rect x="${X + 10}" y="${Y - 26}" width="46" height="24" rx="8" fill="${COL.orange}"/><path d="M${X + 18},${Y - 3} l-6,9 l14,-9 z" fill="${COL.orange}"/><text x="${X + 33}" y="${Y - 9.5}" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">대체 안내</text></g>`, X - 20, Y - 30, X + 58, Y + 10);
+    return s.svg(6);
+  },
+  calendar(plain) {
+    const s = new Scene();
+    s.shadow(40, 10, 0, 44, .2);
+    s.box(0, 0, 0, 80, 10, 74, COL.white, {l: 0, r: -.15, t: .1, keep: true});
+    let grid = ''; for (let i = 0; i < 12; i++) { const c = i % 4, r = Math.floor(i / 4); grid += `<rect x="${8 + c * 17}" y="${30 + r * 13}" width="12" height="9" rx="1.5" fill="${!plain && i === 1 ? COL.orange : (plain && (i === 2 || i === 9) ? COL.orange : COL.sky)}"/>`; }
+    s.faceL(0, 10, 74, `<rect width="80" height="20" fill="${COL.orange}"/>${plain ? grid : `<text x="40" y="58" font-size="34" font-weight="700" fill="${COL.navy}" text-anchor="middle" font-family="Black Han Sans, sans-serif">1일</text>`}`);
+    s.close();
+    s.cyl(20, 4, 74, 3.2, 10, COL.navy); s.cyl(60, 4, 74, 3.2, 10, COL.navy);
+    if (!plain) s.cyl(92, -10, 0, 9, 22, COL.orange, 'float');
+    return s.svg(6);
+  },
+  'calendar-plain'() { return SCENES.calendar(true); },
+  swap() {
+    const s = new Scene();
+    s.raw(`<ellipse cx="0" cy="40" rx="78" ry="14" fill="#0A1F45" opacity=".08"/>`, -80, 26, 80, 54);
+    s.capsule(-30, -8, 58, 14, -24, COL.orange, '#FFFFFF', 'float');
+    s.capsule(30, 18, 58, 14, -24, COL.blue, '#FFFFFF', 'float d2');
+    s.raw(`<path d="M-8,-34 C22,-44 46,-28 52,-8" fill="none" stroke="${COL.navy}" stroke-width="3.5" stroke-linecap="round"/><path d="M45,-14 L53,-5 L58,-16" fill="none" stroke="${COL.navy}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8,46 C-22,54 -46,40 -52,20" fill="none" stroke="${COL.navy}" stroke-width="3.5" stroke-linecap="round"/><path d="M-45,26 L-53,17 L-58,28" fill="none" stroke="${COL.navy}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`, -62, -46, 62, 56);
+    return s.svg(6);
+  },
+  boxes() {
+    const s = new Scene();
+    s.shadow(30, 30, 0, 50, .2);
+    const crate = (x, y, z, w, h, col) => { s.box(x, y, z, w, w, h, col, {t: .28, keep: true}); s.faceT(x, y, z + h, `<rect x="${w / 2 - 4}" y="0" width="8" height="${w}" fill="#fff" opacity=".45"/>`); s.close(); };
+    crate(0, 0, 0, 36, 28, COL.card);
+    crate(38, 4, 0, 32, 24, COL.card);
+    crate(6, 38, 0, 32, 22, COL.card);
+    crate(6, 4, 28, 30, 24, COL.orange);
+    s.raw('', 0, 0, 0, 0);
+    return s.svg(6);
+  },
+  shield() {
+    const s = new Scene();
+    const path = 'M0,-42 L34,-30 C34,4 22,28 0,42 C-22,28 -34,4 -34,-30 Z';
+    let layers = ''; for (let i = 8; i > 0; i--) layers += `<path d="${path}" transform="translate(${i * .9},${i * .9})" fill="${mix(COL.navy, -.25 + i * .01)}"/>`;
+    const id = 'sh' + (++UID);
+    s.defs.push(`<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(COL.blue, .25)}"/><stop offset="1" stop-color="${COL.navy}"/></linearGradient>`);
+    s.raw(`<ellipse cx="6" cy="56" rx="40" ry="8" fill="#0A1F45" opacity=".14"/>${layers}<path d="${path}" fill="url(#${id})"/><path d="M-22,-26 L0,-34 L0,30 C-14,20 -22,4 -22,-26Z" fill="#fff" opacity=".12"/>${checkMark(0, 0, 16, COL.orange)}`, -36, -44, 44, 64);
+    return s.svg(6);
+  },
+  bars() {
+    const s = new Scene();
+    s.box(-10, -10, 0, 128, 40, 8, '#DCE6F4', {t: .45, r: -.12});
+    [22, 36, 52, 74].forEach((h, i) => s.box(i * 27, 0, 8, 18, 18, h, i === 3 ? COL.orange : (i === 2 ? COL.blue : COL.sky), {t: .3, r: -.22}));
+    const a = P(0, 9, 48), b = P(98, 9, 110);
+    s.raw(`<path d="M${a} L${(a[0] + b[0]) / 2 - 6},${(a[1] + b[1]) / 2 + 4} L${(a[0] + b[0]) / 2 + 6},${(a[1] + b[1]) / 2 - 8} L${b}" fill="none" stroke="${COL.navy}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M${b[0] - 12},${b[1] - 1} L${b[0] + 2},${b[1] - 3} L${b[0] - 4},${b[1] + 11}" fill="none" stroke="${COL.navy}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`, a[0], b[1] - 6, b[0] + 4, a[1]);
+    return s.svg(6);
+  },
+  people() {
+    const s = new Scene();
+    s.person(0, -26, 0, COL.blue);
+    s.person(-26, 0, 0, COL.blue);
+    s.person(14, 14, 0, COL.orange, 1.15);
+    return s.svg(6);
+  },
+  talk() {
+    const s = new Scene();
+    s.person(-18, 10, 0, COL.navy);
+    s.person(14, -18, 0, COL.orange);
+    const [X, Y] = P(0, 0, 70);
+    s.raw(`<g class="float"><rect x="${X - 22}" y="${Y - 18}" width="44" height="22" rx="8" fill="${COL.white}" stroke="${COL.line || '#D8E1EE'}"/><path d="M${X - 6},${Y + 3} l-4,8 l12,-8z" fill="${COL.white}"/><circle cx="${X - 10}" cy="${Y - 7}" r="2.6" fill="${COL.navy}"/><circle cx="${X}" cy="${Y - 7}" r="2.6" fill="${COL.navy}"/><circle cx="${X + 10}" cy="${Y - 7}" r="2.6" fill="${COL.orange}"/></g>`, X - 24, Y - 20, X + 24, Y + 12);
+    return s.svg(6);
+  },
+  target() {
+    const s = new Scene();
+    s.shadow(0, 0, 0, 52, .2);
+    [[48, COL.white], [38, COL.orange], [28, COL.white], [18, COL.orange], [8, COL.navy]].forEach(([r, c], i) => s.cyl(0, 0, i * 6, r, 6, c));
+    const [X, Y] = P(0, 0, 30);
+    s.raw(`<line x1="${X + 4}" y1="${Y - 4}" x2="${X + 54}" y2="${Y - 54}" stroke="${COL.navy}" stroke-width="4" stroke-linecap="round"/><path d="M${X + 46},${Y - 66} l12,4 l4,12 l-10,-6z M${X + 58},${Y - 46} l-4,-12 l-12,-4 l6,10z" fill="${COL.orange}"/>`, X, Y - 70, X + 66, Y);
+    return s.svg(6);
+  },
+  flow() {
+    const s = new Scene();
+    const st = [[0, 0], [150, -150], [300, -300]];
+    st.forEach(([x, y]) => s.box(x - 50, y - 50, 0, 100, 100, 10, '#DFE8F5', {t: .45, l: -.02, r: -.12}));
+    for (let i = 0; i < 2; i++) {
+      const a = P(st[i][0] + 50, st[i][1] - 50, 30), b = P(st[i + 1][0] - 50, st[i + 1][1] + 50, 30);
+      const ax = P(st[i][0], st[i][1], 40), bx = P(st[i + 1][0], st[i + 1][1], 40);
+      s.raw(`<path d="M${ax[0] + 40},${ax[1] - 10} C${ax[0] + 80},${ax[1] - 60} ${bx[0] - 80},${bx[1] - 60} ${bx[0] - 40},${bx[1] - 10}" fill="none" stroke="${COL.orange}" stroke-width="3" class="flowline" stroke-linecap="round"/>`, a[0], ax[1] - 60, b[0], b[1]);
+      const m = P((st[i][0] + st[i + 1][0]) / 2, (st[i][1] + st[i + 1][1]) / 2, 64);
+      s.raw(`<g class="float${i ? ' d2' : ''}"><rect x="${m[0] - 22}" y="${m[1] - 14}" width="44" height="22" rx="6" fill="${i ? COL.navy : COL.orange}"/><text x="${m[0]}" y="${m[1] + 1.5}" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">${i ? '확인' : '전송'}</text></g>`, m[0] - 24, m[1] - 16, m[0] + 24, m[1] + 10);
+    }
+    building(s, -28, -28, 10, 56, 56, 58, 'pharmacy');
+    server(s, 150, -150, 10);
+    building(s, 272, -328, 10, 56, 56, 80, 'hospital');
+    return s.svg(10);
+  },
+  podium() {
+    const s = new Scene();
+    s.box(-20, -20, 0, 160, 160, 10, '#22447F', {t: .25, l: -.05, r: -.25});
+    [[0, 0, 30, COL.blue], [44, 0, 52, COL.sky], [88, 0, 80, COL.orange]].forEach(([x, y, h, c]) => s.box(x + 6, 50 + y, 10, 36, 36, h, c, {t: .3, r: -.22}));
+    s.cyl(30, 10, 10, 18, 8, COL.white);
+    s.cyl(30, 10, 18, 12, 6, COL.orange);
+    s.cyl(30, 10, 24, 6, 6, COL.white);
+    s.sphere(118, 60, 106, 12, COL.gold, 'float');
+    const a = P(10, 70, 60), b = P(118, 70, 140);
+    s.raw(`<path d="M${a} L${(a[0] + b[0]) / 2},${(a[1] + b[1]) / 2 - 6} L${b}" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="flowline"/>`, a[0], b[1], b[0], a[1]);
+    return s.svg(10);
+  }
+};
+document.querySelectorAll('[data-scene]').forEach(el => {
+  const f = SCENES[el.dataset.scene];
+  if (f) el.innerHTML = f();
+});
+
+/* ================= deck navigation ================= */
+const slides = [...document.querySelectorAll('.slide')];
+const total = slides.length;
+const pad2 = n => String(n).padStart(2, '0');
+slides.forEach((sl, i) => {
+  sl.id = 's' + (i + 1);
+  const c = document.createElement('div');
+  c.className = 'chrome';
+  c.innerHTML = `<span>대체조제 사후통보 전산화 · 현장 영업 브리핑</span><span>${pad2(i + 1)} / ${pad2(total)}</span>`;
+  sl.appendChild(c);
+});
+const dots = document.getElementById('dots');
+slides.forEach((sl, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.setAttribute('aria-label', `${i + 1}번 슬라이드: ${sl.dataset.title}`);
+  b.addEventListener('click', () => show(i));
+  dots.appendChild(b);
+});
+let cur = 0;
+function show(i) {
+  cur = Math.max(0, Math.min(total - 1, i));
+  slides.forEach((sl, k) => sl.classList.toggle('active', k === cur));
+  [...dots.children].forEach((d, k) => d.classList.toggle('on', k === cur));
+  document.getElementById('count').innerHTML = `<b>${pad2(cur + 1)}</b> / ${pad2(total)}`;
+  document.getElementById('ctitle').textContent = slides[cur].dataset.title;
+  document.getElementById('notesText').textContent = slides[cur].querySelector('.notes')?.textContent || '';
+  if (history.replaceState) history.replaceState(null, '', '#s' + (cur + 1));
+}
+const fromHash = () => { const m = /^#s(\d+)$/.exec(location.hash); return m ? +m[1] - 1 : 0; };
+show(fromHash());
+const presenting = () => matchMedia('(min-width:900px) and (min-height:520px)').matches;
+document.getElementById('prev').onclick = () => show(cur - 1);
+document.getElementById('next').onclick = () => show(cur + 1);
+const notesBtn = document.getElementById('notesBtn'), notesPanel = document.getElementById('notesPanel');
+const toggleNotes = () => { const on = notesPanel.classList.toggle('open'); notesBtn.setAttribute('aria-pressed', on); };
+notesBtn.onclick = toggleNotes;
+document.getElementById('fsBtn').onclick = () => {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+  } catch (e) {}
+};
+addEventListener('keydown', e => {
+  if (!presenting() || e.target.closest('input,button')) { if (!(presenting() && e.target.closest('button') && /Arrow/.test(e.key))) return; }
+  if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  else if (e.key === 'Home') show(0);
+  else if (e.key === 'End') show(total - 1);
+  else if (e.key.toLowerCase() === 'n') toggleNotes();
+});
+let tx = null;
+document.getElementById('stage').addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, {passive: true});
+document.getElementById('stage').addEventListener('touchend', e => {
+  if (tx === null || !presenting()) return;
+  const dx = e.changedTouches[0].clientX - tx; tx = null;
+  if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1));
+});
+
+/* ================= checklist (per-viewer) ================= */
+const boxes = [...document.querySelectorAll('.cl input')];
+const KEY = 'subst-checklist-v1';
+try { const saved = JSON.parse(localStorage.getItem(KEY) || '[]'); boxes.forEach(b => { b.checked = saved.includes(b.id); }); } catch (e) {}
+function meter() {
+  const n = boxes.filter(b => b.checked).length;
+  document.getElementById('meterBar').style.width = (n / boxes.length * 100) + '%';
+  document.getElementById('meterOut').textContent = `${n} / ${boxes.length}`;
+  try { localStorage.setItem(KEY, JSON.stringify(boxes.filter(b => b.checked).map(b => b.id))); } catch (e) {}
+}
+boxes.forEach(b => b.addEventListener('change', meter));
+document.getElementById('resetChecks').onclick = () => { boxes.forEach(b => { b.checked = false; }); meter(); };
+meter();
+</script>
