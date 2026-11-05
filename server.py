@@ -89,6 +89,29 @@ def index():
         404,
     )
 
+# 회사 로고: 네이버 이미지 서버에서 한 번 받아 이 PC에 저장해두고(logo_cache) 같은 주소로 내려준다.
+# 예전엔 브라우저가 매번 외부 주소(ssl.pstatic.net)에서 지연 로딩해서, 인쇄/PDF 저장 시점에 아직 안 받아진 로고가
+# 빠지거나 사내망에서 외부 접속이 느린 날 안 나오는 문제가 있었다.
+LOGO_CACHE_DIR = os.path.join(BASE_DIR, 'logo_cache')
+
+@app.route('/logo/<ticker>.png')
+def stock_logo(ticker):
+    if not re.fullmatch(r'[0-9A-Za-z]{6}', ticker):
+        return ('', 404)
+    os.makedirs(LOGO_CACHE_DIR, exist_ok=True)
+    path = os.path.join(LOGO_CACHE_DIR, f'{ticker}.png')
+    if not (os.path.exists(path) and os.path.getsize(path) > 100):
+        try:
+            r = requests.get(f'https://ssl.pstatic.net/imgstock/fn/real/logo/png/stock/Stock{ticker}.png',
+                             headers=HEADERS, timeout=8)
+            if r.status_code != 200 or len(r.content) < 100:
+                return ('', 404)
+            with open(path, 'wb') as f:
+                f.write(r.content)
+        except Exception:
+            return ('', 404)
+    return send_from_directory(LOGO_CACHE_DIR, f'{ticker}.png', mimetype='image/png')
+
 @app.route('/<path:filename>')
 def static_files(filename):
     # /data 같은 API 라우트는 아래에서 더 구체적으로 매칭되므로 겹치지 않음
@@ -100,7 +123,7 @@ HEADERS = {
     'Accept-Language': 'ko-KR,ko;q=0.9',
 }
 
-# 동양(주) 보통주(001520)의 2026.7 무상감자ㆍ주식병합(구주 2주 → 신주 1주) 관련 참고
+# (주)동양 보통주(001520)의 2026.7 무상감자ㆍ주식병합(구주 2주 → 신주 1주) 관련 참고
 # 수치. 병합 전 기준가(사용자 확인값) 550원 — 오늘 종가를 병합비율로 나눈 "병합 전
 # 환산가"를 이 기준가와 비교해, 병합 이후 주가가 원래 기준에서 얼마나 벗어났는지
 # 사이드바 스냅샷 위젯에 보여준다. 우선주(동양우ㆍ동양2우B)는 같은 시기에 별도로
@@ -479,6 +502,27 @@ def _capture_price_close_snapshot():
             _price_close_cache[code] = {"date": today_str, "price": price}
     _save_price_close_cache(_price_close_cache)
 
+KRX_VERIFIED_TICKERS = ("001520", "001527", "001525")   # KRX 공식 일별 데이터(_fetch_krx_day)가 다루는 동양 3종목
+
+def _reconcile_close_with_krx():
+    """15:30 직후 스냅샷은 네이버 시세(NXT 거래가 섞일 수 있음)라 KRX 공식 종가와 다를 수 있다. 공식 일별 데이터가 올라오면
+    (장 마감 후 수 시간~다음날) 동양 3종목의 캐시 종가를 공식 값으로 덮어쓰고 'krx_checked'로 표시한다."""
+    changed = False
+    for code in KRX_VERIFIED_TICKERS:
+        entry = _price_close_cache.get(code)
+        if not entry or entry.get('krx_checked'):
+            continue
+        day = _fetch_krx_day(entry['date'].replace('-', ''))
+        official = (day or {}).get(code)
+        if official and official.get('close'):
+            if int(official['close']) != int(entry.get('price') or 0):
+                print(f"[종가 보정] {code} {entry['date']}: {entry.get('price')} → KRX 공식 {official['close']}")
+            entry['price'] = int(official['close'])
+            entry['krx_checked'] = True
+            changed = True
+    if changed:
+        _save_price_close_cache(_price_close_cache)
+
 def _price_close_snapshot_loop():
     """장마감(15:30) 직후 종목별 현재가를 자동으로 캡처해두는 상시 루프
     (_theme_close_snapshot_loop와 완전히 같은 이유·구조 — 접속 여부와 무관하게
@@ -494,6 +538,7 @@ def _price_close_snapshot_loop():
             if now.weekday() < 5 and now.time() >= dtime(15, 30) and not already_captured:
                 _capture_price_close_snapshot()
                 print(f"[종목 장마감 스냅샷] {today_str} 15:30 기준 캡처 완료")
+            _reconcile_close_with_krx()
         except Exception as e:
             print(f"[종목 장마감 스냅샷 실패] {e}")
         _time_module.sleep(5 * 60)
@@ -642,6 +687,42 @@ def fetch_52w_high_low(code: str):
         print(f"[DEBUG] {code} 52주 고저(코멘트용) 조회 중 예외: {e}")
         return None, None
 
+def _fetch_polling_quote(code: str):
+    """네이버 실시간 시세(polling API)에서 현재가(nv)와 KRX 기준 전일 종가(pcv)를 가져온다. 실패 시 None.
+    pcv는 KRX 공식 일별 종가와 일치한다(2026-10-07 동양 001520 pcv=1,118 = KRX 10/06 종가 1,118,
+    동양우ㆍ동양2우B도 동일). 반면 fchart 일봉이나 itemSummary의 등락(diff)은 NXT 애프터마켓 거래가
+    섞여 있어서(10/06 fchart 종가 1,121 ≠ KRX 1,118) '전일대비'의 기준으로 쓰면 어긋난다."""
+    try:
+        r = requests.get(
+            f"https://polling.finance.naver.com/api/realtime?query=SERVICE_ITEM:{code}",
+            headers=HEADERS, timeout=10,
+        )
+        d = r.json()['result']['areas'][0]['datas'][0]
+        now_p, prev = int(d.get('nv') or 0), int(d.get('pcv') or 0)
+        if prev <= 0:
+            return None
+        return {'now': now_p, 'prev_close': prev}
+    except Exception as e:
+        print(f"[DEBUG] {code} polling 시세(전일종가) 조회 중 예외: {e}")
+        return None
+
+
+def _last_weekday(d: date) -> date:
+    """d 이전(포함)의 가장 가까운 평일 — 공휴일은 고려하지 않는다(is_krx_open과 같은 한계)."""
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def _change_fields(price, prev_close):
+    """(등락폭, 등락률%, 방향) — prev_close 기준. 기준이 없으면 (0, 0.0, '')."""
+    if not price or not prev_close:
+        return 0, 0.0, ''
+    diff = int(price) - int(prev_close)
+    rate = round(diff / int(prev_close) * 100, 2)
+    return diff, rate, ('up' if diff > 0 else ('down' if diff < 0 else ''))
+
+
 def fetch_stock(ticker: str) -> dict:
     """
     itemSummary + fchart XML + main 페이지로 종목 데이터 수집
@@ -670,6 +751,11 @@ def fetch_stock(ticker: str) -> dict:
 
     market_open = is_krx_open()
 
+    # KRX 기준 전일 종가 — '당일(전일대비)'의 기준. itemSummary가 비어 있어도(현재가 0) polling 시세로 보강한다.
+    poll = _fetch_polling_quote(ticker)
+    if not price_current and poll:
+        price_current = poll['now']
+
     # 2) fchart XML (전년말 주가 + 장중일 때의 "직전 확정 종가" 계산용, 최근 ~540봉)
     chart_url = (
         f"https://fchart.stock.naver.com/sise.nhn"
@@ -691,13 +777,20 @@ def fetch_stock(ticker: str) -> dict:
         items = root.findall('.//item')
 
         last_year_candidates = {}
+        window_52w_cutoff = (date.today() - timedelta(weeks=52)).strftime('%Y%m%d')
+        window_52w_bars = []  # (d_str, high, low) — 52주 최고/최저의 "날짜"를 찾는 데 재사용
         for item in items:
             parts = item.get('data', '').split('|')
             if len(parts) < 6:
                 continue
-            d_str, close, vol_str = parts[0], parts[4], parts[5]
+            d_str, high_s, low_s, close, vol_str = parts[0], parts[2], parts[3], parts[4], parts[5]
             if d_str[:4] == str(last_year) and d_str[4:6] == '12' and int(d_str[6:8]) >= 24:
                 last_year_candidates[d_str] = close
+            if d_str >= window_52w_cutoff:
+                try:
+                    window_52w_bars.append((d_str, int(high_s), int(low_s)))
+                except (ValueError, TypeError):
+                    pass
 
             # "직전 확정 종가" 후보 — 오늘 날짜는 항상 제외한다. 처음엔 "fchart 일봉의
             # close는 KRX 정규장 단일가로 한 번 확정되면 그 뒤(NXT 애프터마켓)에 안
@@ -729,17 +822,33 @@ def fetch_stock(ticker: str) -> dict:
     #    동안 절대 안 바뀜), 없으면(예: 15:30 직후 백그라운드 캡처 루프가 아직 못 돈 시점의
     #    첫 요청) 지금 이 순간 값을 "오늘의 확정 종가"로 딱 한 번 캡처해 고정한다.
     today_iso = date.today().strftime('%Y-%m-%d')
+    now_dt = datetime.now()
+    # 직전 KRX 종가: polling의 pcv(KRX 공식과 일치) 우선. fchart/itemSummary는 NXT가 섞여 어긋날 수 있어 보조로만 쓴다.
+    if poll:
+        prev_close = poll['prev_close']
+    elif confirmed_close is not None:
+        prev_close = confirmed_close
+    else:
+        prev_close = (price_current - diff) if price_current else 0
     if market_open:
-        price_close = confirmed_close if confirmed_close is not None else (price_current - diff)
+        price_close = prev_close or price_current
+    elif now_dt.weekday() < 5 and now_dt.time() < dtime(9, 0):
+        # 평일 개장 전(NXT 프리마켓 포함): 오늘 종가는 아직 없다 — 어제 KRX 종가를 보여주고 절대 캐시에 저장하지 않는다
+        # (예전엔 여기서 프리마켓 가격을 '오늘의 종가'로 저장해 15:30 스냅샷 루프가 이미 캡처된 줄 알고 건너뛰었다).
+        price_close = prev_close or price_current
     else:
         cache_entry = _price_close_cache.get(ticker)
-        if cache_entry and cache_entry.get('date') == today_iso:
+        trading_day = _last_weekday(date.today()).strftime('%Y-%m-%d')   # 주말ㆍ휴일엔 마지막 평일의 종가
+        if cache_entry and cache_entry.get('date') == trading_day:
             price_close = cache_entry['price']
-        else:
+        elif now_dt.weekday() < 5 and now_dt.time() > dtime(15, 30):
+            # 장 마감 직후인데 스냅샷이 아직 없을 때만 지금 값을 오늘 종가로 한 번 캡처
             price_close = price_current
             if price_current:
                 _price_close_cache[ticker] = {'date': today_iso, 'price': price_current}
                 _save_price_close_cache(_price_close_cache)
+        else:
+            price_close = price_current
 
     # 3) 상장주식수(시가총액 역산용) + 52주 최고/최저 + 외국인소진율: m.stock.naver.com
     #    통합정보 API에서 가져온다.
@@ -791,6 +900,22 @@ def fetch_stock(ticker: str) -> dict:
     except Exception as e:
         print(f"[DEBUG] {ticker} 상장주식수/52주 고저/외국인소진율 조회 중 예외: {e}")
 
+    # 52주 최고/최저가 "언제" 찍혔는지 — 통합정보 API는 값만 주고 날짜는 안 줘서,
+    # 위에서 이미 받아둔 fchart 52주 구간 일봉(window_52w_bars)에서 그 값과 가장
+    # 가까운(원칙적으로는 정확히 일치하는) 고가/저가를 가진 날을 찾는다. 수정주가
+    # 이력이 있는 종목은 fchart 옛날 봉이 "Adjusted"와 스케일이 안 맞을 수 있어
+    # 정확히 일치하지 않을 수도 있으나, 그래도 그 안에서 가장 가까운 날을 쓴다
+    # (표시되는 값 자체는 손대지 않고 그대로 유지).
+    high_52w_date = None
+    low_52w_date = None
+    if window_52w_bars:
+        if high_52w is not None:
+            d_str = min(window_52w_bars, key=lambda b: abs(b[1] - high_52w))[0]
+            high_52w_date = f"{d_str[:4]}/{d_str[4:6]}/{d_str[6:]}"
+        if low_52w is not None:
+            d_str = min(window_52w_bars, key=lambda b: abs(b[2] - low_52w))[0]
+            low_52w_date = f"{d_str[:4]}/{d_str[4:6]}/{d_str[6:]}"
+
     # NXT(넥스트레이드) 프리마켓(08:00~09:00)ㆍ애프터마켓(15:30~20:00) 시간대에는
     # KRX가 쉬거나 이미 마감했어도 이 시간대엔 NXT가 그 종목의 "지금" 가격을 갖고
     # 있으므로, "현재기준"은 이 경우 NXT 시세로 덮어쓴다. "장마감기준"(price_close,
@@ -817,6 +942,17 @@ def fetch_stock(ticker: str) -> dict:
     change_rate_current = calc_change_rate(marketcap_current, marketcap_prev)
     change_rate_close = calc_change_rate(marketcap_close, marketcap_prev)
 
+    # 전일대비는 '보여주는 가격'과 같은 기준이어야 한다 — 현재기준은 현재가, 장마감기준은 KRX 종가를 각각 KRX 전일 종가와 비교.
+    # (예전엔 두 기준 모두 itemSummary의 diff/rate(=NXT 현재가 대비)를 그대로 써서, 장마감 후 NXT 가격이 종가로 돌아오면
+    #  장마감 종가가 전일과 달라도 변동폭이 0으로 나왔다.)
+    if prev_close:
+        diff, rate, _dir = _change_fields(price_current, prev_close)
+        diff_close, rate_close, dir_close = _change_fields(price_close, prev_close)
+        if market_open:
+            diff_close, rate_close, dir_close = 0, 0.0, ''   # 장중의 '장마감기준'은 어제 종가 자체라 오늘 등락이 없다
+    else:
+        _dir = 'up' if rate and float(rate) > 0 else ('down' if rate and float(rate) < 0 else '')
+        diff_close, rate_close, dir_close = 0, 0.0, ''
     arrow = '↑' if rate and float(rate) > 0 else '↓' if rate and float(rate) < 0 else '-'
 
     return {
@@ -826,22 +962,27 @@ def fetch_stock(ticker: str) -> dict:
         "marketcap_prev": f"{marketcap_prev:,}",
         "high_52w": f"{high_52w:,}" if high_52w is not None else "N/A",
         "low_52w": f"{low_52w:,}" if low_52w is not None else "N/A",
+        "high_52w_date": high_52w_date,
+        "low_52w_date": low_52w_date,
         "daily_change": f"{diff:+,} ({rate:+.2f}% {arrow})" if diff and rate else "0 (0.00% -)",
         "diff": diff,
         "rate": rate,
         "direction": 'up' if rate and float(rate) > 0 else ('down' if rate and float(rate) < 0 else ''),
+        "prev_close": f"{int(prev_close):,}" if prev_close else "N/A",
         "volume": f"{int(volume):,}",
         "foreign_ratio": foreign_ratio or "N/A",
         "current": {
             "price": f"{int(price_current):,}",
             "marketcap": f"{marketcap_current:,}",
             "change_rate": f"{change_rate_current:+.2f}%",
+            "diff": diff, "rate": rate, "direction": 'up' if rate and float(rate) > 0 else ('down' if rate and float(rate) < 0 else ''),
             "source": current_source,  # "KRX" 또는 "NXT"(프리마켓ㆍ애프터마켓 시간대에 NXT 시세로 대체됐을 때)
         },
         "close": {
             "price": f"{int(price_close):,}",
             "marketcap": f"{marketcap_close:,}",
             "change_rate": f"{change_rate_close:+.2f}%",
+            "diff": diff_close, "rate": rate_close, "direction": dir_close,
         },
     }
 
@@ -1722,14 +1863,14 @@ def fetch_dart_halt_info(code: str):
     return {"reason": reason_name, "start": start, "end": end, "date": date_fmt}
 
 # ─────────────────────────────────────────────────────────────
-# 3-3-2. 단판공시(단일판매ㆍ공급계약체결) 모니터링 — 동양(주)이 낸 개별 공사
+# 3-3-2. 단판공시(단일판매ㆍ공급계약체결) 모니터링 — (주)동양이 낸 개별 공사
 # 수주/공급계약 공시를 원문에서 파싱해 "현재 진행 중인(만기 미도래) 현장"만
 # 추려서 표로 보여준다. 같은 현장이라도 계약금액 증액/기간연장이 생기면
 # [기재정정] 공시가 계속 이어지는데, 원문 하단 '※ 관련공시' 링크에 그 현장의
 # 이전 공시 rcpno가 전부 들어있어서 이걸로 같은 현장 공시들을 하나로 묶는다.
 # (해지된 계약이 섞인 묶음은 통째로 제외 — 더 이상 진행 중인 현장이 아니므로.)
 # ─────────────────────────────────────────────────────────────
-DANPAN_TARGET_STOCK_CODE = "001520"  # 동양(주) — 건설부문 단판공시 모니터링 대상
+DANPAN_TARGET_STOCK_CODE = "001520"  # (주)동양 — 건설부문 단판공시 모니터링 대상
 DANPAN_REPORT_KEYWORDS = ('단일판매', '공급계약')
 DANPAN_LOOKBACK_YEARS = 10  # 공사기간이 보통 1~5년이라 이 정도면 진행 중인 현장은 다 잡힘
 DANPAN_CACHE_TTL = 6 * 3600  # 초 — 원문을 수십 건씩 새로 받아오는 무거운 작업이라 캐시
@@ -2255,12 +2396,12 @@ def fetch_danpan_monitoring(force: bool = False) -> list:
 # 매월 자사주를 사들이는 걸 팀에서 사람이 직접 취합하고 있었는데, 이걸 DART
 # Open API로 자동화한다. "임원ㆍ주요주주 특정증권등 소유상황보고서"는 임원/주요
 # 주주 본인이 지분 변동 시마다 개별적으로 제출하는 공시라 corp_code로 조회하면
-# 동양(주)과 관련된 소유상황보고서가 전부 걸린다(제출자=flr_nm은 회사가 아니라
+# (주)동양과 관련된 소유상황보고서가 전부 걸린다(제출자=flr_nm은 회사가 아니라
 # 그 개인/법인 이름).
 # ─────────────────────────────────────────────────────────────
 EQUITY_REPORT_NAME = '임원ㆍ주요주주특정증권등소유상황보고서'
 EQUITY_LOOKBACK_YEARS = 10
-EQUITY_CACHE_TTL = 6 * 3600
+EQUITY_CACHE_TTL = 1 * 3600  # 지분공시ㆍ5%룰(LARGE_HOLDING)이 공유. 6시간→1시간(2026-10-27)
 
 def _equity_parse_num(text: str):
     """"50,000" 같은 보통 형식뿐 아니라, 오래된 서식에서 보이는 "1,961(원)"처럼
@@ -2641,6 +2782,10 @@ def fetch_equity_monitoring(force: bool = False) -> list:
     # 정정본은 이미 제출된 보고서의 오기재를 바로잡는 것뿐이라 새 거래내역이
     # 아니므로 뺀다 — 원본 보고서만으로 매수 이력을 집계한다.
     targets = [d for d in all_items if d.get('report_nm', '') == EQUITY_REPORT_NAME]
+    if not targets:
+        # DART 조회 자체가 실패(연결 끊김 등)해 공시 목록이 비었다면 빈 결과를 캐시에 덮어쓰지 않는다 —
+        # 직전 정상 데이터가 있으면 그것을 돌려주고, 없으면 캐시 없이 빈 목록만 반환해 다음 요청에서 다시 시도한다.
+        return _equity_cache['data'] if _equity_cache['data'] is not None else []
 
     by_person = {}
     for item in targets:
@@ -2655,6 +2800,16 @@ def fetch_equity_monitoring(force: bool = False) -> list:
         by_person.setdefault(name, []).append({
             'rcept_no': rcept_no, 'rcept_dt': item.get('rcept_dt', ''), 'parsed': parsed,
         })
+
+    # 지분율 분모 = 보통주 발행주식총수. 소유상황보고서 표지의 발행주식총수(FLT_SUM)는 회사 전체
+    # 공통값이라, 모든 보고서 중 가장 최근에 제출된 값을 쓴다(2026.7 병합 후 107,634,260주).
+    issued_points = sorted(
+        (d['rcept_dt'], d['rcept_no'], d['parsed']['issued_shares_total'])
+        for docs_ in by_person.values() for d in docs_
+        if d['parsed'].get('issued_shares_total')
+    )
+    issued_latest = issued_points[-1][2] if issued_points else None
+    issued_latest_dt = issued_points[-1][0] if issued_points else None
 
     results = []
     for name, docs in by_person.items():
@@ -2734,6 +2889,7 @@ def fetch_equity_monitoring(force: bool = False) -> list:
             "first_buy_date": _dots(first_date),
             "latest_buy_date": latest_dt_fmt,
             "total_qty": total_qty,
+            "ownership_ratio": (total_qty / issued_latest * 100) if (issued_latest and total_qty is not None) else None,  # 보통주 지분율(%)
             "avg_price": round(avg_price, 1) if avg_price is not None else None,
             "disclosure_count": len(docs),
             "rcept_no": latest_doc['rcept_no'],
@@ -2747,6 +2903,8 @@ def fetch_equity_monitoring(force: bool = False) -> list:
     meta = {
         "officer_roster_available": roster is not None,
         "lookback_years": EQUITY_LOOKBACK_YEARS,
+        "issued_shares_total": issued_latest,
+        "issued_shares_date": (f"{issued_latest_dt[:4]}.{issued_latest_dt[4:6]}.{issued_latest_dt[6:8]}" if issued_latest_dt and len(issued_latest_dt) == 8 else issued_latest_dt),
     }
     accuracy = _equity_compute_accuracy(by_person)
     _equity_cache.update(ts=now, data=results, meta=meta, accuracy=accuracy)
@@ -2998,12 +3156,18 @@ def fetch_large_holding_monitoring(force: bool = False) -> list:
 # 그대로 따른다.
 # ─────────────────────────────────────────────────────────────
 FTC_LOOKBACK_YEARS = 10
-FTC_CACHE_TTL = 6 * 3600
+FTC_CACHE_TTL = 1 * 3600  # 새 공시가 늦게 보인다는 지적(2026-10-27)으로 6시간→1시간
 FTC_REPORT_TYPES = {
     'invest': '특수관계인에대한출자',
     'bond_sale': '특수관계인에대한채권매도',
     'goods_services': '동일인등출자계열회사와의상품ㆍ용역거래',  # 파서 선택용 키 — "거래"ㆍ"변경" 공통(문서 구조가 같음)
     'loan_borrow': '특수관계인으로부터자금차입',  # 자회사 4곳 모니터링 추가하며 발견 — 자금거래(fund_securities_asset)의 하나
+    # 2026-10-27 인천PFV의 "특수관계인에대한자산양도"가 화면에 안 뜬다는 지적으로 추가 —
+    # 자회사(PFV 등)는 자산양도ㆍ부동산매수ㆍ유상증자참여ㆍ담보 같은 유형도 낸다.
+    'asset_transfer': '특수관계인에대한자산양도',
+    'real_estate_buy': '특수관계인으로부터부동산매수',
+    'rights_offering': '특수관계인의유상증자참여',
+    'collateral_received': '특수관계인으로부터받은담보',
 }
 # "거래"(분기공시 — 1년치 예상 거래금액을 미리 이사회 의결받는 최초 공시)와
 # "변경"(그 예상치 대비 실제 거래금액이 20% 이상 달라지면, 고시 제9조의2②에 따라
@@ -3017,6 +3181,11 @@ FTC_TYPE_LABELS = {
     'goods_services_initial': '상품ㆍ용역거래(분기공시ㆍ이사회의결 필요)',
     'goods_services_change': '상품ㆍ용역거래 변경(사후공시ㆍ이사회의결 불요)',
     'loan_borrow': '특수관계인 자금차입',
+    'asset_transfer': '특수관계인 자산양도',
+    'real_estate_buy': '특수관계인 부동산매수',
+    'rights_offering': '특수관계인 유상증자참여',
+    'collateral_received': '특수관계인 받은담보',
+    'other_related': '특수관계인 거래(기타)',  # 위 목록에 없는 "특수관계인…" 유형 — report_nm을 그대로 표시
 }
 
 # (주)동양 본체 외에, 대규모내부거래 및 공정위 자료 제출 시 함께 확인해야 하는
@@ -3047,13 +3216,19 @@ def _ftc_value_for(soup, *labels) -> str:
                 return nxt.get_text(strip=True)
     return ''
 
-def _ftc_normalize_counterparty(name: str) -> str:
+def _ftc_normalize_counterparty(name: str, relation: str = '') -> str:
     """이 3종 공정위 공시의 거래상대방은 전부 "계열회사"(법인)라, "(주)"가 붙는 게
     정상이다. 그런데 공시마다 표기가 "(주)X"/"X(주)"로 뒤섞이는 것에 더해(대량보유
     상황보고서에서 겪은 문제와 동일), 아예 "(주)" 자체가 빠진 표기도 있다(2020년
     필기 사례: "유진기업(주)"가 어느 공시에는 "유진기업"으로만 적혀 있었음). 법인임이
     이미 확정된 필드이므로, 정규화 후에도 "(주)"가 없으면 그냥 붙인다."""
-    name = _lh_normalize_name(name.strip())
+    name = name.strip()
+    if name.startswith('주식회사 '):  # "주식회사 유진디랩" → "(주)유진디랩" → 아래에서 "유진디랩(주)"로 통일
+        name = '(주)' + name[5:].strip()
+    name = _lh_normalize_name(name)
+    # 부동산매수 등 새 유형은 상대방이 "동일인 등"(개인, 예: 유재필)일 수 있어 "(주)"를 붙이면 안 된다.
+    if relation.startswith('동일인') or '친족' in relation:
+        return name
     if name and not name.endswith('(주)'):
         name = name + '(주)'
     return name
@@ -3195,11 +3370,43 @@ def _ftc_parse_goods_services(soup) -> dict:
         'transaction_period': transaction_period,
     }
 
+def _ftc_first_value(soup, *labels, skip_numeric=False) -> str:
+    """labels를 앞에서부터 차례로 시도해 값이 나오는 첫 번째 것을 반환. skip_numeric이면
+    "거래상대방 잔액"처럼 라벨이 부분일치로 잘못 걸려 숫자만 나온 값은 건너뛴다."""
+    for lbl in labels:
+        v = _ftc_value_for(soup, lbl)
+        if v and not (skip_numeric and re.fullmatch(r'[\d,.\-\s]+', v)):
+            return v
+    return ''
+
+def _ftc_make_generic_parser(counterparty_labels, amount_labels, purpose_labels):
+    """자산양도ㆍ부동산매수ㆍ유상증자참여ㆍ받은담보처럼 서식 모양이 같은(라벨-값 <TD> 쌍,
+    "이사회 의결일" 포함) 유형용 파서. 유형마다 상대방ㆍ금액ㆍ목적 라벨만 다르다."""
+    def _parse(soup) -> dict:
+        return {
+            'counterparty': _ftc_first_value(soup, *counterparty_labels, skip_numeric=True),
+            'relation': _ftc_value_for(soup, '회사와의관계'),
+            'board_date': _ftc_value_for(soup, '이사회의결일'),
+            'amount': _equity_parse_num(_ftc_first_value(soup, *amount_labels)),
+            'purpose': _ftc_first_value(soup, *purpose_labels),
+        }
+    return _parse
+
+# 상대방: 자산양도·부동산매수 "거래상대방", 유상증자참여 "유상증자참여자", 받은담보 "담보제공자".
+# 금액: 양도가액 / 거래금액 / 출자금액 / 담보금액. (모르는 유형은 아래 other_related가 흡수)
 _FTC_PARSERS = {
     'invest': _ftc_parse_invest,
     'bond_sale': _ftc_parse_bond_sale,
     'goods_services': _ftc_parse_goods_services,
     'loan_borrow': _ftc_parse_loan_borrow,
+    'asset_transfer': _ftc_make_generic_parser(['거래상대방'], ['양도가액'], ['양도목적']),
+    'real_estate_buy': _ftc_make_generic_parser(['거래상대방'], ['거래금액'], ['거래의목적']),
+    'rights_offering': _ftc_make_generic_parser(['유상증자참여자'], ['출자금액'], ['출자방법']),
+    'collateral_received': _ftc_make_generic_parser(['담보제공자'], ['담보금액'], ['거래의조건']),
+    'other_related': _ftc_make_generic_parser(
+        ['매수상대방', '예ㆍ적금수신회사', '거래상대방', '담보제공자', '유상증자참여자', '양수인', '양도인', '대여처', '차입처', '매도상대방'],
+        ['거래금액', '예ㆍ적금금액', '양도가액', '양수가액', '출자금액', '담보금액', '대여금액', '차입금액', '보증금액'],
+        ['거래의목적', '거래목적', '양도목적', '양수목적', '자금용도']),
 }
 
 def _fetch_ftc_for_entity(filer_name: str, corp_code: str, filer_listed: bool, bgn_de: str, end_de: str) -> list:
@@ -3233,6 +3440,8 @@ def _fetch_ftc_for_entity(filer_name: str, corp_code: str, filer_listed: bool, b
         if report_nm.startswith('[기재정정]'):
             continue  # 정정본은 기존 신고서의 오기재만 바로잡는 것이라 제외
         kind = next((k for k, kw in FTC_REPORT_TYPES.items() if kw in report_nm), None)
+        if kind is None and report_nm.startswith('특수관계인'):
+            kind = 'other_related'  # 새 유형이 나와도 조용히 누락되지 않게 일반 파서로 흡수
         if kind is None:
             continue
         # "변경"은 report_nm이 "...상품ㆍ용역거래변경"으로 끝난다 — 이사회 의결
@@ -3259,12 +3468,20 @@ def _fetch_ftc_for_entity(filer_name: str, corp_code: str, filer_listed: bool, b
             if amt is not None:
                 amount_won = amt * 1_000_000
 
+        # 화면 표시용은 원문 표기 그대로(2026-10-27 사용자 요청) — 제출회사는 원문 "회사명",
+        # 거래상대방은 원문 값. 기존 filer(모니터링 키)ㆍcounterparty(정규화)는 자본금 조회ㆍ
+        # 집계 등 로직용으로 그대로 둔다. 상대방 필드를 못 읽은 건은 정규화 값으로 대체.
+        # "(주) 동양"처럼 (주) 앞뒤 공백만 정리하고 나머지는 원문 그대로 둔다.
+        filer_text = re.sub(r'\s*\(주\)\s*', '(주)', _ftc_value_for(soup, '회사명')).strip()
+        counterparty_text = re.sub(r'\s*\(주\)\s*', '(주)', (parsed.get('counterparty') or '')).strip()
         results.append({
             "filer": filer_name,
+            "filer_text": filer_text or filer_name,
+            "counterparty_text": counterparty_text,
             "filer_listed": filer_listed,
-            "type_label": FTC_TYPE_LABELS[display_kind],
+            "type_label": f"특수관계인 거래(기타): {report_nm}" if display_kind == 'other_related' else FTC_TYPE_LABELS[display_kind],
             "kind": display_kind,
-            "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or ''),
+            "counterparty": _ftc_normalize_counterparty(parsed.get('counterparty') or '', parsed.get('relation') or ''),
             "relation": parsed.get('relation') or '',
             "disclosure_date": _dots(f"{rcept_dt[:4]}-{rcept_dt[4:6]}-{rcept_dt[6:8]}") if len(rcept_dt) == 8 else rcept_dt,
             "board_date": _format_ftc_date(parsed.get('board_date') or ''),  # "변경"은 정상적으로 빈 값
@@ -3298,6 +3515,8 @@ def fetch_ftc_monitoring(force: bool = False) -> list:
     for filer_name, entity in FTC_MONITORED_ENTITIES.items():
         results.extend(_fetch_ftc_for_entity(filer_name, entity['corp_code'], entity['listed'], bgn_de, end_de))
 
+    if not results and _ftc_cache['data'] is not None:
+        return _ftc_cache['data']   # 조회 실패로 전부 비었으면 직전 정상 데이터를 유지
     results.sort(key=lambda r: r['disclosure_date'], reverse=True)  # 최신순
 
     # 상품ㆍ용역거래는 "동일인 및 동일인 친족이 20% 이상 출자한 계열회사(또는 그
@@ -3408,7 +3627,8 @@ def _format_period_end_date(period_text: str) -> str:
 # 근사치로 남는 한계다(2026-07-23 사용자 피드백으로 고정공휴일만 우선 반영:
 # 금왕에프원(주) 2025.12.30 의결→2026.01.09 공시 건이 신정(1/1)을 영업일로
 # 잘못 세어 8영업일ㆍ지연 의심으로 오판정된 것을 발견).
-_FTC_FIXED_HOLIDAYS_MMDD = {(1, 1), (3, 1), (5, 5), (6, 6), (8, 15), (10, 3), (10, 9), (12, 25)}
+# 5/1 근로자의 날: 법정공휴일은 아니지만 금융기관ㆍ회사 휴무일이라 영업일에서 제외(2026-10-27 사용자 확인)
+_FTC_FIXED_HOLIDAYS_MMDD = {(1, 1), (3, 1), (5, 1), (5, 5), (6, 6), (8, 15), (10, 3), (10, 9), (12, 25)}
 
 def _business_days_between(start_dot: str, end_dot: str):
     """두 날짜 사이의 영업일 수(토ㆍ일ㆍ날짜고정 공휴일 제외, 음력 공휴일ㆍ
@@ -3426,7 +3646,7 @@ def _business_days_between(start_dot: str, end_dot: str):
             days += 1
     return days
 
-FTC_FILING_DEADLINE_BUSINESS_DAYS = 3  # 상장법인(동양(주)) — 이사회 의결 후 3영업일 이내 공시
+FTC_FILING_DEADLINE_BUSINESS_DAYS = 3  # 상장법인((주)동양) — 이사회 의결 후 3영업일 이내 공시
 FTC_FILING_DEADLINE_BUSINESS_DAYS_UNLISTED = 7  # 비상장법인(자회사 4곳) — 이사회 의결 후 7영업일 이내 공시
 FTC_CHANGE_FILING_DEADLINE_DAYS = 45  # 고시 제9조의2② — 상품ㆍ용역거래 변경(20% 이상 감소)은 분기종료 후 45일 이내(역일 기준) 공시
 
@@ -3434,7 +3654,7 @@ def _ftc_apply_accuracy_check(results: list) -> None:
     """이미 제출된 공정위 공시 건들을 대상으로 "정확성 점검"을 덧붙인다(자동
     판정이 아니라 확인 필요 후보를 추려주는 용도):
     1) 공시기한 준수 — "거래"(초기)ㆍ출자ㆍ채권매도는 이사회 의결일로부터 실제
-       공시일까지 영업일수를 계산해 3영업일(동양(주)은 상장법인) 초과 여부를
+       공시일까지 영업일수를 계산해 3영업일((주)동양은 상장법인) 초과 여부를
        표시. "변경"은 이사회 의결이 없는 대신, 고시 제9조의2②에 따라 거래기간
        필드("2. 거래기간")에서 뽑은 분기 종료일로부터 45일(역일) 이내 공시했는지를
        확인한다 — 둘은 기산점ㆍ단위(영업일 vs 역일)가 다른 별개 규정이라 섞어
@@ -3443,7 +3663,7 @@ def _ftc_apply_accuracy_check(results: list) -> None:
        보다 20% 이상 감소"한 경우에만 발생하는 사후공시 절차이므로(원문 "8. 기타"
        사유란에도 명시됨), 공시가 존재한다는 사실 자체가 요건 충족의 근거이다 —
        금액 재계산 없이 항상 충족으로 표시한다. 그 외 유형은 원문에서 뽑은
-       거래금액(amount_won)과 신고 회사(filer, 동양(주) 또는 자회사)의 "현재"
+       거래금액(amount_won)과 신고 회사(filer, (주)동양 또는 자회사)의 "현재"
        자본총계·자본금 중 큰 금액으로 check_ftc_disclosure()를 다시 돌려본다
        (과거 시점 자본금이 아니라 현재 값을 쓰는 근사치라는 한계를 화면에도
        명시해야 함). 공시기한의 3영업일(상장)/7영업일(비상장) 구분도 filer의
@@ -3483,7 +3703,7 @@ def _ftc_apply_accuracy_check(results: list) -> None:
         # 분기 중 미리 이사회 의결ㆍ공시한 경우, 매뉴얼 11-2. 특례 단서)은 전부
         # "이사회 의결 후 상장 3영업일ㆍ비상장 7영업일 이내 공시" 규정 대상이라
         # 같은 방식으로 검사한다 — 기한 일수는 filer(제출회사)의 상장 여부로 결정
-        # (동양(주)만 상장, 나머지 4개 자회사는 전부 비상장 → 7영업일).
+        # ((주)동양만 상장, 나머지 4개 자회사는 전부 비상장 → 7영업일).
         # 참고: 이 기준이 과거(2020~2021년경)에는 달랐을 가능성이 사용자로부터
         # 제기되었으나, 공정위 고시 개정 연혁에서 그 시점의 정확한 일수를 확인하지
         # 못해 전 기간에 현재 기준(3ㆍ7영업일)을 동일하게 적용한다(다른 유형의
@@ -3721,7 +3941,7 @@ def _group_status_parse_all_capital(html_text: str) -> dict:
     """"기업집단현황공시(연1회-대표회사)"의 "(2) 회사 재무현황" 표에서 유진
     기업집단 소속 회사 전체(약 70개사)의 자산총계ㆍ자본금ㆍ자본총계(백만원
     단위)를 한 번에 뽑는다 — 개별회사용 공시를 회사마다 따로 조회하지 않아도
-    되므로, 지금 화면에서 다루는 5개 비상장 자회사뿐 아니라 동양(주)ㆍ
+    되므로, 지금 화면에서 다루는 5개 비상장 자회사뿐 아니라 (주)동양ㆍ
     유진기업(주) 등 이름만 입력해도 자동으로 매칭될 수 있게 해준다.
     반환: {정규화된 회사명: {"capital_mm": .., "capital_total_mm": .., "total_assets_mm": ..}}"""
     soup = BeautifulSoup(html_text, 'html.parser')
@@ -4303,16 +4523,37 @@ def _fmt_date(d_str: str) -> str:
     """'YYYYMMDD' -> 'YYYY-MM-DD'"""
     return f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
 
-def _add_business_days(start: date, n: int) -> date:
-    """start로부터 평일(토ㆍ일 제외) n일 뒤 날짜. 향후 공휴일ㆍ추가 매매정지는 알 수
-    없어 반영하지 못하는 근사치 — '예상' 값으로만 표기해야 한다."""
+# 한국거래소 휴장일(토ㆍ일 제외, 2026-11 ~ 2027-12). 법정 공휴일ㆍ대체공휴일ㆍ연말 휴장일 기준이며
+# 임시공휴일은 미리 알 수 없어 반영하지 못한다. 관리종목 일정(지정 후 N거래일째 등)을 앞으로 투영할 때 쓴다.
+KRX_MARKET_HOLIDAYS = {
+    '20261225', '20261231',                                   # 성탄절, 연말 휴장
+    '20270101',                                               # 신정
+    '20270205', '20270208',                                   # 설 연휴(2/6 토 설날 → 2/5 금, 2/8 월 대체공휴일)
+    '20270301',                                               # 삼일절
+    '20270505', '20270513',                                   # 어린이날, 부처님오신날
+    '20270816',                                               # 광복절(일) 대체공휴일
+    '20270914', '20270915', '20270916',                       # 추석 연휴
+    '20271004', '20271011',                                   # 개천절(일)ㆍ한글날(토) 대체공휴일
+    '20271227', '20271231',                                   # 성탄절(토) 대체공휴일, 연말 휴장
+}
+
+def _krx_is_trading_day(d: date) -> bool:
+    return d.weekday() < 5 and d.strftime('%Y%m%d') not in KRX_MARKET_HOLIDAYS
+
+def _krx_add_trading_days(start: date, n: int) -> date:
+    """start 다음날부터 세어 n번째 거래일(토ㆍ일ㆍ거래소 휴장일 제외)."""
     d = start
     added = 0
     while added < n:
         d += timedelta(days=1)
-        if d.weekday() < 5:
+        if _krx_is_trading_day(d):
             added += 1
     return d
+
+def _add_business_days(start: date, n: int) -> date:
+    """start로부터 거래일(토ㆍ일ㆍKRX 휴장일 제외) n일 뒤 날짜. 임시공휴일ㆍ추가 매매정지는 알 수
+    없어 반영하지 못하는 근사치 — '예상' 값으로만 표기해야 한다."""
+    return _krx_add_trading_days(start, n)
 
 def _business_days_count(start_exclusive: date, end_inclusive: date) -> int:
     """start_exclusive 다음날부터 end_inclusive까지 평일(토ㆍ일 제외) 일수.
@@ -4336,7 +4577,7 @@ def _trading_dates(day_map: dict) -> list:
     — 상장규정은 어디까지나 "매매거래일" 기준이라 정지일은 카운트에서 제외)."""
     return sorted(d for d, v in day_map.items() if v.get("volume", 0) > 0)
 
-def _streak_status_text(streak_dates: list, latest_dt: date):
+def _streak_status_text(streak_dates: list, latest_dt: date, trading_dates: list = None):
     """
     연속 미달 매매거래일 목록(streak_dates, 오름차순 'YYYYMMDD' 문자열)을 사람이 읽을
     상태 문구로 변환.
@@ -4346,6 +4587,9 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
     안 찼으면 남은 매매거래일 수만큼 평일 기준으로 30번째 날을 추정하고, 거기서 다시
     하루를 더한 게 예상 지정일이다. (공휴일ㆍ추가 매매정지는 미리 알 수 없어 반영하지
     못하는 근사치.)
+
+    trading_dates(오름차순 'YYYYMMDD')를 주면 "지정 N일째"를 달력 일수가 아니라 지정일 이후 매매거래일 수로 센다
+    (상장폐지 요건의 90일ㆍ거래소 예고의 50·55일째가 모두 매매거래일 기준이라 화면의 일정표와 숫자를 맞추기 위함).
 
     반환: (상태문구, 지정일/예상 지정일 문자열 또는 None)
     """
@@ -4363,11 +4607,16 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
         # "대상"(예측) 문구가 아니라 "지정됨"(확정) 문구로 바꾼다 — 그 전까지는
         # 아직 지정 공문이 나오기 전이라 "대상"이 맞다.
         if designation_dt <= date.today():
-            # 지정 발효일(달력 기준)로부터 오늘까지 며칠째인지 — 발효일 당일을 1일째로 센다.
-            days_designated = (date.today() - designation_dt).days + 1
+            # 지정 후 며칠째인지 — 매매거래일 기준(지정 발효일 당일은 매매거래정지라 거래일에 안 들어가고,
+            # 그 다음 매매거래일이 1일째). trading_dates가 없으면 예전처럼 달력 일수로 대신하되 "달력"이라고 밝힌다.
+            if trading_dates is not None:
+                n_designated = sum(1 for d_ in trading_dates if designation <= f"{d_[:4]}-{d_[4:6]}-{d_[6:]}" )
+                designated_txt = f"지정 후 {n_designated}거래일째(매매거래일 기준)"
+            else:
+                designated_txt = f"지정 후 달력 {(date.today() - designation_dt).days + 1}일째"
             return (
                 f"관리종목 지정됨 — {_fmt_date(streak_start)}부터 {streak}일째(30거래일 충족)"
-                f" 30거래일째 {_fmt_date(day30)}, {designation}자 지정 발효 (지정 {days_designated}일째)",
+                f" 30거래일째 {_fmt_date(day30)}, {designation}자 지정 발효 ({designated_txt})",
                 designation,
             )
         return (
@@ -4385,6 +4634,35 @@ def _streak_status_text(streak_dates: list, latest_dt: date):
         f" 30거래일 예상일 {day30} (익일 지정 {designation})",
         designation,
     )
+
+def _streak_stage_info(streak_dates: list, latest_dt: date, trading_dates: list = None) -> dict:
+    """① 지정 단계(시가총액 20억 미만이 30매매거래일 연속) 진행 상황을 화면 표용으로 구조화한다.
+    문구(_streak_status_text)와 같은 판단 기준이다 — 지정 전이면 30거래일 도달 예정일/지정 예정일, 지정 후면 확정일과 지정 후 거래일 수."""
+    streak = len(streak_dates)
+    if streak == 0:
+        return {"state": "정상", "streak_days": 0, "required_days": MGMT_STREAK_DAYS}
+    start = _fmt_date(streak_dates[0])
+    if streak >= MGMT_STREAK_DAYS:
+        day30 = streak_dates[MGMT_STREAK_DAYS - 1]
+        designation_dt = datetime.strptime(day30, '%Y%m%d').date() + timedelta(days=1)
+        designation = designation_dt.strftime('%Y-%m-%d')
+        designated = designation_dt <= date.today()
+        n_after = sum(1 for d_ in (trading_dates or []) if designation <= f"{d_[:4]}-{d_[4:6]}-{d_[6:]}") if designated else 0
+        return {
+            "state": "지정 완료" if designated else "지정 대상(익일 지정)",
+            "streak_days": streak, "required_days": MGMT_STREAK_DAYS, "start_date": start,
+            "day30_date": _fmt_date(day30), "day30_expected": False,
+            "designation_date": designation, "designation_expected": not designated,
+            "days_to_30": 0, "designated_trading_days": n_after,
+        }
+    day30_dt = _add_business_days(latest_dt, MGMT_STREAK_DAYS - streak)
+    designation_dt = day30_dt + timedelta(days=1)
+    return {
+        "state": "주의(지정 전)", "streak_days": streak, "required_days": MGMT_STREAK_DAYS, "start_date": start,
+        "day30_date": day30_dt.strftime('%Y-%m-%d'), "day30_expected": True,
+        "designation_date": designation_dt.strftime('%Y-%m-%d'), "designation_expected": True,
+        "days_to_30": MGMT_STREAK_DAYS - streak, "designated_trading_days": 0,
+    }
 
 def _compute_recovery_status(day_map: dict, trading_dates: list, designation_date_str: str) -> dict:
     """
@@ -4420,13 +4698,18 @@ def _compute_recovery_status(day_map: dict, trading_dates: list, designation_dat
     both_met = cond1_met and cond2_met
     window_done = elapsed >= MGMT_RECOVERY_WINDOW_DAYS
 
+    notice_day = days_to_notice = None
+    notice_date_str = None
+    stage_kind = "progress"
     if both_met:
+        stage_kind = "met"
         status = (
             f"해제 요건 충족 — 연속 {max_streak}일(≥{MGMT_RECOVERY_STREAK_DAYS}), "
             f"누적 {total_over}일(≥{MGMT_RECOVERY_TOTAL_DAYS}) 모두 달성 "
             f"(지정 후 {elapsed}거래일째)"
         )
     elif window_done:
+        stage_kind = "window_fail"
         status = (
             f"⚠ 상장폐지 사유 해당 — 지정 후 {MGMT_RECOVERY_WINDOW_DAYS}거래일 경과, "
             f"연속 최대 {max_streak}일(목표 {MGMT_RECOVERY_STREAK_DAYS}), "
@@ -4434,11 +4717,33 @@ def _compute_recovery_status(day_map: dict, trading_dates: list, designation_dat
         )
     else:
         remain = MGMT_RECOVERY_WINDOW_DAYS - elapsed
-        status = (
-            f"해제 요건 진행 중 — 지정 후 {elapsed}/{MGMT_RECOVERY_WINDOW_DAYS}거래일, "
-            f"연속 최대 {max_streak}일(목표 {MGMT_RECOVERY_STREAK_DAYS}), "
-            f"누적 {total_over}일(목표 {MGMT_RECOVERY_TOTAL_DAYS}), 남은 매매일 {remain}일"
-        )
+        # 거래소는 90거래일이 다 끝나기를 기다리지 않고, 남은 거래일을 전부 20억 이상으로 채워도 요건을 못 채우는
+        # 날(= 달성 불가가 확정되는 날)에 상장폐지를 안내한다. 지금까지 20억 이상이 total_over일이고 앞으로 더 없다고
+        # 가정하면, 남은 거래일(90-N)이 필요한 일수(30-total_over)보다 모자라지는 첫 날 N이 그날이다:
+        #   누적 요건: N = (90-30+1) + total_over   (20억 이상 거래일이 하루 생길 때마다 하루씩 뒤로 밀림)
+        #   연속 요건(아직 못 채웠다면): N = 90-10+1 = 81
+        notice_day = (MGMT_RECOVERY_WINDOW_DAYS - MGMT_RECOVERY_TOTAL_DAYS + 1) + total_over
+        if not cond1_met:
+            notice_day = min(notice_day, MGMT_RECOVERY_WINDOW_DAYS - MGMT_RECOVERY_STREAK_DAYS + 1)
+        days_to_notice = notice_day - elapsed
+        if days_to_notice <= 0:
+            stage_kind = "delist_notice"
+            status = (
+                f"⚠ 상장폐지 안내 대상 — 지정 후 {elapsed}/{MGMT_RECOVERY_WINDOW_DAYS}거래일, "
+                f"남은 {remain}거래일을 모두 채워도 누적 {MGMT_RECOVERY_TOTAL_DAYS}일(현재 {total_over}일) 또는 연속 {MGMT_RECOVERY_STREAK_DAYS}일 요건 달성 불가"
+            )
+        else:
+            notice_date = _add_business_days(datetime.strptime(trading_dates[-1], '%Y%m%d').date(), days_to_notice) if trading_dates else None
+            notice_date_txt = f" {notice_date.strftime('%Y-%m-%d')}경" if notice_date else ""
+            notice_date_str = notice_date.strftime('%Y-%m-%d') if notice_date else None
+            status = (
+                f"해제 요건 진행 중 — 지정 후 {elapsed}/{MGMT_RECOVERY_WINDOW_DAYS}거래일, "
+                f"연속 최대 {max_streak}일(목표 {MGMT_RECOVERY_STREAK_DAYS}), "
+                f"누적 {total_over}일(목표 {MGMT_RECOVERY_TOTAL_DAYS}), "
+                f"상장폐지 안내까지 남은 매매일 {days_to_notice}일 "
+                f"(지금처럼 20억 미만이 이어지면 지정 후 {notice_day}거래일째{notice_date_txt}에 요건 달성 불가로 상장폐지 안내 — "
+                f"20억 이상인 날이 생기면 그만큼 뒤로 밀림, 공휴일 미반영 예상) · 90거래일 만료까지 {remain}일"
+            )
 
     return {
         "recovery_elapsed_days": elapsed,
@@ -4450,6 +4755,12 @@ def _compute_recovery_status(day_map: dict, trading_dates: list, designation_dat
         "recovery_both_met": both_met,
         "recovery_window_done": window_done,
         "recovery_status": status,
+        "recovery_notice_day": notice_day,
+        "recovery_days_to_notice": days_to_notice,
+        "recovery_notice_triggered": (days_to_notice is not None and days_to_notice <= 0),
+        "recovery_notice_date": notice_date_str,
+        "recovery_stage_kind": stage_kind,
+        "recovery_days_to_window_end": max(MGMT_RECOVERY_WINDOW_DAYS - elapsed, 0),
     }
 
 def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_volume: int = None) -> dict:
@@ -4505,6 +4816,13 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
             "recovery_total_over_days": None,
             "recovery_both_met": None,
             "recovery_window_done": None,
+            "recovery_notice_day": None,
+            "recovery_days_to_notice": None,
+            "recovery_notice_triggered": None,
+            "recovery_notice_date": None,
+            "recovery_stage_kind": None,
+            "recovery_days_to_window_end": None,
+            "cap_stage": None,
         }
 
     latest_date_str = trading_dates[-1]
@@ -4518,7 +4836,7 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
         else:
             break
     cap_streak_dates.reverse()
-    cap_status, expected_designation_date = _streak_status_text(cap_streak_dates, latest_dt)
+    cap_status, expected_designation_date = _streak_status_text(cap_streak_dates, latest_dt, trading_dates)
     cap_streak = len(cap_streak_dates)
     cap_streak_start = cap_streak_dates[0] if cap_streak_dates else None
 
@@ -4683,6 +5001,13 @@ def compute_mgmt_status(code: str, history: dict, live_price: int = None, live_v
         "recovery_total_over_days": recovery["recovery_total_over_days"] if recovery else None,
         "recovery_both_met": recovery["recovery_both_met"] if recovery else None,
         "recovery_window_done": recovery["recovery_window_done"] if recovery else None,
+        "recovery_notice_day": recovery["recovery_notice_day"] if recovery else None,
+        "recovery_days_to_notice": recovery["recovery_days_to_notice"] if recovery else None,
+        "recovery_notice_triggered": recovery["recovery_notice_triggered"] if recovery else None,
+        "recovery_notice_date": recovery["recovery_notice_date"] if recovery else None,
+        "recovery_stage_kind": recovery["recovery_stage_kind"] if recovery else None,
+        "recovery_days_to_window_end": recovery["recovery_days_to_window_end"] if recovery else None,
+        "cap_stage": _streak_stage_info(cap_streak_dates, latest_dt, trading_dates),
     }
 
 def compute_price_status(code: str, history: dict, live_price: int = None) -> dict:
@@ -4734,7 +5059,7 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
         else:
             break
     price_streak_dates.reverse()
-    price_status, expected_designation_date = _streak_status_text(price_streak_dates, latest_dt)
+    price_status, expected_designation_date = _streak_status_text(price_streak_dates, latest_dt, trading_dates)
     price_streak = len(price_streak_dates)
     price_streak_start = price_streak_dates[0] if price_streak_dates else None
 
@@ -4751,7 +5076,7 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
             projected_dates = price_streak_dates + [today_str]
         else:
             projected_dates = []
-        projected_status, _ = _streak_status_text(projected_dates, today)
+        projected_status, _ = _streak_status_text(projected_dates, today, trading_dates + [today_str])
         current_price_streak_days = len(projected_dates)
         current_price_status = (
             f"장중 잠정(미확정) — {projected_status}" if projected_dates else "정상(장중)"
@@ -4774,6 +5099,147 @@ def compute_price_status(code: str, history: dict, live_price: int = None) -> di
         "current_price_streak_days": current_price_streak_days,
         "history_days": len(trading_dates),
     }
+
+# ─────────────────────────────────────────────────────────────
+# 관리종목 일정 — 공시 캘린더용
+# 규정(유가증권시장 상장규정 제47ㆍ48ㆍ64ㆍ65ㆍ9ㆍ154ㆍ155조, 2026.10.31 확인)과 compute_*_status 결과로
+# 앞으로의 단계별 날짜를 만든다. 20억 미달(또는 1,000원 미만)이 계속된다는 "최악 가정"의 투영이며,
+# 20억 이상인 날이 생기면 누적 요건 때문에 그만큼 뒤로 밀린다.
+#  · 규정에 있는 것: 30일 연속 미달 → 지정(다음 날), 지정 후 90거래일, 누적 30일ㆍ연속 10일(종류주권) /
+#    1,000원 이상 45일(보통주), 정리매매 7거래일(상장규정 제9조②)
+#  · 규정에 없고 거래소 재량ㆍ관행인 것(참고): 25거래일째 투자유의안내(제154조①), 지정 후 50ㆍ55일째
+#    상장폐지 우려 예고(제155조①), 상장폐지 예고기간 3거래일
+# ─────────────────────────────────────────────────────────────
+def _mgmt_nth_day(actual: list, base: date, n: int) -> date:
+    """actual(실제 매매거래일 'YYYYMMDD' 오름차순)을 1일째부터 센 n일째 날짜. 모자라면 base(또는 마지막
+    실제일)부터 휴장일을 건너뛰며 앞으로 투영한다."""
+    if n <= len(actual):
+        return datetime.strptime(actual[n - 1], '%Y%m%d').date()
+    last = datetime.strptime(actual[-1], '%Y%m%d').date() if actual else base
+    return _krx_add_trading_days(last, n - len(actual))
+
+def build_mgmt_schedule(payload: dict, history: dict) -> list:
+    events = []
+
+    def add(d, name, code, title, sub='', basis='', level='info', end=None, latest=None, ref=False):
+        events.append({
+            "date": d.strftime('%Y-%m-%d'),
+            "end_date": end.strftime('%Y-%m-%d') if end else None,
+            "name": name, "code": code, "title": title, "sub": sub, "basis": basis,
+            "level": level, "ref": ref,
+            "expected": bool(latest and d > latest),
+        })
+
+    def post_designation(name, code, row, day_map, trading_dates, desig, latest, kind_label, worst_text):
+        desig_s = desig.strftime('%Y%m%d')
+        actual = [d for d in trading_dates if d >= desig_s]
+        nth = lambda n: _mgmt_nth_day(actual, desig, n)
+        recov_kind = row.get('recovery_stage_kind')
+        add(nth(1), name, code, f"{name} 관리기간 시작 (90거래일)", "관리종목 지정 후 1거래일째 — 지정 당일은 매매거래정지",
+            "상장규정 제65조제1항제5호", 'info', latest=latest)
+        if recov_kind == 'met':
+            return
+        add(nth(50), name, code, f"{name} 상장폐지 우려 예고 1차 (지정 후 50일째)", "거래소 투자유의안내 — 재량 예고라 날짜는 참고용",
+            "상장규정 제155조제1항제1호(예고할 수 있음)", 'warn', latest=latest, ref=True)
+        add(nth(55), name, code, f"{name} 상장폐지 우려 예고 2차 (지정 후 55일째)", "거래소 투자유의안내 — 재량 예고라 날짜는 참고용",
+            "상장규정 제155조제1항제1호(예고할 수 있음)", 'warn', latest=latest, ref=True)
+        notice_day = row.get('recovery_notice_day') or 61
+        add(nth(notice_day), name, code, f"{name} 상장폐지 요건 달성 불가 확정 (지정 후 {notice_day}일째)",
+            worst_text, "상장규정 제65조제1항제5호, 시행세칙 제48조제8항(해제사유 발생이 불가능한 것으로 확정된 시점)",
+            'bad', latest=latest)
+        n1 = notice_day + 1
+        add(nth(n1), name, code, f"{name} 상장폐지 예고기간 (3거래일)",
+            f"{nth(n1).strftime('%m/%d')} ~ {nth(n1 + 2).strftime('%m/%d')} · 예고기간은 규정 조문에서 확인하지 못해 참고자료 기준",
+            "거래소 안내 기준(참고)", 'warn', end=nth(n1 + 2), latest=latest, ref=True)
+        n2 = notice_day + 4
+        add(nth(n2), name, code, f"{name} 정리매매 (7거래일)",
+            f"{nth(n2).strftime('%m/%d')} ~ {nth(n2 + 6).strftime('%m/%d')}",
+            "상장규정 제9조제2항(정리매매 7매매거래일)", 'bad', end=nth(n2 + 6), latest=latest)
+        add(nth(notice_day + 11), name, code, f"{name} 상장폐지 예정일", "위 최악 가정이 그대로 이어질 때",
+            "상장규정 제65조제1항제5호", 'bad', latest=latest)
+        delist_day = notice_day + 11          # 상장폐지 예정일(지정 후 N일째) — 그 뒤의 단계는 의미가 없어 만들지 않는다
+        if (row.get('recovery_max_streak') or 0) < MGMT_RECOVERY_STREAK_DAYS and notice_day < 81 <= delist_day:
+            add(nth(81), name, code, f"{name} 연속 10일 요건 달성 불가 확정 (지정 후 81일째)",
+                f"{notice_day}일째 확정이 나지 않을 때(20억 이상 날이 생겨 누적 판정이 뒤로 밀린 경우)에만 해당",
+                "상장규정 제65조제1항제5호가목", 'info', latest=latest, ref=True)
+        if 90 <= delist_day:
+            add(nth(90), name, code, f"{name} 관리기간 90거래일 마지막 날", "이때까지 두 요건을 못 채우면 상장폐지 사유",
+                "상장규정 제65조제1항제5호", 'warn', latest=latest)
+
+    # ── 우선주(동양우ㆍ동양2우B): 시가총액 20억원 미만 30거래일 연속 ──
+    for row in payload.get('preferred', []):
+        if not row.get('has_data'):
+            continue
+        name, code = row['name'], row['code']
+        # 거래량 기준(제64조제1항제4호): 시가총액 단계가 진행 중이면(상장폐지로 이어질 수 있어) 거래량은 의미가 없다.
+        # 시가총액 관리 대상이 아니거나 해소(해제 요건 충족)됐을 때만, 그리고 거래량이 실제로 문제일 때(또는 해소 직후) 표시한다.
+        st = row.get('cap_stage') or {}
+        cap_active = st.get('state') not in (None, '정상') and row.get('recovery_stage_kind') != 'met'
+        hy = row.get('half_year_label') or ''
+        if (not cap_active) and hy and row.get('volume_avg_monthly') is not None:
+            hy_year = int(hy[:4])
+            hy_end = date(hy_year, 6, 30) if '상반기' in hy else date(hy_year, 12, 31)
+            ok = row['volume_avg_monthly'] >= MGMT_VOLUME_THRESHOLD
+            if (not ok) or row.get('recovery_stage_kind') == 'met':
+                add(hy_end, name, code, f"{name} {hy} 월평균거래량 판정 기준일 (반기 말)",
+                    f"현재 잠정 {row['volume_avg_monthly']:,}주 / 기준 {MGMT_VOLUME_THRESHOLD:,}주 — {'충족(정상)' if ok else '미달 우려'}. "
+                    "매매거래정지일이 반기 거래일의 50% 이상이거나 유동성공급계약(6개월 이상)이 있으면 적용 제외",
+                    "상장규정 제64조제1항제4호, 시행세칙 제43조", 'info' if ok else 'bad',
+                    latest=datetime.strptime(_trading_dates(history.get(code, {}))[-1], '%Y%m%d').date() if _trading_dates(history.get(code, {})) else None)
+        st = row.get('cap_stage') or {}
+        if st.get('state') in (None, '정상'):
+            continue
+        day_map = history.get(code, {})
+        trading_dates = _trading_dates(day_map)
+        latest = datetime.strptime(trading_dates[-1], '%Y%m%d').date()
+        start_s = st['start_date'].replace('-', '')
+        streak_actual = [d for d in trading_dates if d >= start_s]
+        base_nth = lambda n: _mgmt_nth_day(streak_actual, latest, n)
+        add(base_nth(25), name, code, f"{name} 시총 20억 미달 25거래일째",
+            "거래소 '관리종목 지정 우려' 투자유의안내 시점 — 재량 예고라 날짜는 참고용",
+            "상장규정 제154조제1항(예고할 수 있음)", 'warn', latest=latest, ref=True)
+        day30 = base_nth(30)
+        desig = day30 + timedelta(days=1)
+        add(day30, name, code, f"{name} 관리종목 지정 사유 발생 (20억 미달 30거래일째)",
+            f"미달 시작 {st['start_date']} · 시가총액 20억원 미만 30매매거래일 연속",
+            "상장규정 제64조제1항제5호", 'bad', latest=latest)
+        add(desig, name, code, f"{name} 관리종목 지정일 (지정일 하루 매매거래정지)",
+            "지정시기는 사유 발생일의 다음 날",
+            "상장규정 제64조, 시행세칙 별표 7", 'bad', latest=latest)
+        post_designation(
+            name, code, row, day_map, trading_dates, desig, latest, '시가총액',
+            "이날까지 남은 거래일을 전부 20억 이상으로 채워도 누적 30일을 못 채웁니다 — 20억 미달이 계속될 때의 일정, 20억 이상인 날이 생기면 그만큼 뒤로 밀림")
+
+    # ── 보통주(동양): 종가 1,000원 미만 30거래일 연속 ──
+    for row in payload.get('common', []):
+        if not row.get('has_data') or not (row.get('price_streak_days') or 0):
+            continue
+        name, code = row['name'], row['code']
+        day_map = history.get(code, {})
+        trading_dates = _trading_dates(day_map)
+        latest = datetime.strptime(trading_dates[-1], '%Y%m%d').date()
+        start_s = row['price_streak_start_date'].replace('-', '')
+        streak_actual = [d for d in trading_dates if d >= start_s]
+        base_nth = lambda n: _mgmt_nth_day(streak_actual, latest, n)
+        day30 = base_nth(30)
+        desig = day30 + timedelta(days=1)
+        add(day30, name, code, f"{name}(보통주) 관리종목 지정 사유 발생 (종가 1,000원 미만 30거래일째)",
+            f"미달 시작 {row['price_streak_start_date']} · 종가 1,000원 미만 30매매거래일 연속",
+            "상장규정 제47조제1항제9호의2(2026.7.1 시행)", 'bad', latest=latest)
+        add(desig, name, code, f"{name}(보통주) 관리종목 지정일 (지정일 하루 매매거래정지)",
+            "지정일 전 1년 이내 주식병합 이력이 있어, 지정 후 90일 안에 다시 병합ㆍ감자 변경상장을 마치면 상장폐지 사유(상장규정 제48조제1항제9호의2나목)",
+            "상장규정 제47조, 시행세칙 별표 7", 'bad', latest=latest)
+        desig_s = desig.strftime('%Y%m%d')
+        actual = [d for d in trading_dates if d >= desig_s]
+        nth = lambda n: _mgmt_nth_day(actual, desig, n)
+        add(nth(1), name, code, f"{name}(보통주) 관리기간 시작 (90거래일)", "지정 후 1거래일째",
+            "상장규정 제48조제1항제9호의2", 'info', latest=latest)
+        add(nth(46), name, code, f"{name}(보통주) 상장폐지 요건 달성 불가 확정 (지정 후 46일째)",
+            "지정 후 계속 1,000원 미만이면 남은 44거래일로는 '1,000원 이상 45일 계속'을 채울 수 없게 되는 날",
+            "상장규정 제48조제1항제9호의2가목, 시행세칙 제48조제8항", 'bad', latest=latest)
+
+    events.sort(key=lambda e: (e['date'], e['name']))
+    return events
 
 # ─────────────────────────────────────────────────────────────
 # API Routes
@@ -4852,6 +5318,9 @@ def data_endpoint():
 
         per = round(price / eps, 2) if eps and eps > 0 else None
         roe = round(fin['net_income'] / fin['equity'] * 100, 2) if fin['equity'] else None
+        # PBR = 현재가 ÷ BPS, BPS(주당순자산) = 자본총계 ÷ 상장주식수 — EPSㆍROE와 같은 재무제표(같은 기준 시점)를 쓴다
+        bps = round(fin['equity'] / shares) if shares and fin['equity'] else None
+        pbr = round(price / bps, 2) if bps and bps > 0 else None
 
         return jsonify({
             "available": True,
@@ -4860,13 +5329,15 @@ def data_endpoint():
             "eps_is_estimated": eps_is_estimated,
             "per": per,
             "roe": roe,
+            "bps": bps,
+            "pbr": pbr,
             "price": price,
             "shares": shares,
             "net_income": fin['net_income'],
             "equity": fin['equity'],
         })
 
-    if section == 'mgmt_watch':
+    if section in ('mgmt_watch', 'mgmt_schedule'):
         if not KRX_API_KEY:
             return jsonify({"available": False, "reason": "KRX API 키가 설정되지 않았습니다."})
         history = _load_mgmt_history()
@@ -4894,6 +5365,9 @@ def data_endpoint():
              **compute_mgmt_status(code, history, live_prices.get(code), live_volumes.get(code))}
             for name, code in MGMT_WATCH_TICKERS.items()
         ]
+        if section == 'mgmt_schedule':
+            return jsonify({"available": True, "events": build_mgmt_schedule(
+                {"common": common_rows, "preferred": preferred_rows}, history)})
         return jsonify({"available": True, "common": common_rows, "preferred": preferred_rows})
 
     if section == 'companies':
@@ -5009,6 +5483,10 @@ def data_endpoint():
         records = fetch_disclosure_calendar(force=force)
         return jsonify({"records": records, "years": DISCLOSURE_CALENDAR_YEARS})
 
+    if section == 'disclosure_manual':
+        # 팀 업무일지에서 법정기한 검증을 거쳐 반영한 일정 — 캐시 없이 항상 파일에서 읽는다
+        return jsonify({"items": _manual_cal_load()})
+
     if section == 'ftc_check':
         transaction_type = request.args.get('transaction_type', '')
         amount_raw = request.args.get('amount', '')
@@ -5048,6 +5526,103 @@ def data_endpoint():
         return jsonify(result)
 
     return jsonify({"error": f"unknown section: {section}"}), 400
+
+
+# ── 공시 캘린더 수동 일정 — 통합포털 팀 업무일지에서 "법정기한 검증 통과" 후 반영한 일정 ──
+# 공시 캘린더 본체(DART 공시 이력·정기공시 법정기한·단판 계약종료)는 자동 수집이라 손으로 넣는 칸이 없었다.
+# 업무일지가 메인이므로 업무일지 일정을 여기로 보낼 수 있게 별도 JSON 파일에 보관한다. 쓰기는 이 PC(127.0.0.1)에서만
+# 허용한다(서버가 0.0.0.0 으로 열려 있어 다른 PC가 임의로 일정을 넣지 못하게). 날짜 검증은 보내는 쪽(포털 disc_rules)이 한다.
+MANUAL_CAL_PATH = os.path.join(BASE_DIR, 'disclosure_manual.json')
+_manual_cal_lock = threading.Lock()
+
+
+def _manual_cal_load():
+    try:
+        with open(MANUAL_CAL_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (FileNotFoundError, ValueError):
+        return []
+
+
+def _manual_cal_save(items):
+    tmp = MANUAL_CAL_PATH + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(items, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, MANUAL_CAL_PATH)
+
+
+def _manual_cal_local_only():
+    return request.remote_addr in ('127.0.0.1', '::1')
+
+
+@app.route('/disclosure_manual', methods=['POST'])
+def disclosure_manual_upsert():
+    if not _manual_cal_local_only():
+        return jsonify({"ok": False, "error": "이 PC에서만 등록할 수 있습니다."}), 403
+    d = request.get_json(silent=True) or {}
+    date_s = str(d.get('date') or '')
+    title = str(d.get('title') or '').strip()[:120]
+    try:
+        src = int(d.get('src_entry'))
+        datetime.strptime(date_s, '%Y-%m-%d')
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "날짜(YYYY-MM-DD)와 업무일지 기록 번호가 필요합니다."}), 400
+    if not title:
+        return jsonify({"ok": False, "error": "제목이 필요합니다."}), 400
+    item = {
+        'id': f'wl-{src}', 'src_entry': src, 'date': date_s, 'title': title,
+        'sub': str(d.get('sub') or '')[:300], 'rule_id': str(d.get('rule_id') or '')[:40],
+        'rule_label': str(d.get('rule_label') or '')[:60], 'trigger_date': str(d.get('trigger_date') or '')[:10],
+        'basis': str(d.get('basis') or '')[:400], 'verified_as_of': str(d.get('verified_as_of') or '')[:10],
+        'pushed_by': str(d.get('pushed_by') or '')[:40], 'team': str(d.get('team') or '')[:40],
+        'pushed_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
+    }
+    with _manual_cal_lock:
+        items = [x for x in _manual_cal_load() if x.get('src_entry') != src]
+        items.append(item)
+        _manual_cal_save(items)
+    return jsonify({"ok": True, "id": item['id']})
+
+
+@app.route('/disclosure_manual/retitle', methods=['POST'])
+def disclosure_manual_retitle():
+    if not _manual_cal_local_only():
+        return jsonify({"ok": False, "error": "이 PC에서만 수정할 수 있습니다."}), 403
+    d = request.get_json(silent=True) or {}
+    try:
+        src = int(d.get('src_entry'))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "업무일지 기록 번호가 필요합니다."}), 400
+    title = str(d.get('title') or '').strip()[:120]
+    if not title:
+        return jsonify({"ok": False, "error": "제목이 필요합니다."}), 400
+    with _manual_cal_lock:
+        items = _manual_cal_load()
+        hit = False
+        for x in items:
+            if x.get('src_entry') == src:
+                x['title'] = title
+                hit = True
+        if hit:
+            _manual_cal_save(items)
+    return jsonify({"ok": hit})
+
+
+@app.route('/disclosure_manual/delete', methods=['POST'])
+def disclosure_manual_delete():
+    if not _manual_cal_local_only():
+        return jsonify({"ok": False, "error": "이 PC에서만 삭제할 수 있습니다."}), 403
+    try:
+        src = int((request.get_json(silent=True) or {}).get('src_entry'))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "업무일지 기록 번호가 필요합니다."}), 400
+    with _manual_cal_lock:
+        items = _manual_cal_load()
+        kept = [x for x in items if x.get('src_entry') != src]
+        if len(kept) != len(items):
+            _manual_cal_save(kept)
+    return jsonify({"ok": True})
 
 
 @app.route('/send-danpan-mail', methods=['POST'])

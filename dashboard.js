@@ -135,9 +135,11 @@ let basis = 'current';
 const BASIS_LABEL = { current: '현재기준', close: '장마감기준' };
 let lastData = { exchange: null, indices: null, companies: null, cement: null, danpan: null, equity: null, large_holding: null, ftc: null, subsidiaryCapital: null, goodsServicesTargets: null, mgmtWatch: null, periodic: null };
 
-// 포털형 공시현황 요약 — 지금은 동양(주) 하나만 실제로 연동돼 있어 계열사
-// 선택 없이 바로 보여준다. 카드를 눌러 유형별로 필터링하는 상태만 관리한다.
+// 포털형 공시현황 요약 — 기본은 (주)동양이고, 계열사를 고르면 그 회사가 제출한
+// 공정위공시 요약이 나온다(단판ㆍ지분ㆍ정기공시는 (주)동양 데이터만 연동돼 있음).
+// 카드를 눌러 유형별로 필터링하는 상태와 선택한 회사를 관리한다.
 let portalFilterType = null; // null이면 전체
+let portalCompany = '동양(주)'; // 공정위 공시 제출회사명(filer)과 같은 표기
 
 // 화면 제목 옆 "(현재기준)"/"(장마감기준)" 표시 — 장마감기준일 때는 화면에서도,
 // 인쇄(PDF)했을 때도 그 값이 어느 날짜 기준인지 바로 보이도록 날짜까지 같이 적는다.
@@ -163,8 +165,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (basis === 'close') {
       document.title = `주가현황(장마감기준 ${basisCloseDateStr().replaceAll('-', '.')})`;
     }
-    window.print();
-    document.title = originalTitle;
+    // 로고 등 이미지가 아직 받아지는 중이면 인쇄본에 빠지므로, 모두 받아질 때까지(최대 4초) 기다린 뒤 인쇄한다.
+    const pending = [...document.images].filter(im => !im.complete).map(im => new Promise(res => {
+      im.addEventListener('load', res, { once: true }); im.addEventListener('error', res, { once: true });
+    }));
+    Promise.race([Promise.all(pending), new Promise(res => setTimeout(res, 4000))]).then(() => {
+      window.print();
+      document.title = originalTitle;
+    });
   });
   // 허브 통합 이후로는 상단 '메뉴(주가/공시)' 전환 버튼이 필요 없다(허브의 최상단
   // 탭이 이미 그 역할을 함) — 버튼과 라벨을 화면에서 숨긴다. 딥링크(?page=disclosures)로
@@ -181,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('snapshotFinancials')?.addEventListener('click', (e) => {
     const row = e.target.closest('.snapshot-fin-row');
     if (!row) return;
-    const metric = row.dataset.metric; // 'eps' | 'per' | 'roe'
+    const metric = row.dataset.metric; // 'eps' | 'per' | 'pbr' | 'roe'
     const formulaId = `snapshot${metric.charAt(0).toUpperCase()}${metric.slice(1)}Formula`;
     document.getElementById(formulaId)?.classList.toggle('show');
   });
@@ -480,14 +488,15 @@ function renderMgmtWatch() {
     const priceWarn = shownStreak > 0;
     return `
       <tr>
-        <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
+        <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span>${reasonBadgesCommon(row)}</td>
         <td>${shownDate ?? '--'}</td>
         <td>${shownClose != null ? shownClose.toLocaleString('ko-KR') : '--'}원</td>
-        <td class="${priceWarn ? 'down' : ''}">${shownStatus}</td>
+        <td class="${priceWarn ? 'mgmt-bad' : ''}">${shownStatus}</td>
       </tr>
     `;
   }).join('');
 
+  renderMgmtBasis(data);
   preferredBody.innerHTML = data.preferred.map(row => {
     if (!row.has_data) {
       return `<tr><td>${row.name}</td><td colspan="5">이력 수집 중… (KRX 과거 데이터를 백필하는 동안입니다 — 새로고침 시 이어서 채워집니다)</td></tr>`;
@@ -511,21 +520,142 @@ function renderMgmtWatch() {
     // 끝났는데 요건을 못 채웠으면(recovery_window_done && !recovery_both_met)
     // 실제 상장폐지 사유이므로 강조색(down)으로, 그 외(충족 또는 진행 중)에는
     // 일반 안내색(info)으로 구분한다.
-    const recoveryDanger = row.recovery_window_done && !row.recovery_both_met;
+    const recoveryDanger = (row.recovery_window_done && !row.recovery_both_met) || row.recovery_notice_triggered;
     const recoveryText = row.recovery_status
-      ? `<div class="${recoveryDanger ? 'down' : 'info'}" style="font-size:11px; margin-top:3px; font-weight:${recoveryDanger ? '700' : '400'};">${row.recovery_status}</div>`
+      ? `<div class="${recoveryDanger ? 'mgmt-bad' : 'info'}" style="font-size:11px; margin-top:3px; font-weight:${recoveryDanger ? '700' : '400'};">${row.recovery_status}</div>`
       : '';
     return `
       <tr>
-        <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span></td>
+        <td>${row.name} <span class="info" style="font-size:11px;">(${row.code})</span>${reasonBadgesPreferred(row)}</td>
         <td>${shownDate ?? '--'}</td>
         <td>${mktcapEok}억원</td>
-        <td class="${capWarn ? 'down' : ''}">${row.cap_status}${recoveryText}</td>
+        <td class="${capWarn ? 'mgmt-bad' : ''}" title="${(row.cap_status || '').replace(/"/g, '&quot;')}">${capSummaryText(row)}</td>
         <td>${row.half_year_label ?? ''} ${volAvg}주 (잠정)</td>
-        <td class="${volWarn ? 'down' : ''}">${shownVolStatus}${bufferText}</td>
+        <td class="${volWarn ? 'mgmt-bad' : ''}">${shownVolStatus}${bufferText}</td>
       </tr>
+      <tr class="stage-row"><td colspan="6">${renderCapStages(row)}</td></tr>
     `;
   }).join('');
+}
+
+// 종목 칸 아래에 '지금 무슨 항목으로 지정돼 있는지 / 무엇을 모니터링 중인지'를 바로 적는다.
+function reasonBadgesPreferred(row) {
+  const st = row.cap_stage || {};
+  let h = '';
+  if (st.state === '지정 완료') {
+    h += `<span class="reason-badge bad">지정 사유: 시가총액 미달 (20억원 미만 30거래일 연속) · ${st.designation_date} 지정</span>`;
+  } else if (st.state && st.state !== '정상') {
+    h += `<span class="reason-badge warn">지정 전 — 시가총액 미달 주의 (연속 ${st.streak_days}/${st.required_days}거래일)</span>`;
+  } else {
+    h += `<span class="reason-badge mon">지정 사유 없음</span>`;
+  }
+  h += `<span class="reason-badge mon">모니터링: ① 시가총액 20억원 ② 거래량(반기 월평균 1만주)</span>`;
+  return h;
+}
+function reasonBadgesCommon(row) {
+  const warn = row.price_streak_days > 0;
+  return (warn
+    ? `<span class="reason-badge warn">지정 전 — 주가 미달 주의 (연속 ${row.price_streak_days}거래일)</span>`
+    : `<span class="reason-badge mon">지정 사유 없음</span>`)
+    + `<span class="reason-badge mon">모니터링: 주가(종가 1,000원 미만 30거래일)</span>`;
+}
+
+// 표 위 안내 상자: 모니터링 항목(지정 기준)과 현재 지정 현황을 한눈에
+function renderMgmtBasis(data) {
+  const box = document.getElementById('mgmtBasisBox');
+  if (!box) return;
+  if (!data || !data.available) { box.innerHTML = ''; return; }
+  const cm = (data.common || [])[0];
+  const lines = [];
+  (data.preferred || []).forEach(r => {
+    if (!r.has_data) return;
+    const st = r.cap_stage || {};
+    const vol = r.volume_status ? `거래량 ${r.volume_status}` : '';
+    if (st.state === '지정 완료') {
+      const rec = r.recovery_elapsed_days != null ? ` · 지정 후 ${r.recovery_elapsed_days}/${r.recovery_window_days}거래일` : '';
+      lines.push(`<li><b>${r.name}</b> — <b class="reason">관리종목 지정 (사유: 시가총액 미달)</b> · ${st.designation_date} 지정${rec} · <span class="ok">${vol}</span></li>`);
+    } else if (st.state && st.state !== '정상') {
+      lines.push(`<li><b>${r.name}</b> — 지정 전 · <span class="warn">시가총액 주의 (연속 ${st.streak_days}/${st.required_days}거래일, 30거래일 도달 ${st.day30_date} 예상, 지정 ${st.designation_date} 예상)</span> · <span class="ok">${vol}</span></li>`);
+    } else {
+      lines.push(`<li><b>${r.name}</b> — 지정 전 · <span class="ok">시가총액 정상 · ${vol}</span></li>`);
+    }
+  });
+  if (cm && cm.has_data) {
+    const w = cm.price_streak_days > 0;
+    lines.push(`<li><b>${cm.name}</b> — 지정 전 · ${w ? `<span class="warn">주가 미달 주의 (연속 ${cm.price_streak_days}거래일)</span>` : '<span class="ok">주가 정상 (종가 1,000원 이상)</span>'}</li>`);
+  }
+  box.innerHTML = `
+    <div class="mb-title">📌 모니터링 항목 (관리종목 지정 기준)</div>
+    <ul>
+      <li><b>보통주 동양</b> — <b>주가(종가) 1,000원 미만</b>이 30매매거래일 연속 <span class="stage-exp">(상장규정 제47조제1항제9호의2, 2026.7.1 시행)</span></li>
+      <li><b>우선주 동양우ㆍ동양2우B</b> — ① <b>시가총액 20억원 미만</b>이 30매매거래일 연속 <span class="stage-exp">(제64조제1항제5호)</span> ② <b>반기 월평균 거래량 1만주 미만</b> <span class="stage-exp">(제64조제1항제4호)</span></li>
+    </ul>
+    <div class="mb-title">📍 현재 지정 현황</div>
+    <ul class="mb-status">${lines.join('')}</ul>`;
+}
+
+// 시가총액 상태 칸에는 한 줄 요약만 두고, 단계별 상세는 종목 아래 줄(stage-row)에 표로 보여준다.
+function capSummaryText(row) {
+  const st = row.cap_stage;
+  if (!st) return row.cap_status || '';
+  if (st.state === '정상') return '정상';
+  if (st.state !== '지정 완료') return `${st.state} · 연속 ${st.streak_days}/${st.required_days}거래일`;
+  const kind = row.recovery_stage_kind;
+  const k = kind === 'met' ? '해제 요건 충족' : kind === 'delist_notice' ? '⚠ 상장폐지 안내 대상' : kind === 'window_fail' ? '⚠ 상장폐지 사유' : '해제 요건 진행 중';
+  return `관리종목 지정 · ${k}`;
+}
+
+// 우선주 '시가총액 상태' 칸 — 두 단계를 섞지 않고 표로 구분해서 보여준다.
+//  ① 지정 단계: 시가총액 20억 미만이 30매매거래일 연속이면 관리종목 지정 (지정 전이면 '주의')
+//  ② 지정 후 단계: 지정 후 90매매거래일 안에 20억 이상 누적 30일 + 연속 10일을 못 채우면 상장폐지
+function renderCapStages(row) {
+  const st = row.cap_stage;
+  if (!st) return row.cap_status || '';
+  const md = (s) => { if (!s) return '--'; const p = s.split('-'); return `${parseInt(p[1])}/${parseInt(p[2])}`; };
+  const exp = (flag) => flag ? ' <span class="stage-exp">(예상)</span>' : '';
+  const stateCls = st.state === '정상' ? 'stage-ok' : (st.state.startsWith('지정 완료') || st.state.startsWith('지정 대상') ? 'stage-bad' : 'stage-warn');
+
+  let stage1;
+  if (st.state === '정상') {
+    stage1 = `<tr><td class="${stateCls}">정상</td><td colspan="4">시가총액 20억원 이상 — 미달 연속일수 없음</td></tr>`;
+  } else {
+    stage1 = `<tr>
+      <td class="${stateCls}">${st.state}</td>
+      <td>${md(st.start_date)}</td>
+      <td class="stage-key"><b>${st.streak_days}</b>거래일 ${st.days_to_30 > 0 ? `<span class="stage-exp">(30 중 · 남은 ${st.days_to_30}일)</span>` : '<span class="stage-exp">(30 충족)</span>'}</td>
+      <td class="stage-key">${md(st.day30_date)}${exp(st.day30_expected)}</td>
+      <td class="stage-key">${md(st.designation_date)}${exp(st.designation_expected)}</td>
+    </tr>`;
+  }
+
+  let stage2;
+  const designated = st.state === '지정 완료';
+  if (!designated || row.recovery_elapsed_days == null) {
+    stage2 = `<tr><td class="stage-na" colspan="6">관리종목 지정 전이라 해당 없음 — 지정 후부터 90거래일 유예기간이 시작됩니다</td></tr>`;
+  } else {
+    const kind = row.recovery_stage_kind;
+    const kindTxt = kind === 'met' ? '해제 요건 충족' : kind === 'delist_notice' ? '⚠ 상장폐지 안내 대상' : kind === 'window_fail' ? '⚠ 상장폐지 사유' : '진행 중';
+    const kindCls = kind === 'met' ? 'stage-ok' : (kind === 'delist_notice' || kind === 'window_fail') ? 'stage-bad' : 'stage-warn';
+    const noticeCell = kind === 'progress'
+      ? `<b>${row.recovery_days_to_notice}</b>거래일 <span class="stage-exp">(${row.recovery_notice_day}거래일째 ${md(row.recovery_notice_date)}경 · 예상)</span>`
+      : '--';
+    const noticeCls = kind === 'progress' || kind === 'delist_notice' || kind === 'window_fail' ? ' class="stage-key"' : '';
+    stage2 = `<tr>
+      <td class="${kindCls}">${kindTxt}</td>
+      <td><b>${row.recovery_elapsed_days}</b> / ${row.recovery_window_days}거래일</td>
+      <td>${row.recovery_max_streak} / 10일</td>
+      <td>${row.recovery_total_over_days} / 30일</td>
+      <td${noticeCls}>${noticeCell}</td>
+      <td>${row.recovery_days_to_window_end}거래일</td>
+    </tr>`;
+  }
+  return `
+    <div class="stage-block">
+      <div class="stage-title">① 지정 단계 <span>— 시가총액 20억원 미만이 30매매거래일 연속이면 관리종목 지정</span></div>
+      <table class="stage-table"><thead><tr><th>상태</th><th>미달 시작일</th><th>연속 미달</th><th>30거래일 도달일</th><th>지정(발효)일</th></tr></thead><tbody>${stage1}</tbody></table>
+      <div class="stage-title">② 지정 후 해제 단계 <span>— 지정 후 90거래일 안에 20억 이상 누적 30일 + 연속 10일 충족 못 하면 상장폐지</span></div>
+      <table class="stage-table"><thead><tr><th>상태</th><th>지정 후 경과</th><th>20억 이상 연속 최대</th><th>20억 이상 누적</th><th>상장폐지 안내까지</th><th>90거래일 만료까지</th></tr></thead><tbody>${stage2}</tbody></table>
+    </div>`;
 }
 
 // ── (주)동양 실시간 주가현황 위젯 (사이드바 상단) ───────────────
@@ -589,7 +719,7 @@ async function loadStockSnapshot() {
   }
 }
 
-// ── (주)동양 EPSㆍPERㆍROE (스냅샷 위젯 하단) ────────────────────
+// ── (주)동양 EPSㆍPERㆍPBRㆍROE (스냅샷 위젯 하단) ────────────────────
 // 반기보고서가 아직 없으면 서버가 자동으로 최신 분기보고서 기준으로 내려준다
 // (server.py의 fetch_dart_financial_metrics 참고). 항목을 클릭하면 계산 산식이
 // 바로 아래에 펼쳐진다 — 클릭 핸들러는 DOMContentLoaded에서 한 번만 등록(이벤트 위임).
@@ -626,6 +756,15 @@ async function loadCompanyFinancials() {
         : 'EPS가 없거나 0 이하라 계산 불가';
     }
 
+    const pbrEl = document.getElementById('snapshotPbr');
+    if (pbrEl) pbrEl.textContent = d.pbr != null ? `${d.pbr}배` : '--';
+    const pbrFormulaEl = document.getElementById('snapshotPbrFormula');
+    if (pbrFormulaEl) {
+      pbrFormulaEl.textContent = d.pbr != null
+        ? `PBR = 현재가 ÷ BPS = ${d.price.toLocaleString('ko-KR')}원 ÷ ${d.bps.toLocaleString('ko-KR')}원 = ${d.pbr}배 (BPS = 자본총계 ÷ 상장주식수 = ${d.equity.toLocaleString('ko-KR')}원 ÷ ${d.shares.toLocaleString('ko-KR')}주, ${d.period_label})`
+        : '자본총계 또는 상장주식수 데이터가 없어 계산 불가';
+    }
+
     const roeEl = document.getElementById('snapshotRoe');
     if (roeEl) roeEl.textContent = d.roe != null ? `${d.roe}%` : '--';
     const roeFormulaEl = document.getElementById('snapshotRoeFormula');
@@ -635,7 +774,7 @@ async function loadCompanyFinancials() {
         : '자본총계 데이터가 없어 계산 불가';
     }
   } catch (err) {
-    console.warn('EPS/PER/ROE 로드 실패:', err);
+    console.warn('EPS/PER/PBR/ROE 로드 실패:', err);
     container.style.display = 'none';
   }
 }
@@ -672,18 +811,24 @@ const PORTAL_CATEGORIES = [
 ];
 const PORTAL_CARD_OF = { danpan: 'danpan', ftc: 'ftc', equity: 'equity', large_holding: 'equity', periodic: 'periodic' };
 const ROW_CATEGORY_META = {
-  danpan: { label: '단판공시', typeClass: 'type-danpan' },
-  ftc: { label: '공정위공시', typeClass: 'type-ftc' },
-  equity: { label: '지분공시(임원)', typeClass: 'type-equity' },
-  large_holding: { label: '지분공시(대량보유)', typeClass: 'type-large_holding' },
-  periodic: { label: '정기공시', typeClass: 'type-periodic' },
+  danpan: { label: '단판공시', typeClass: 'type-danpan', dest: '한국거래소', basis: '유가증권시장 공시규정 제7조제1항 — 거래소에 신고' },
+  ftc: { label: '공정위공시', typeClass: 'type-ftc', dest: '공정거래위원회', basis: '공정거래법 제26조ㆍ시행령 제33조 — 공정위 소관 공시(DART 공정위공시로 조회). 공시 채널 세부는 시행령 원문 확인 필요' },
+  equity: { label: '지분공시(임원)', typeClass: 'type-equity', dest: '증권선물위원회ㆍ한국거래소', basis: '자본시장법 제173조 — 증권선물위원회와 거래소에 보고' },
+  large_holding: { label: '지분공시(대량보유)', typeClass: 'type-large_holding', dest: '금융위원회ㆍ한국거래소', basis: '자본시장법 제147조 — 금융위원회와 거래소에 보고' },
+  periodic: { label: '정기공시', typeClass: 'type-periodic', dest: '금융위원회ㆍ한국거래소', basis: '자본시장법 제159조(사업보고서)ㆍ제160조(반기ㆍ분기보고서) — 금융위원회와 거래소에 제출' },
 };
-// 공정위 공시 요약에서는 동양(주)ㆍ자회사 4곳끼리의 순수 그룹 내부거래(상대방도
-// 이 5개사 중 하나)는 빼고, 대외 계열사(유진기업 등) 상대 거래만 보여준다.
-const FTC_GROUP_ENTITY_NAMES = [
-  '동양(주)', '동양에너지(주)', '금왕에프원(주)',
-  '디씨아이티와이부천피에프브이(주)', '디씨아이티와이인천피에프브이(주)',
+// 공시현황 요약에서 고를 수 있는 회사 — key는 서버 FTC_MONITORED_ENTITIES의 제출회사명과 같다.
+// (주)동양만 "(주)동양" 표기로 보여준다(회사 표기 기준).
+const PORTAL_COMPANIES = [
+  { key: '동양(주)', label: '(주)동양' },
+  { key: '동양에너지(주)', label: '동양에너지(주)' },
+  { key: '금왕에프원(주)', label: '금왕에프원(주)' },
+  { key: '디씨아이티와이부천피에프브이(주)', label: '디씨아이티와이부천피에프브이(주)' },
+  { key: '디씨아이티와이인천피에프브이(주)', label: '디씨아이티와이인천피에프브이(주)' },
 ];
+function portalDisplayName(name) {
+  return name === '동양(주)' ? '(주)동양' : (name ?? '');
+}
 
 // 공시현황 요약ㆍ캘린더가 공통으로 쓰는 5종(단판ㆍ공정위ㆍ지분ㆍ대량보유ㆍ정기) 데이터를
 // 아직 안 받아온 것만 마저 받아온다.
@@ -709,17 +854,19 @@ async function loadPortalOverview() {
 
 function buildPortalOverviewRows() {
   const rows = [];
-  (lastData.danpan?.sites ?? []).forEach(s => rows.push({
+  // 단판ㆍ지분ㆍ대량보유ㆍ정기공시는 (주)동양 데이터만 있어, 다른 계열사를 고르면 공정위공시만 나온다.
+  const isDongyang = portalCompany === '동양(주)';
+  (isDongyang ? (lastData.danpan?.sites ?? []) : []).forEach(s => rows.push({
     category: 'danpan', date: s.latest_disclosure_date,
     title: s.site_name ?? '', sub: s.counterparty ?? '', url: s.dart_url,
   }));
   (lastData.ftc?.records ?? [])
-    .filter(r => !FTC_GROUP_ENTITY_NAMES.includes(r.counterparty))
+    .filter(r => r.filer === portalCompany)
     .forEach(r => rows.push({
       category: 'ftc', date: r.disclosure_date,
-      title: r.type_label ?? '', sub: r.counterparty ?? '', url: r.dart_url,
+      title: r.type_label ?? '', sub: r.counterparty_text ?? r.counterparty ?? '', url: r.dart_url,
     }));
-  (lastData.equity?.records ?? []).forEach(r => rows.push({
+  (isDongyang ? (lastData.equity?.records ?? []) : []).forEach(r => rows.push({
     category: 'equity', date: r.latest_buy_date,
     title: `${r.holder_name ?? ''} 소유상황보고`, sub: r.role_label ?? '', url: r.dart_url,
   }));
@@ -727,7 +874,7 @@ function buildPortalOverviewRows() {
   // 펼쳐져 나온다(예: 18행 = 실제 제출 3건) — 제출인 기준(rcept_no 단위)으로 한
   // 건만 센다.
   const seenLargeHolding = new Set();
-  (lastData.large_holding?.records ?? []).forEach(r => {
+  (isDongyang ? (lastData.large_holding?.records ?? []) : []).forEach(r => {
     if (!r.rcept_no || seenLargeHolding.has(r.rcept_no)) return;
     seenLargeHolding.add(r.rcept_no);
     rows.push({
@@ -735,8 +882,9 @@ function buildPortalOverviewRows() {
       title: `${r.reporter_name ?? r.holder_name ?? ''} 대량보유상황보고`, sub: r.holder_name ?? '', url: r.dart_url,
     });
   });
-  (lastData.periodic?.records ?? []).forEach(r => rows.push({
-    category: 'periodic', date: r.rcept_dt, title: r.report_nm ?? '', sub: '', url: r.dart_url,
+  (isDongyang ? (lastData.periodic?.records ?? []) : []).forEach(r => rows.push({
+    category: 'periodic', date: r.rcept_dt, title: r.report_nm ?? '',
+    sub: '(주)동양', url: r.dart_url,   // 보고자=제출인. 보고처(금융위원회ㆍ거래소)는 별도 열(ROW_CATEGORY_META)
   }));
   rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   return rows;
@@ -777,10 +925,28 @@ function renderPortalSummaryCards(rows) {
   });
 }
 
+function setupPortalCompanySelect() {
+  const sel = document.getElementById('portalCompanySelect');
+  if (!sel) return;
+  if (!sel.options.length) {
+    sel.innerHTML = PORTAL_COMPANIES.map(c => `<option value="${escapeAttr(c.key)}">${c.label}</option>`).join('');
+    sel.addEventListener('change', () => {
+      portalCompany = sel.value;
+      portalFilterType = null; // 회사를 바꾸면 유형 필터는 "전체"로
+      loadPortalOverview();
+    });
+  }
+  sel.value = portalCompany;
+}
+
 function renderPortalOverview() {
   const note = document.getElementById('portalOverviewNote');
   const tbody = document.querySelector('#portal-overview-table tbody');
   if (!tbody) return;
+
+  setupPortalCompanySelect();
+  const title = document.getElementById('portalOverviewTitle');
+  if (title) title.textContent = `공시현황 — ${portalDisplayName(portalCompany)}`;
 
   const rows = buildPortalOverviewRows();
   renderPortalSummaryCards(rows);
@@ -791,11 +957,14 @@ function renderPortalOverview() {
   const activeLabel = portalFilterType ? (PORTAL_CATEGORIES.find(c => c.key === portalFilterType)?.label ?? '') : '전체';
 
   if (note) {
-    note.textContent = `${activeLabel} — ${filtered.length}건. 단판ㆍ공정위ㆍ지분ㆍ정기공시를 유형별로 모았습니다 — `
-      + '카드를 눌러 유형을 바꿀 수 있고, 각 유형의 세부 조건은 아래 탭에서 확인하세요.';
+    note.textContent = portalCompany === '동양(주)'
+      ? `${activeLabel} — ${filtered.length}건. 단판ㆍ공정위ㆍ지분ㆍ정기공시를 유형별로 모았습니다 — `
+        + '카드를 눌러 유형을 바꿀 수 있고, 각 유형의 세부 조건은 아래 탭에서 확인하세요.'
+      : `${portalDisplayName(portalCompany)} 제출 공정위공시 ${filtered.length}건(작년 1월 1일~오늘). `
+        + '단판ㆍ지분ㆍ정기공시는 (주)동양만 연동되어 있어 이 회사는 0건으로 표시됩니다.';
   }
 
-  tbody.innerHTML = filtered.length === 0 ? '<tr><td colspan="5">데이터 없음</td></tr>' : '';
+  tbody.innerHTML = filtered.length === 0 ? '<tr><td colspan="6">데이터 없음</td></tr>' : '';
   filtered.forEach(r => {
     const category = ROW_CATEGORY_META[r.category];
     const tr = document.createElement('tr');
@@ -803,6 +972,7 @@ function renderPortalOverview() {
       <td><span class="disclosure-type-badge ${category?.typeClass ?? ''}">${category?.label ?? ''}</span></td>
       <td title="${escapeAttr(r.title)}">${r.title}</td>
       <td>${r.sub}</td>
+      <td title="${escapeAttr(category?.basis ?? '')}">${category?.dest ?? ''}</td>
       <td class="num">${r.date ?? ''}</td>
       <td>${r.url ? `<a href="${r.url}" target="_blank" class="clickable-name">보기</a>` : ''}</td>`;
     tbody.appendChild(tr);
@@ -812,14 +982,18 @@ function renderPortalOverview() {
 // ════════════ 공시 캘린더 ════════════════════════════════════════
 // (주)동양이 실제로 DART에 제출한 모든 공시(단판ㆍ공정위ㆍ지분ㆍ정기ㆍ기타)를
 // 최근 6년치 그대로 받아와 제출일에 달력으로 배치한다("이 공시가 언제 됐는지").
-// 여기에 12월 결산법인 기준 정기공시 법정 제출기한을 근사치로 얹어 앞으로 다가올
+// 여기에 12월 결산법인 기준 정기공시 법정 제출기한(금감원 제출기한 표 기준)을 얹어 앞으로 다가올
 // 일정도 같이 보이게 한다.
 const calState = { ref: new Date(), view: 'grid', selectedKey: null, hidden: new Set() };
 // loadAllData()가 주가 새로고침 때 lastData 객체를 통째로 갈아치우므로, 캘린더
 // 데이터는 거기 얹지 않고 별도 변수에 보관한다.
 let disclosureCalendarData = null;
+let calDanpanMeta = null;    // 단판 응답 meta(정기보고서 기준일 등) — 경과 현장 진행상태 문구용
 let calDanpanSites = null;   // 단판공시 진행 현장(계약기간 종료일 표시용) — 조회가 느려 별도 로딩
 let calDanpanLoaded = false;  // 단판 조회 완료 여부(성공/실패 무관)
+let calManualItems = [];     // 팀 업무일지에서 법정기한 검증 후 반영한 일정(통합포털 → 이 서버 JSON)
+let calMgmtEvents = null;    // 관리종목 일정(동양ㆍ동양우ㆍ동양2우B) — 서버가 규정ㆍ현재 상태로 계산, KRX 조회라 별도 로딩
+let calMgmtLoaded = false;
 
 const CAL_KINDS = {
   danpan:        { label: '단판공시',          cls: 'type-danpan' },
@@ -829,7 +1003,9 @@ const CAL_KINDS = {
   periodic:      { label: '정기공시',          cls: 'type-periodic' },
   other:         { label: '기타공시',          cls: 'type-other' },
   danpan_end:    { label: '단판 계약기간 종료', cls: 'type-danpan-end' },
+  mgmt:          { label: '관리종목 일정',      cls: 'type-mgmt' },
   deadline:      { label: '정기공시 법정기한', cls: 'type-deadline' },
+  worklog:       { label: '업무일지 등록(법정기한 검증)', cls: 'type-worklog' },
 };
 
 // '2026.06.30' / '2026. 6. 30' / '2026-6-30' / '20260630' → '2026-06-30'
@@ -843,14 +1019,39 @@ function parseDiscDate(s) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-// 12월 결산법인 기준 정기공시 법정 제출기한(근사) — 사업보고서 D+90(≈3/31),
-// 분기ㆍ반기보고서 D+45(≈5/15, 8/14, 11/14).
+// 12월 결산법인 기준 정기공시 법정 제출기한 — 금감원 DART 접수시스템(filer.fss.or.kr)
+// "정기보고서 제출기한" 표와 같은 규칙: 사업보고서 3/31(사업연도 경과 90일), 1분기 5/15ㆍ반기 8/14ㆍ
+// 3분기 11/14(경과 45일)이고, 기한일이 토ㆍ일ㆍ공휴일이면 다음 영업일로 넘어간다(예: 2026년 3분기
+// 11/14(토) → 11/16(월)). 반기ㆍ분기보고서를 연결기준으로 작성하면 최초 사업연도와 그 다음 사업연도에
+// 한해 기한이 15일 연장된다(2026년: 1분기 6/1, 반기 8/31, 3분기 11/30 — 연장일도 원래 기한일+15일에서
+// 다시 휴일을 넘긴 값이라 11/16+15가 아니라 11/14+15=11/29(일) → 11/30(월)).
+const KR_FIXED_HOLIDAYS = new Set(['01-01', '03-01', '05-05', '06-06', '08-15', '10-03', '10-09', '12-25']);
+function nextBusinessDayKey(y, m, d) {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  for (;;) {
+    const dow = dt.getUTCDay();
+    const mmdd = `${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+    if (dow !== 0 && dow !== 6 && !KR_FIXED_HOLIDAYS.has(mmdd)) break;
+    dt.setUTCDate(dt.getUTCDate() + 1);
+  }
+  return dt.toISOString().slice(0, 10);
+}
 function periodicDeadlineEvents(year) {
+  const mk = (m, d, title, basis, extendDays) => {
+    const dateKey = nextBusinessDayKey(year, m, d);
+    let sub = basis + (dateKey !== `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` ? ` (${m}/${d}이 휴일이라 다음 영업일)` : '');
+    if (extendDays) {
+      const ext = new Date(Date.UTC(year, m - 1, d + extendDays));
+      const extKey = nextBusinessDayKey(ext.getUTCFullYear(), ext.getUTCMonth() + 1, ext.getUTCDate());
+      sub += ` · 연결기준 작성 최초 2개 사업연도는 15일 연장 ${extKey.slice(5).replace('-', '/')}`;
+    }
+    return { dateKey, title, sub };
+  };
   return [
-    { dateKey: `${year}-03-31`, title: `${year - 1}년 사업보고서 제출기한`, sub: '사업연도 경과 후 90일 이내(근사)' },
-    { dateKey: `${year}-05-15`, title: `${year}년 1분기보고서 제출기한`, sub: '분기 경과 후 45일 이내(근사)' },
-    { dateKey: `${year}-08-14`, title: `${year}년 반기보고서 제출기한`, sub: '반기 경과 후 45일 이내(근사)' },
-    { dateKey: `${year}-11-14`, title: `${year}년 3분기보고서 제출기한`, sub: '분기 경과 후 45일 이내(근사)' },
+    mk(3, 31, `${year - 1}년 사업보고서 제출기한`, '사업연도 경과 후 90일 이내'),
+    mk(5, 15, `${year}년 1분기보고서 제출기한`, '분기 경과 후 45일 이내', 15),
+    mk(8, 14, `${year}년 반기보고서 제출기한`, '반기 경과 후 45일 이내', 15),
+    mk(11, 14, `${year}년 3분기보고서 제출기한`, '분기 경과 후 45일 이내', 15),
   ].map(e => ({ ...e, kind: 'deadline', url: null, isDeadline: true }));
 }
 
@@ -878,6 +1079,26 @@ function disclosureCalendarEvents() {
       url: s.dart_url || null, isDeadline: false, isUpcoming: true,
     });
   });
+  // 관리종목 일정 — 시총 20억 미만(우선주)ㆍ종가 1,000원 미만(보통주) 30거래일 연속 → 지정 → 90거래일 유예 → 상장폐지 절차
+  (calMgmtEvents ?? []).forEach(m => {
+    const dateKey = parseDiscDate(m.date);
+    if (!dateKey) return;
+    const tag = m.expected ? '예상' : '경과';
+    events.push({
+      dateKey, kind: 'mgmt', title: m.title,
+      sub: `[${tag}${m.ref ? '·참고' : ''}] ${m.sub || ''}`,
+      subShort: (() => { const t = `[${tag}${m.ref ? '·참고' : ''}] ${m.sub || ''}`; return t.length > 64 ? t.slice(0, 63) + '…' : t; })(),
+      basis: m.basis || '',
+      url: null, isMgmt: true, level: m.level, mgmtExpected: !!m.expected,
+    });
+  });
+  // 팀 업무일지 → 공시 캘린더 반영분(통합포털이 법령 기준 날짜 검증을 마친 일정)
+  (calManualItems ?? []).forEach(m => {
+    const dateKey = parseDiscDate(m.date);
+    if (!dateKey) return;
+    const meta = [m.rule_label, m.verified_as_of ? `검증 기준일 ${m.verified_as_of}` : '', m.pushed_by ? `반영 ${m.pushed_by}` : ''].filter(Boolean).join(' · ');
+    events.push({ dateKey, kind: 'worklog', title: m.title, sub: meta + (m.basis ? ` — ${m.basis}` : ''), url: null, isDeadline: true });
+  });
   const y = calState.ref.getFullYear();
   [y - 1, y, y + 1].forEach(yr => events.push(...periodicDeadlineEvents(yr)));
   return events;
@@ -893,6 +1114,9 @@ async function loadDisclosureCalendar() {
   } catch (err) {
     if (note) note.textContent = `공시 이력 조회 실패: ${err.message}`;
   }
+  // 업무일지 반영분은 탭을 열 때마다 새로 읽는다(캐시 없음, 가벼운 파일 읽기)
+  try { calManualItems = (await safeFetch(`${API_BASE}?section=disclosure_manual`))?.items ?? []; }
+  catch (err) { calManualItems = []; }
   renderDisclosureCalendar();
 
   // 단판 계약기간 종료일정은 조회가 느리므로(수십 초) 캘린더를 먼저 그린 뒤
@@ -900,9 +1124,16 @@ async function loadDisclosureCalendar() {
   if (calDanpanSites === null && !calDanpanLoaded) {
     calDanpanSites = [];  // 중복 요청 방지
     safeFetch(`${API_BASE}?section=danpan`)
-      .then(d => { calDanpanSites = d?.sites ?? []; })
+      .then(d => { calDanpanSites = d?.sites ?? []; calDanpanMeta = d?.meta ?? null; })
       .catch(() => { calDanpanSites = []; })
       .finally(() => { calDanpanLoaded = true; renderDisclosureCalendar(); });
+  }
+  if (calMgmtEvents === null && !calMgmtLoaded) {
+    calMgmtEvents = [];
+    safeFetch(`${API_BASE}?section=mgmt_schedule`)
+      .then(d => { calMgmtEvents = d?.events ?? []; })
+      .catch(() => { calMgmtEvents = []; })
+      .finally(() => { calMgmtLoaded = true; renderDisclosureCalendar(); });
   }
 }
 
@@ -934,55 +1165,113 @@ function renderCalLegend() {
   });
 }
 
-// "다가오는 일정" — 오늘 기준 −90일 ~ +400일 구간의 단판 계약기간 종료ㆍ정기공시
-// 법정기한을 D-day 순으로 모아 보여준다. (이미 지난 종료일인데 정정공시가 없으면
-// D+로 표시돼 "상태 확인 필요" 신호가 된다.) 계약기간이 "미정"인 단판 현장은
-// 날짜가 없어 달력엔 못 찍으므로 패널 하단에 따로 안내한다.
+// "다가오는 일정" — 오늘 이후 가까운 일정(단판 계약기간 종료ㆍ정기공시 법정기한)만 D-day 순으로
+// 보여준다. 이미 지난 일정은 이 목록에서 뺀다(달력에는 그대로 남아 있음). 단, 계약기간 종료일이
+// 지났는데 정정공시가 없는 현장(서버가 정기보고서 진행현황에 아직 남아 있는 현장만 내려줌)은
+// 놓치면 안 되므로 아래 "계약종료일 경과 현장" 블록에 진행상태와 함께 따로 보여준다. 계약기간이
+// "미정"인 단판 현장은 날짜가 없어 달력엔 못 찍으므로 패널 하단에 따로 안내한다.
+const UPCOMING_WINDOW_DAYS = 90;  // "가까이" 기준 — 오늘부터 이 일수 안의 일정만 표시
 function renderCalUpcoming() {
   const el = document.getElementById('calUpcoming');
   if (!el) return;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const iso = dt => new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  const backKey = iso(new Date(today.getTime() - 90 * 86400000));
-  const dlFwdKey = iso(new Date(today.getTime() + 180 * 86400000));   // 법정기한: 6개월
-  const endFwdKey = iso(new Date(today.getTime() + 400 * 86400000));  // 계약종료: 13개월(건설 특성상 길게)
+  const todayKey = iso(today);
+  const fwdKey = iso(new Date(today.getTime() + UPCOMING_WINDOW_DAYS * 86400000));
+  const daysBetween = key => Math.round((new Date(key + 'T00:00:00') - today) / 86400000);
 
   const items = disclosureCalendarEvents()
-    .filter(e => (e.kind === 'danpan_end' || e.isDeadline) && !calState.hidden.has(e.kind))
-    .filter(e => e.dateKey >= backKey && e.dateKey <= (e.isDeadline ? dlFwdKey : endFwdKey))
+    .filter(e => (e.kind === 'danpan_end' || e.isDeadline || e.isMgmt) && !calState.hidden.has(e.kind))
+    .filter(e => e.dateKey >= todayKey && e.dateKey <= fwdKey)
     .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+  // 계약기간 종료일이 지났는데 정정이 없는 현장 — 오래 지난 것부터
+  const overdue = (calDanpanSites ?? [])
+    .map(s => ({ s, endKey: parseDiscDate(s.period_end) }))
+    .filter(x => x.endKey && x.endKey < todayKey)
+    .sort((a, b) => a.endKey.localeCompare(b.endKey));
 
   const undated = (calDanpanSites ?? []).filter(s => !parseDiscDate(s.period_end));
 
-  if (items.length === 0 && undated.length === 0) {
-    el.innerHTML = !calDanpanLoaded
-      ? '<div class="cal-upcoming-loading">단판 계약종료 일정 불러오는 중…</div>'
-      : '';
+  if (!calDanpanLoaded && items.length === 0) {
+    el.innerHTML = '<div class="cal-upcoming-loading">단판 계약종료 일정 불러오는 중…</div>';
     return;
   }
 
-  const undatedHtml = undated.length
-    ? `<p class="cal-upcoming-note">⚠️ 계약기간 종료일 미정(달력 표시 불가) — ${undated.map(s => escapeAttr(s.site_name)).join(', ')}: 진행 상태를 수시로 확인하세요.</p>`
-    : '';
+  const periodicBase = calDanpanMeta?.periodic_report_base_date;
+  const overdueHtml = overdue.length ? `
+    <div class="cal-overdue-box">
+    <div class="cal-overdue-head">⚠️ 계약종료일 경과 현장 <span>정정공시 없음 · 진행상태 확인 필요 · ${overdue.length}건</span></div>
+    <ul class="cal-overdue-list">
+      ${overdue.map(({ s, endKey }) => {
+        const past = -daysBetween(endKey);
+        const lastDisc = parseDiscDate(s.latest_disclosure_date);
+        const sinceLast = lastDisc ? -daysBetween(lastDisc) : null;
+        const amt = s.amount ? ` · ${Math.round(s.amount / 100000000).toLocaleString('ko-KR')}억원` : '';
+        const statusParts = [
+          `정정 ${s.revision_count ?? 0}회`,
+          lastDisc ? `마지막 공시 ${lastDisc}(${sinceLast}일 전)` : null,
+          s.checked_by_periodic_report
+            ? `정기보고서${periodicBase ? `(기준일 ${periodicBase})` : ''} 진행현황에 아직 진행중으로 기재`
+            : '정기보고서 진행현황으로는 확인 불가',
+        ].filter(Boolean);
+        return `<li class="overdue" data-cal-goto="${endKey}">
+          <span class="cal-upcoming-dday">D+${past}</span>
+          <span class="cal-upcoming-date">${endKey}</span>
+          <span class="disclosure-type-badge ${CAL_KINDS.danpan_end.cls}">${CAL_KINDS.danpan_end.label}</span>
+          <div class="cal-overdue-main">
+            <div class="cal-overdue-name" title="${escapeAttr(s.site_name)}">${s.site_name}</div>
+            <div class="cal-overdue-meta">계약상대 ${s.counterparty || '-'}${amt}</div>
+            <div class="cal-overdue-status">${statusParts.join(' · ')}</div>
+          </div>
+          ${s.dart_url ? `<a href="${s.dart_url}" target="_blank" rel="noopener" class="cal-overdue-link">원문 보기 ↗</a>` : ''}
+        </li>`;
+      }).join('')}
+    </ul>
+    <p class="cal-overdue-note">계약기간 종료일이 지났는데 정정(종료ㆍ연장) 공시가 없는 현장입니다. 공사가 실제로 끝났는지, 기간 연장 정정공시가 필요한지 확인하세요.</p>
+    </div>`
+    : (calDanpanLoaded ? `
+    <div class="cal-overdue-box ok">
+      <div class="cal-overdue-head">✅ 계약종료일 경과 현장 없음 <span>모니터링 중인 단판 현장 ${(calDanpanSites ?? []).length}곳 모두 종료일이 지나지 않았거나 종료일 미정입니다</span></div>
+    </div>` : '');
+
+  const undatedHtml = undated.length ? `
+    <div class="cal-overdue-box warn">
+      <div class="cal-overdue-head">⚠️ 계약기간 종료일 미정 현장 <span>달력에 표시할 수 없어 따로 안내 · ${undated.length}건 · 진행 상태를 수시로 확인하세요</span></div>
+      <ul class="cal-overdue-list">
+        ${undated.map(s => {
+          const lastDisc = parseDiscDate(s.latest_disclosure_date);
+          const amt = s.amount ? ` · ${Math.round(s.amount / 100000000).toLocaleString('ko-KR')}억원` : '';
+          return `<li>
+            <div class="cal-overdue-main">
+              <div class="cal-overdue-name" title="${escapeAttr(s.site_name)}">${s.site_name}</div>
+              <div class="cal-overdue-meta">계약상대 ${s.counterparty || '-'}${amt}</div>
+              <div class="cal-overdue-status">정정 ${s.revision_count ?? 0}회${lastDisc ? ` · 마지막 공시 ${lastDisc}(${-daysBetween(lastDisc)}일 전)` : ''}</div>
+            </div>
+            ${s.dart_url ? `<a href="${s.dart_url}" target="_blank" rel="noopener" class="cal-overdue-link">원문 보기 ↗</a>` : ''}
+          </li>`;
+        }).join('')}
+      </ul>
+    </div>` : '';
 
   el.innerHTML = `
-    <div class="cal-upcoming-head">📢 다가오는 일정 <span>(계약종료 ~13개월 · 법정기한 ~6개월 · ${items.length}건)</span></div>
+    <div class="cal-upcoming-head">📢 다가오는 일정 <span>(오늘부터 ${UPCOMING_WINDOW_DAYS}일 이내 · ${items.length}건)</span></div>
     <ul class="cal-upcoming-list">
       ${items.map(e => {
-        const dday = Math.round((new Date(e.dateKey + 'T00:00:00') - today) / 86400000);
-        const ddText = dday === 0 ? 'D-DAY' : (dday > 0 ? `D-${dday}` : `D+${-dday}`);
-        const cls = dday < 0 ? 'overdue' : (dday <= 30 ? 'soon' : '');
+        const dday = daysBetween(e.dateKey);
+        const ddText = dday === 0 ? 'D-DAY' : `D-${dday}`;
+        const cls = dday <= 30 ? 'soon' : '';
         return `<li class="${cls}" data-cal-goto="${e.dateKey}">
           <span class="cal-upcoming-dday">${ddText}</span>
           <span class="cal-upcoming-date">${e.dateKey}</span>
           <span class="disclosure-type-badge ${CAL_KINDS[e.kind].cls}">${CAL_KINDS[e.kind].label}</span>
-          <span class="cal-upcoming-title" title="${escapeAttr(e.title)}${e.sub ? ' — ' + escapeAttr(e.sub) : ''}">${e.title}${e.sub ? ` <span class="cal-upcoming-sub">${e.sub}</span>` : ''}</span>
+          <span class="cal-upcoming-title" title="${escapeAttr(e.title)}${e.sub ? ' — ' + escapeAttr(e.sub) : ''}${e.basis ? ' (근거: ' + escapeAttr(e.basis) + ')' : ''}">${e.title}${(e.subShort ?? e.sub) ? ` <span class="cal-upcoming-sub">${e.subShort ?? e.sub}</span>` : ''}</span>
           ${e.url ? `<a href="${e.url}" target="_blank" class="clickable-name">원문</a>` : ''}
         </li>`;
-      }).join('') || '<li><span class="cal-upcoming-title" style="font-weight:400;color:var(--muted)">이 구간에 예정된 계약종료ㆍ법정기한이 없습니다.</span></li>'}
+      }).join('') || `<li><span class="cal-upcoming-title" style="font-weight:400;color:var(--muted)">앞으로 ${UPCOMING_WINDOW_DAYS}일 안에 예정된 계약종료ㆍ법정기한이 없습니다.</span></li>`}
     </ul>
-    <p class="cal-upcoming-note">단판공시(단일판매ㆍ공급계약)는 계약기간 종료일이 다가오면 대개 완료 또는 정정공시가 필요합니다.
-      종료일이 이미 지났는데 정정이 없으면(<b>D+</b>) 현장 진행 상태를 확인하세요.${!calDanpanLoaded ? ' <span class="cal-upcoming-loading-inline">단판 목록 갱신 중…</span>' : ''}</p>
+    <p class="cal-upcoming-note">단판공시(단일판매ㆍ공급계약)는 계약기간 종료일이 다가오면 대개 완료 또는 정정공시가 필요합니다.${!calDanpanLoaded ? ' <span class="cal-upcoming-loading-inline">단판 목록 갱신 중…</span>' : ''}</p>
+    ${overdueHtml}
     ${undatedHtml}`;
 
   el.querySelectorAll('[data-cal-goto]').forEach(li => {
@@ -1042,10 +1331,10 @@ function renderDisclosureCalendar() {
           <thead><tr><th>일자</th><th>구분</th><th>제목</th><th>상대방/비고</th><th>원문</th></tr></thead><tbody>
           ${monthEvents.map(e => `<tr>
             <td class="num">${e.dateKey}</td>
-            <td><span class="disclosure-type-badge ${CAL_KINDS[e.kind].cls}">${CAL_KINDS[e.kind].label}</span></td>
+            <td style="text-align:center"><span class="disclosure-type-badge ${CAL_KINDS[e.kind].cls}">${CAL_KINDS[e.kind].label}</span></td>
             <td title="${escapeAttr(e.title)}">${e.title}</td>
             <td>${e.sub || ''}</td>
-            <td>${e.url ? `<a href="${e.url}" target="_blank" class="clickable-name">보기</a>` : ''}</td>
+            <td style="text-align:center">${e.url ? `<a href="${e.url}" target="_blank" class="clickable-name">보기</a>` : ''}</td>
           </tr>`).join('')}
         </tbody></table></div>`;
   } else {
@@ -1065,12 +1354,13 @@ function renderDisclosureCalendar() {
       const dow = new Date(year, month, d).getDay();
       // 법정 제출기한ㆍ단판 계약종료는 "다가오는 일정" 표시라, 그 날 실제 공시가
       // 몇 건이든 항상 보이게 따로 뺀다(예전엔 상위 4건에 밀려 안 보였음).
-      const pinned = evs.filter(e => e.isDeadline || e.kind === 'danpan_end');
-      const normal = evs.filter(e => !e.isDeadline && e.kind !== 'danpan_end');
+      const pinned = evs.filter(e => e.isDeadline || e.kind === 'danpan_end' || e.isMgmt);
+      const normal = evs.filter(e => !e.isDeadline && e.kind !== 'danpan_end' && !e.isMgmt);
       const pinChips = pinned.map(e => {
-        const icon = e.isDeadline ? '📌' : '📍';
-        const label = e.isDeadline ? e.title.replace(/ 제출기한$/, '') : e.title.replace(/ — 계약기간 종료$/, ' 종료');
-        const cls = e.isDeadline ? 'cal-ev-deadline' : 'cal-ev-danpan-end';
+        const wl = e.kind === 'worklog';
+        const icon = e.isMgmt ? (e.level === 'bad' ? '🔻' : e.level === 'warn' ? '⚠️' : 'ℹ️') : (wl ? '📒' : (e.isDeadline ? '📌' : '📍'));
+        const label = e.isMgmt ? e.title : (e.isDeadline ? e.title.replace(/ 제출기한$/, '') : e.title.replace(/ — 계약기간 종료$/, ' 종료'));
+        const cls = e.isMgmt ? 'cal-ev-mgmt' : (wl ? 'cal-ev-worklog' : (e.isDeadline ? 'cal-ev-deadline' : 'cal-ev-danpan-end'));
         return `<span class="cal-ev ${cls}" title="${escapeAttr(e.title)}${e.sub ? ' — ' + escapeAttr(e.sub) : ''}">${icon} ${label}</span>`;
       }).join('');
       const chips = normal.slice(0, MAX_CHIPS).map(e =>
@@ -1110,6 +1400,7 @@ function renderCalDayDetail(dateKey, allEvents) {
         <span class="disclosure-type-badge ${CAL_KINDS[e.kind].cls}">${CAL_KINDS[e.kind].label}</span>
         <span class="cal-detail-title">${e.title}</span>
         ${e.sub ? `<span class="cal-detail-sub">${e.sub}</span>` : ''}
+        ${e.basis ? `<span class="cal-detail-sub">(근거: ${e.basis})</span>` : ''}
         ${e.url ? `<a href="${e.url}" target="_blank" class="clickable-name">원문 보기</a>` : ''}
       </li>`).join('')}
     </ul>`;
@@ -1263,22 +1554,22 @@ function renderFtc(payload) {
   if (note) {
     note.textContent = isRecent
       ? `${rangeLabel} 기준 ${list.length}건(전년도 1월 1일부터 오늘까지 — 공정위 공시점검 등 연도 단위 자료 제출용). `
-        + `동양(주) 및 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ부천PFVㆍ인천PFV)의 특수관계인에대한출자ㆍ채권매도ㆍ자금차입, `
+        + `(주)동양 및 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ부천PFVㆍ인천PFV)의 특수관계인에대한출자ㆍ채권매도ㆍ자금차입, `
         + `동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 4종만 집계했습니다 `
         + `(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순 — `
         + `전체 ${meta.lookback_years ?? 10}년간은 총 ${meta.total_count_all_years ?? list.length}건입니다("전체 이력" 탭 참고).`
-      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. 동양(주) 및 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ부천PFVㆍ인천PFV)의 `
+      : `최근 ${meta.lookback_years ?? 10}년간 총 ${list.length}건. (주)동양 및 자회사 4곳(동양에너지ㆍ금왕에프원ㆍ부천PFVㆍ인천PFV)의 `
         + `특수관계인에대한출자ㆍ채권매도ㆍ자금차입, 동일인등출자계열회사와의상품ㆍ용역거래(거래/변경 구분) 4종만 `
         + `집계했습니다(대규모기업집단현황공시, 지급수단별ㆍ지급기간별지급금액및분쟁조정기구에관한사항은 범위 밖). 접수일 최신순입니다.`;
   }
 
   tbody.innerHTML = '';
   list.forEach((item, idx) => {
-    const counterparty = item.counterparty ?? '';
+    const counterparty = item.counterparty_text ?? item.counterparty ?? '';  // 원문 표기 그대로
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="num">${idx + 1}</td>
-      <td>${item.filer ?? ''}</td>
+      <td>${item.filer_text ?? item.filer ?? ''}</td>
       <td>${item.type_label ?? ''}</td>
       <td title="${escapeAttr(counterparty)}">${counterparty}</td>
       <td>${item.relation ?? ''}</td>
@@ -1421,7 +1712,7 @@ function renderFtcCompanyInfo(rec) {
   const largeCoNote = rec.is_large_unlisted_co
     ? ' 자산총계가 1,000억원 이상이라 외부감사법상 대형비상장주식회사(주요사항보고서 제출대상)에도 해당할 수 있습니다.'
     : '';
-  infoBox.innerHTML = `${escapeAttr(rec.name)} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
+  infoBox.innerHTML = `${escapeAttr(portalDisplayName(rec.name))} — 자산총계 ${fmtWon(rec.total_assets)}원 / 자본금 ${fmtWon(rec.capital)}원 / `
     + `자본총계 ${fmtWon(rec.capital_total)}원${capitalTotalNote} → 자본금ㆍ자본총계 중 큰 금액 <b>${fmtWon(rec.capital_base)}원</b>.`
     + `${largeCoNote} (<a href="${rec.dart_url}" target="_blank" class="clickable-name">원문 보기</a>)`;
 }
@@ -1608,14 +1899,14 @@ async function loadEquity() {
   const note = document.getElementById('equityNote');
   const tbody = document.querySelector('#equity-table tbody');
   if (note) note.textContent = 'DART 공시 원문을 조회하는 중… (최근 10년치를 하나씩 받아오므로 다소 걸릴 수 있습니다)';
-  if (tbody) tbody.innerHTML = '<tr><td colspan="8">로딩 중…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="10">로딩 중…</td></tr>';
   try {
     const data = await safeFetch(`${API_BASE}?section=equity`);
     lastData.equity = data;
     renderEquity(data);
   } catch (err) {
     if (note) note.textContent = `조회 실패: ${err.message}`;
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8">조회 실패: ${err.message}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="10">조회 실패: ${err.message}</td></tr>`;
   }
 }
 
@@ -1633,7 +1924,7 @@ function renderEquity(payload) {
   const meta = Array.isArray(payload) ? {} : (payload?.meta ?? {});
 
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10">매수 이력이 있는 지분공시가 없거나, DART_API_KEY 미설정으로 조회할 수 없습니다.</td></tr>';
     if (note) note.textContent = '';
     return;
   }
@@ -1643,6 +1934,7 @@ function renderEquity(payload) {
       + (meta.officer_roster_available
           ? '현재 정기보고서의 임원 현황에 없는(=퇴임한) 임원은 제외했습니다. '
           : '정기보고서 임원 현황 조회에 실패해 퇴임 여부를 걸러내지 못했습니다 — 지난 임원이 섞여 있을 수 있습니다. ')
+      + `지분율은 누적 주식수 ÷ 보통주 발행주식총수${meta.issued_shares_total ? `(${fmtWon(meta.issued_shares_total)}주, ${meta.issued_shares_date ?? ''} 소유상황보고서 기재값)` : ''}로 소수점 둘째 자리까지 표시합니다. `
       + `DART 신고는 거래일로부터 최대 5영업일까지 걸릴 수 있어 아주 최근 거래는 아직 반영되지 않았을 수 있습니다.`;
   }
 
@@ -1658,6 +1950,7 @@ function renderEquity(payload) {
       <td class="num">${item.first_buy_date ?? ''}</td>
       <td class="num">${item.latest_buy_date ?? ''}</td>
       <td class="num">${fmtWon(item.total_qty)}</td>
+      <td class="num" title="누적 주식수 ÷ 보통주 발행주식총수${meta.issued_shares_total ? ` ${fmtWon(meta.issued_shares_total)}주` : ''}">${item.ownership_ratio != null ? item.ownership_ratio.toFixed(2) + '%' : '-'}</td>
       <td class="num">${fmtWon(item.avg_price)}</td>
       <td><a href="${item.dart_url}" target="_blank" class="clickable-name">보기</a></td>
       <td><button type="button" class="doc-request-btn">${item.latest_report_type || '변동'} 서류</button></td>`;
@@ -1669,6 +1962,19 @@ function renderEquity(payload) {
     }
     tbody.appendChild(tr);
   });
+  // 마지막 행: 합계 — 누적 주식수 합과 지분율 합(합계 주식수 ÷ 보통주 발행주식총수)
+  const sumQty = list.reduce((a, x) => a + (x.total_qty ?? 0), 0);
+  const sumRatio = meta.issued_shares_total
+    ? sumQty / meta.issued_shares_total * 100
+    : list.reduce((a, x) => a + (x.ownership_ratio ?? 0), 0);
+  const totalTr = document.createElement('tr');
+  totalTr.className = 'total-row';
+  totalTr.innerHTML = `
+    <td colspan="5" style="text-align:center;">합계 (${list.length}명)</td>
+    <td class="num">${fmtWon(sumQty)}</td>
+    <td class="num">${sumRatio.toFixed(2)}%</td>
+    <td colspan="3"></td>`;
+  tbody.appendChild(totalTr);
 }
 
 // ── 지분공시 정확성 점검(임원 선임일ㆍ발행주식총수ㆍ주식 수) ──────
@@ -2244,7 +2550,7 @@ function ruleDanpanHtml(rule) {
   const pctLabel = `${(rule.threshold_pct * 100).toFixed(1)}%`;
   const largeLabel = rule.is_large_corp ? '대규모법인 (자산총액 2조원 이상)' : '일반법인 (대규모법인 아님)';
   return `
-    <p>동양(주)이 단일판매ㆍ공급계약을 공시해야 하는 기준은 <b>최근 사업연도 연결 매출액의 5%</b>
+    <p>(주)동양이 단일판매ㆍ공급계약을 공시해야 하는 기준은 <b>최근 사업연도 연결 매출액의 5%</b>
     (자산총액 2조원 이상 대규모법인은 2.5%) 이상입니다. 계약해지도 같은 기준으로 공시 대상입니다.</p>
     <div class="rule-flow">
       <div class="rule-flow-box">
@@ -2278,7 +2584,7 @@ function ruleDanpanHtml(rule) {
       <li>단일판매계약과 공급계약에 대한 범위구분이 명확하지 않으나, 건설업의 경우 공사수주(단일판매계약)와
         유통업의 경우 상품공급(공급계약)을 포함한 법인의 경영활동에서의 제품 등의 판매활동을 의미합니다.</li>
       <li>회사의 매출액에 반영되는 수주ㆍ공급계약만 해당되며, <b>해당 회사의 발주 및 구매계약은 공시대상이
-        아닙니다</b> — 동양(주)이 파는 계약(매출)만 대상이고, 동양(주)이 사는 계약(매입ㆍ발주)은 대상이 아닙니다.</li>
+        아닙니다</b> — (주)동양이 파는 계약(매출)만 대상이고, (주)동양이 사는 계약(매입ㆍ발주)은 대상이 아닙니다.</li>
       <li>계약금액은 부가가치세(VAT)를 제외한 금액으로 합니다.</li>
     </ul>
 
@@ -2775,10 +3081,12 @@ function renderThemes(data) {
 }
 
 // ── 전일대비(당일 등락) 표기 — 네이버 증권 스타일: ▲/▼ + 등락폭(+등락율%) ──
-function renderDailyChange(item) {
-  const diff = Number(item.diff ?? 0);
-  const rate = Number(item.rate ?? 0);
-  const dir = item.direction || '';
+function renderDailyChange(item, b) {
+  // 현재기준/장마감기준마다 비교 대상이 다르다 — 보여주는 가격(b)의 등락을 우선 쓰고, 없으면 종목 공통값
+  const src = (b && b.diff !== undefined) ? b : item;
+  const diff = Number(src.diff ?? 0);
+  const rate = Number(src.rate ?? 0);
+  const dir = src.direction || '';
   if (!diff && !rate) return '';
   const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '-';
   const diffAbs = Math.abs(diff).toLocaleString();
@@ -2805,7 +3113,7 @@ function renderTable(tableId, list) {
     tr.innerHTML = `
       <td>
         <div class="stock-name-cell">
-          <img class="stock-logo" src="https://ssl.pstatic.net/imgstock/fn/real/logo/png/stock/Stock${ticker}.png" alt="" loading="lazy" onerror="this.style.display='none'">
+          <img class="stock-logo" src="/logo/${ticker}.png" alt="" loading="eager" decoding="sync" onerror="this.style.display='none'">
           <div class="stock-name-text">
             <span class="clickable-name" onclick="showInvestorModal('${ticker}', '${name}')">${name}</span>
             <span class="stock-code">${ticker}</span>
@@ -2817,14 +3125,14 @@ function renderTable(tableId, list) {
       <td class="num">${item.price_prev_year ?? ''}</td>
       <td class="num price-cell">
         <div class="price-main">${b.price ?? ''}${nxtBadge}</div>
-        ${renderDailyChange(item)}
+        ${renderDailyChange(item, b)}
       </td>
       <td class="num">${item.marketcap_prev ?? ''}</td>
       <td class="num">${b.marketcap ?? ''}</td>
       <td class="num ${rateClass}">${changeRate}</td>
       <td class="num range-cell">
-        <span class="range-high">최고 ${item.high_52w ?? ''}</span>
-        <span class="range-low">최저 ${item.low_52w ?? ''}</span>
+        <span class="range-high">최고 ${item.high_52w ?? ''}${item.high_52w_date ? `(${item.high_52w_date})` : ''}</span>
+        <span class="range-low">최저 ${item.low_52w ?? ''}${item.low_52w_date ? `(${item.low_52w_date})` : ''}</span>
       </td>`;
     tbody.appendChild(tr);
   });

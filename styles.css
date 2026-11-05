@@ -8,12 +8,25 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* 공통 디자인 토큰 — 통합포털 static/style.css와 같은 값 */
+  --blue-50:  #eef5ff;
+  --blue-100: #dbe9ff;
+  --blue-200: #b9d3fc;
+  --blue-500: #3182f6;
+  --blue-600: #1b64da;
+  --blue-700: #1553b8;
+  --surface-2: #f6f8fb;
+  --surface-3: #eaeef4;
+  --border-strong: #c7d0db;
+  /* 표 선은 두 종류만: 바깥 테두리 = 굵고 진하게, 안쪽 구분선 = 모두 얇게 */
+  --line-outer: #4e5968;
+  --line-inner: #c7d0db;
   --bg:       #f2f4f6;
   --surface:  #ffffff;
   --card:     #ffffff;
-  --border:   #e5e8eb;
+  --border:   #e1e6ec;
   --text:     #191f28;
-  --muted:    #6b7684;
+  --muted:    #4e5968;
   --accent:   #3182f6;
   --title:    #1b64da;           /* 제목 전용 진한 파랑 (토스 블루 계열) */
   --up:       #dc2626;           /* 상승 = 빨강 (한국식) */
@@ -267,7 +280,7 @@ html, body {
   flex: 1;
   padding: 8px 6px;
   border: none;
-  background: rgba(25,31,40,0.04);
+  background: var(--surface-3);
   color: var(--muted);
   cursor: pointer;
   font-size: 12px;
@@ -275,8 +288,8 @@ html, body {
   transition: background .15s, color .15s;
 }
 .tab-btn + .tab-btn { border-left: 1px solid var(--border); }
-.tab-btn:hover { background: rgba(25,31,40,0.1); }
-.tab-btn.active { background: var(--accent); color: #fff; }
+.tab-btn:hover { background: var(--blue-100); color: var(--blue-700); }
+.tab-btn.active { background: var(--blue-600); color: #fff; }
 
 /* 공시 탭은 항목이 많아(8개) 줄바꿈을 허용하되 단어 중간에서 잘리지 않게 한다 */
 #disclosureTabs { flex-wrap: wrap; overflow: visible; }
@@ -431,10 +444,18 @@ html, body {
 
 /* ── Table Wrapper ───────────────────────────────────────────── */
 .table-wrap {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 0;                 /* 바깥 테두리는 아래 '.table-wrap > table'이 굵게 그린다 */
+  border-radius: 4px;
   overflow: hidden;          /* 내부 테이블 테두리가 wrap 밖으로 안 나가게 */
   overflow-x: auto;
+}
+/* 표 바깥 테두리: 굵고 진하게(2px). border-collapse 상태에서 칸 테두리(1px)보다 굵은 쪽이 이겨서
+   가장자리 칸의 선이 겹쳐 두꺼워지지 않는다. */
+.table-wrap > table {
+  border: 2px solid var(--line-outer);
+  /* 겉 테두리의 바깥 절반이 .table-wrap(overflow)에 잘려 위·왼쪽이 얇아 보이던 문제 → 1px 안으로 들임 */
+  margin: 1px;
+  width: calc(100% - 2px);
 }
 
 /* ── Tables ──────────────────────────────────────────────────── */
@@ -448,7 +469,7 @@ table {
 th, td {
   padding: 8px 7px;
   text-align: left;
-  border: 1px solid var(--border);  /* 전체 셀 테두리 (상하좌우) */
+  border: 1px solid var(--line-inner);  /* 안쪽 구분선은 전부 같은 얇은 선 */
   white-space: normal;
   word-break: keep-all;
   overflow-wrap: break-word;
@@ -456,18 +477,24 @@ th, td {
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 th {
-  background: rgba(25,31,40,0.05);
-  font-weight: 600;
+  background: var(--blue-50);
+  font-weight: 700;
   font-size: 11px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .04em;
+  color: var(--blue-700);
+  letter-spacing: .02em;
   text-align: center;          /* 헤더 가운데 정렬 */
   vertical-align: middle;      /* rowspan 셀(회사명 등) 세로 중앙 정렬 */
   position: sticky;
   top: 0;
   z-index: 1;
 }
+
+/* ── 표 제목행 공통: 가운데 정렬 · 굵게 · 제목행 아래 가운데 이중선(두 줄) ──────────
+   2단 머리글(주가(원)/시가총액(억원) 아래 전년말/당일)이면 맨 아래 제목행에만 이중선,
+   윗줄 그룹 칸은 얇은 선으로 둔다. rowspan 칸(회사명 등)은 맨 아래까지 가므로 이중선. */
+th { text-align: center !important; font-weight: 800 !important; }
+thead th { border-bottom: 3px double var(--line-outer) !important; }
+thead tr:not(:last-child) th:not([rowspan]) { border-bottom: 1px solid var(--line-inner) !important; }
 
 /* ── 2단 헤더: 상위 그룹셀(주가(원)/시가총액(억원))이 한 줄이라 하위 셀
    (전년말 / 당일<br>(전일대비), 2줄)보다 얇아 두 줄 높이가 어긋나 보이는 문제 —
@@ -834,6 +861,8 @@ tr:hover td { background: rgba(25,31,40,0.025); }
 .type-other         { --cal-c: #64748b; }
 .type-danpan-end    { --cal-c: #b91c1c; }
 .type-deadline      { --cal-c: #b48214; }
+.type-worklog       { --cal-c: #4f46e5; }
+.type-mgmt          { --cal-c: #7c3aed; }
 
 /* ── 다가오는 일정 패널 ─────────────────────────────────────── */
 .cal-upcoming { margin-bottom: 16px; }
@@ -959,6 +988,9 @@ tr:hover td { background: rgba(25,31,40,0.025); }
 .cal-detail-title { font-weight: 600; color: var(--text); }
 .cal-detail-sub { font-size: 12px; color: var(--muted); }
 .disclosure-type-badge.type-deadline { background: rgba(180, 130, 20, 0.14); color: #92660f; }
+/* 관리종목 일정 = 실제 공시가 아니라 규정에 따른 예상 일정 → 보라색 점선 테두리 */
+.cal-ev-mgmt { color: #5b21b6; background: rgba(124, 58, 237, 0.10); border: 1px dashed #7c3aed; font-weight: 700; }
+.disclosure-type-badge.type-mgmt { background: rgba(124, 58, 237, 0.14); color: #5b21b6; }
 
 /* ── 참고 사이트 카드 ───────────────────────────────────────── */
 .ref-site-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
@@ -971,6 +1003,47 @@ tr:hover td { background: rgba(25,31,40,0.025); }
 .ref-site-name { font-size: 13.5px; font-weight: 700; color: var(--title); }
 .ref-site-name::after { content: ' ↗'; font-size: 11px; color: var(--muted); }
 .ref-site-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+/* ── 관리종목 모니터링: 모니터링 항목 안내 + 지정 단계 / 지정 후 해제 단계 표 ── */
+.mgmt-basis-box {
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+  padding: 10px 14px; margin: 0 0 12px; font-size: 12px; line-height: 1.7;
+}
+.mgmt-basis-box .mb-title { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.mgmt-basis-box ul { list-style: none; margin: 0 0 6px; padding: 0; }
+.mgmt-basis-box li { padding-left: 12px; position: relative; }
+.mgmt-basis-box li::before { content: "▸"; position: absolute; left: 0; color: var(--muted); }
+.mgmt-basis-box .mb-status b.reason { color: #b91c1c; }
+.mgmt-basis-box .mb-status span.ok { color: #047857; font-weight: 600; }
+.mgmt-basis-box .mb-status span.warn { color: #b45309; font-weight: 600; }
+.reason-badge { display: block; margin-top: 3px; font-size: 11px; font-weight: 700; line-height: 1.4; }
+.reason-badge.bad { color: #b91c1c; }
+.reason-badge.warn { color: #b45309; }
+.reason-badge.mon { color: #475569; font-weight: 500; }
+.stage-block { width: 100%; }
+#mgmt-watch-preferred-table tr.stage-row > td { padding: 4px 10px 12px; background: #fbfcfe; text-align: left; }
+.stage-title { font-size: 12px; font-weight: 700; margin: 6px 0 3px; color: var(--text); }
+.stage-title span { font-weight: 400; color: #64748b; }
+.stage-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; table-layout: auto; border: 2px solid var(--line-outer); }
+.stage-table th, .stage-table td { border: 1px solid var(--line-inner); padding: 4px 6px; text-align: center; white-space: normal; text-transform: none; letter-spacing: 0; }
+.stage-table th { background: var(--blue-50); font-weight: 700; color: var(--blue-700); font-size: 11px; position: static; }
+.stage-table td.stage-ok { color: #047857; font-weight: 700; }
+.stage-table td.stage-warn { color: #b45309; font-weight: 700; }
+.stage-table td.stage-bad { color: #b91c1c; font-weight: 700; }
+.stage-table td.stage-na { color: #64748b; background: #f8fafc; }
+/* 중요한 일정(연속 미달일ㆍ30거래일 도달일ㆍ지정 발효일ㆍ상장폐지 안내까지)은 붉은 음영 + 볼드 */
+.stage-table td.stage-key { background: #fee2e2; color: #b91c1c; font-weight: 800; }
+.stage-table td.stage-key .stage-exp { color: #b91c1c; font-weight: 600; }
+.stage-exp { color: #64748b; font-size: 11px; }
+
+/* ── 가운데 정렬: 관리종목 모니터링 표 전 칸 (회사명 칸은 좌측 정렬 유지) ── */
+#mgmt-watch-common-table td,
+#mgmt-watch-preferred-table tbody tr:not(.stage-row) > td { text-align: center; }
+
+/* ── 주의ㆍ미달 표기는 붉은색 (※ .down 은 주가 하락=파랑이라 따로 둔다) ── */
+.mgmt-bad { color: #dc2626; font-weight: 700; }
+.reason-badge.warn, .stage-table td.stage-warn,
+.mgmt-basis-box .mb-status span.warn { color: #dc2626; }
 
 /* ── Print ───────────────────────────────────────────────────── */
 /* 이 블록은 반드시 파일 맨 끝에 있어야 한다 — 동일 우선순위(specificity)일 때
@@ -985,7 +1058,7 @@ tr:hover td { background: rgba(25,31,40,0.025); }
      보이는 문제가 있었다(그리드 컬럼 폭 반올림 오차로 추정 — 실제 인쇄에서만
      보이고 화면/DOM 측정으로는 재현 안 됨). 좌측 여백은 그대로 두고 우측에만
      여유를 더해 우측 테두리가 인쇄 영역 경계에 딱 붙지 않게 한다. */
-  @page { size: A4 portrait; margin: 14mm 13mm 14mm 10mm; }
+  @page { size: A4 portrait; margin: 11mm 11mm 11mm 11mm; }
 
   /* 색상 그대로 인쇄 */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -996,6 +1069,8 @@ tr:hover td { background: rgba(25,31,40,0.025); }
     --surface: #ffffff;
     --card:    #f4f4f8;
     --border:  #999999;          /* 인쇄 시 진한 테두리 */
+    --line-outer: #000000;       /* 표 바깥 테두리(굵고 진하게) */
+    --line-inner: #999999;       /* 표 안쪽 구분선(얇게) */
     --text:    #111111;
     --muted:   #555555;
     --title:   #0369a1;          /* 인쇄 시 하늘색 → 짙은 파란색 */
@@ -1055,10 +1130,14 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   #cement-table th.th-highlight {
     border-top: 2px solid var(--up) !important;
   }
+  /* 맨 아래(표 바깥선)는 빨강으로 덮지 않는다 — 상장 계열사·시멘트사 표의 바깥 테두리는
+     당일(전일대비) 열 아래까지 끊김 없이 진한 검정으로 이어져야 한다. */
   #companies-table tbody tr:last-child td.price-cell,
   #cement-table tbody tr:last-child td.price-cell {
-    border-bottom: 2px solid var(--up) !important;
+    border-bottom: 3px solid var(--line-outer) !important;
   }
+  /* 인쇄에서 두 표의 바깥 테두리는 일반 표보다 한 단계 더 굵고 진하게(칸 테두리 2px 빨강보다 굵아야 모서리에서도 안 덮인다) */
+  #companies-table, #cement-table { border: 3px solid var(--line-outer) !important; }
 
   /* 주가 동향 코멘트 축소 */
   .commentary-list { padding: 8px 10px; gap: 6px; }
@@ -1091,5 +1170,114 @@ tr:hover td { background: rgba(25,31,40,0.025); }
   .cal-cell { min-height: 54px; }
   .cal-ev { font-size: 8px; padding: 0 3px; }
   .cal-legend-chip { border-color: #999 !important; }
+
+  /* ── 인쇄(PDF) 레이아웃: A4 폭에 맞춰 좌우 여백 동일, 표 가로 스크롤 제거, 1쪽=주가현황, 2쪽=관리종목 모니터링 ── */
+  html, body, .container { height: auto !important; background: #fff !important; }
+  .main { width: 100%; max-width: none; padding: 0 !important; overflow: visible !important; }
+  .table-wrap { overflow: visible !important; border-radius: 0; }
+  .table-wrap > table { margin: 0; }   /* 인쇄는 overflow 잘림이 없어 들임 불필요 */
+  .table-wrap::-webkit-scrollbar { display: none; }
+  table { width: 100% !important; table-layout: fixed; }
+  /* 1쪽: 한 장에 지수~코멘트가 다 들어오도록 간격ㆍ행 높이를 줄인다 */
+  .page-title { font-size: 17px; margin-bottom: 8px; }
+  .section { margin-bottom: 10px; }
+  .section h2 { font-size: 12.5px; margin-bottom: 6px; padding-bottom: 3px; }
+  .card { padding: 6px 10px; }
+  .idx-name { font-size: 8.5px; }
+  .idx-value { font-size: 14px; }
+  .idx-detail { font-size: 7.5px; }
+  .theme-name { font-size: 8.5px; }
+  .theme-change { font-size: 11.5px; }
+  #companies-table th, #cement-table th { font-size: 8.5px; padding: 3px 4px; }
+  #companies-table td, #cement-table td { font-size: 9.5px; padding: 4px 5px; white-space: normal; word-break: break-all; line-height: 1.3; }
+  #companies-table td:last-child, #cement-table td:last-child { font-size: 8px; }
+  .stock-logo { width: 20px; height: 20px; }
+  .stock-name-cell { gap: 5px; }
+  .price-change { font-size: 8.5px; }
+  .commentary-list { padding: 7px 10px; gap: 4px; }
+  .commentary-list li { font-size: 9.5px; line-height: 1.4; }
+
+  /* 2쪽: 관리종목 모니터링 — 글자 크기 통일(본문 8.5px / 소제목 10px / 머리글 8px), 표 높이 균일 */
+  #mgmt-watch-section { page-break-before: always; break-before: page; }
+  #mgmt-watch-section h2 { font-size: 14px; }
+  #mgmt-watch-section .mgmt-watch-subtitle, #mgmt-watch-section .mgmt-watch-subtitle .market-note { font-size: 11px; margin: 10px 0 5px; }
+  #mgmt-watch-section .mgmt-watch-subtitle .market-note { margin: 0; font-weight: 500; }
+  #mgmt-watch-section table, #mgmt-watch-section td, #mgmt-watch-section th { font-size: 9.5px !important; line-height: 1.4; }
+  #mgmt-watch-section th { font-size: 9px !important; padding: 4px 5px; }
+  #mgmt-watch-section td { padding: 4px 5px; }
+  #mgmt-watch-section .stage-title { font-size: 10px; margin: 7px 0 3px; }
+  #mgmt-watch-section .stage-title span, #mgmt-watch-section .stage-exp { font-size: 9px; }
+  #mgmt-watch-section .reason-badge { font-size: 9.5px; }
+  #mgmt-watch-section .info { font-size: 9.5px !important; }
+  .mgmt-basis-box { padding: 8px 12px; font-size: 9.5px; line-height: 1.6; margin-bottom: 10px; }
+  .mgmt-basis-box .mb-title { font-size: 10.5px; }
+  #mgmt-watch-section b, #mgmt-watch-section strong { font-size: inherit; }
+  .stage-table th, .stage-table td { padding: 4px 5px; }
+  .stage-table td.stage-key { background: #fee2e2 !important; }
+  #mgmt-watch-preferred-table tr.stage-row > td { padding: 3px 8px 10px; }
+  #mgmt-watch-preferred-table tr, .stage-block { page-break-inside: avoid; }
 }
 
+/* 공정위 공시 이력: 제출회사는 한 줄(가장 긴 회사명 기준), 공시기한·공시대상 재확인은 좁게 + 가운데 정렬 (2026-10-27) */
+#ftc-table td:nth-child(2) { white-space: nowrap; }
+#ftc-table th:nth-child(8), #ftc-table td:nth-child(8),
+#ftc-table th:nth-child(9), #ftc-table td:nth-child(9) { text-align: center; }
+
+/* 계약종료일 경과 현장 — 눈에 띄게 크게(2026-10-27) */
+.cal-overdue-box {
+  margin-top: 18px; padding: 14px 16px; border: 2px solid #b91c1c; border-radius: var(--radius);
+  background: rgba(185, 28, 28, 0.05);
+}
+.cal-overdue-head { font-size: 17px; font-weight: 800; color: #b91c1c; margin-bottom: 10px; }
+.cal-overdue-head span { font-size: 13px; font-weight: 600; margin-left: 6px; color: var(--muted); }
+.cal-overdue-list { list-style: none; margin: 0; padding: 0; }
+.cal-overdue-list li {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 10px; border-top: 1px solid rgba(185, 28, 28, 0.25); cursor: pointer; font-size: 14px;
+}
+.cal-overdue-list li:first-child { border-top: none; }
+.cal-overdue-list li:hover { background: rgba(185, 28, 28, 0.06); }
+.cal-overdue-list .cal-upcoming-dday { font-size: 15px; min-width: 64px; padding: 4px 8px; }
+.cal-overdue-list .cal-upcoming-date { font-size: 14px; }
+.cal-overdue-main { flex: 1 1 320px; min-width: 0; }
+.cal-overdue-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.cal-overdue-meta { font-size: 13px; color: var(--text); margin-top: 2px; }
+.cal-overdue-status { font-size: 13px; color: #b91c1c; margin-top: 2px; }
+.cal-overdue-link {
+  flex: none; padding: 7px 14px; font-size: 13px; font-weight: 700; text-decoration: none;
+  color: #fff; background: #b91c1c; border-radius: 6px; white-space: nowrap;
+}
+.cal-overdue-link:hover { background: #991b1b; }
+.cal-overdue-note { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 10px 0 0; }
+
+.cal-overdue-box.ok { border-color: #15803d; background: rgba(21, 128, 61, 0.06); padding: 12px 16px; }
+.cal-overdue-box.ok .cal-overdue-head { color: #15803d; margin-bottom: 0; }
+.cal-overdue-box.warn { border-color: #b48214; background: rgba(180, 130, 20, 0.07); }
+.cal-overdue-box.warn .cal-overdue-head { color: #92660f; }
+.cal-overdue-box.warn .cal-overdue-list li { border-top-color: rgba(180, 130, 20, 0.3); }
+.cal-overdue-box.warn .cal-overdue-status { color: #92660f; }
+.cal-overdue-box.warn .cal-overdue-link { background: #92660f; }
+.cal-overdue-box.warn .cal-overdue-link:hover { background: #7a560c; }
+.cal-overdue-box.warn .cal-overdue-list li { cursor: default; }
+
+/* 표 마지막 합계 행 */
+tr.total-row td { font-weight: 800; background: rgba(25, 31, 40, 0.05); border-top: 2px solid var(--text); }
+
+/* 공시 표 가운데 정렬: 순번ㆍ구분ㆍ원문ㆍ요청서류 (2026-11-05) */
+#portal-overview-table td { text-align: center; }
+#danpan-table td:nth-child(1), #danpan-table td:nth-child(9),
+#equity-table tbody tr:not(.total-row) td:nth-child(1),
+#equity-table tbody tr:not(.total-row) td:nth-child(3),
+#equity-table tbody tr:not(.total-row) td:nth-child(9),
+#equity-table tbody tr:not(.total-row) td:nth-child(10),
+#equity-accuracy-shares-table td:nth-child(3),
+#large-holding-table td:nth-child(7),
+#ftc-table td:nth-child(1), #ftc-table td:nth-child(11),
+#periodic-table td:nth-child(1), #periodic-table td:nth-child(4) { text-align: center; }
+
+/* 팀 업무일지에서 법정기한 검증 후 반영한 일정 — 정기공시 법정기한(황색 점선)과 구분되는 남색 점선 */
+.cal-ev-worklog {
+  color: #3730a3; background: rgba(79, 70, 229, 0.10);
+  border: 1px dashed #4f46e5; font-weight: 700;
+}
+.disclosure-type-badge.type-worklog { background: rgba(79, 70, 229, 0.12); color: #4338ca; }
