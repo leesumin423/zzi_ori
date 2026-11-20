@@ -147,7 +147,10 @@ def open_book(path, password=None):
         for attempt in range(3):
             pw = password or _PASSWORD or os.environ.get("ASSET_XLSX_PASSWORD")
             if not pw:
-                pw = ask_password(f"\n'{name}' 비밀번호를 입력하고 Enter (숫자는 키보드 위쪽 줄로): ").strip()
+                try:
+                    pw = ask_password(f"\n'{name}' 비밀번호를 입력하고 Enter (숫자는 키보드 위쪽 줄로): ").strip()
+                except EOFError:
+                    raise FriendlyError("비밀번호 입력이 중단됐습니다. 실행기를 다시 더블클릭해서 입력해주세요.")
             try:
                 office.load_key(password=pw)
                 buf = io.BytesIO()
