@@ -81,6 +81,26 @@ td input.wide{width:120px;text-align:left}
 .check p{margin:2px 0 0;color:var(--ink2)}
 .verdict{font-size:15px;margin:4px 0 10px}
 .addform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--grid)}
+.tabs{position:sticky;top:0;z-index:15;display:flex;gap:4px;overflow-x:auto;background:var(--page);padding:8px 0 10px;margin-bottom:8px;border-bottom:1px solid var(--grid);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;border:1px solid transparent;background:transparent;color:var(--ink2);padding:7px 14px;border-radius:999px;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.tabs button:hover{background:var(--wash)}
+.tabs button.on{background:var(--ink);color:var(--page);font-weight:650}
+.tab{display:none}.tab.on{display:block}
+.tab>h2:first-child{margin-top:12px}
+.hero{display:grid;grid-template-columns:minmax(220px,1fr) 2fr;gap:20px;align-items:center;padding:22px}
+@media (max-width:760px){.hero{grid-template-columns:1fr}}
+.hero .l{color:var(--ink2);font-size:13px}
+.hero .big{font-size:44px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:4px 0;font-variant-numeric:tabular-nums}
+.hero .d{font-size:13px;color:var(--ink2)}
+.hero-split{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:520px){.hero-split{grid-template-columns:1fr}}
+.hs{border-left:3px solid var(--grid);padding:2px 0 2px 12px}
+.hs .l{font-size:12px}
+.hs .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.hs .d{font-size:12px;color:var(--muted)}
+a.more{display:inline-block;margin-top:8px;font-size:12.5px;color:var(--s1);cursor:pointer;text-decoration:none}
+a.more:hover{text-decoration:underline}
 .tf{display:contents}
 .tf.hide{display:none}
 .addform label{display:flex;flex-direction:column;font-size:11px;color:var(--ink2);gap:2px}
@@ -108,8 +128,32 @@ td input.wide{width:120px;text-align:left}
   </div>
 </header>
 
-<section class="kpis" id="kpis"></section>
-
+<nav class="tabs" id="tabs">
+  <button data-tab="home" class="on">📊 개요</button><button data-tab="rec">✏️ 기록 입력</button><button data-tab="grow">자산 증식</button><button data-tab="perf">종목 수익</button><button data-tab="broker">증권사·보유</button><button data-tab="div">배당</button><button data-tab="paydebt">급여·대출</button><button data-tab="check">점검</button>
+</nav>
+<section class="tab" data-tab="home">
+  <div class="hero card">
+    <div class="hero-main">
+      <div class="l">순자산 <span class="sub">(투자자산 − 대출)</span></div>
+      <div class="big" id="h-net">–</div>
+      <div class="d" id="h-netd"></div>
+    </div>
+    <div class="hero-split" id="h-split"></div>
+  </div>
+  <section class="kpis" id="kpis" style="margin-top:12px"></section>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card"><h3>자산 구성</h3><div class="cap">지금 내 돈이 어디에 있나 (원화 환산)</div><div id="o-mix100"></div><div class="cap" style="margin-top:14px">증권사별</div><div id="o-mixb"></div></div>
+    <div class="card"><h3>연말 투자자산 추이</h3>
+      <div class="legend"><span><i style="background:var(--s1)"></i>미국</span><span><i style="background:var(--s3)"></i>국내</span><span><i style="background:var(--s2)"></i>대출</span></div>
+      <div id="o-snap"></div></div>
+  </div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card"><h3>올해 성적표</h3><div class="cap" id="o-decoCap"></div><div id="o-deco"></div><a class="more" data-go="grow">자산 증식 자세히 →</a></div>
+    <div class="card"><h3>올해 수익 상위 · 하위 종목</h3><div class="cap">원화 · 환율 포함</div><div id="o-top"></div><a class="more" data-go="perf">종목 수익 자세히 →</a></div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>지금 챙길 것</h3><div class="checks" id="o-checks" style="margin-top:8px"></div><a class="more" data-go="check">점검 전체 보기 →</a></div>
+</section>
+<section class="tab" data-tab="rec">
 <h2>✏️ 업데이트 기록 — 엑셀 이후 새로 생긴 일 입력</h2>
 <div class="sub">엑셀은 그대로 두고, 앞으로의 매수·매도·배당·급여·대출상환은 여기에 입력하세요. 저장하면 보유수량·평단·평가액·배당·연봉·대출·연도별 분석이 바로 바뀝니다. <span id="txBase"></span></div>
 <div class="card">
@@ -137,7 +181,9 @@ td input.wide{width:120px;text-align:left}
   <div class="tbl" style="max-height:320px;margin-top:12px"><table id="t-tx"></table></div>
 </div>
 
-<h2>① 자산 증식 — 연말마다 실제로 얼마나 불었나</h2>
+</section>
+<section class="tab" data-tab="grow">
+<h2>자산 증식 — 연말마다 실제로 얼마나 불었나</h2>
 <div class="sub">연말 보유수량 × 연말 종가 × 서울외국환중개 연말 매매기준율로 평가. 증가분을 <b>내 돈 납입</b> / <b>주가 효과</b> / <b>환율 효과</b> / <b>대출 증감</b>으로 나눴습니다.</div>
 <div class="grid2">
   <div class="card"><h3>연말 투자자산 (원)</h3>
@@ -149,7 +195,9 @@ td input.wide{width:120px;text-align:left}
 </div>
 <div class="card" style="margin-top:12px"><div id="verdict"></div><div class="tbl"><table id="t-snap"></table></div></div>
 
-<h2>② 종목별 연말 평가 수익분석</h2>
+</section>
+<section class="tab" data-tab="perf">
+<h2>종목별 연말 평가 수익분석</h2>
 <div class="sub">종목별 연간 수익 = 연말 평가액 − 전년말 평가액 − 그 해 순매수 + 매도 실현손익 (원화, 환율 효과 포함). 수익률은 순매수 시점을 고려한 근사치(수정 디츠)입니다.</div>
 <div class="grid2">
   <div class="card"><h3>올해 수익 기여 상위·하위 종목</h3><div class="cap" id="contribCap"></div><div id="c-contrib"></div></div>
@@ -158,7 +206,9 @@ td input.wide{width:120px;text-align:left}
     <div class="tbl" style="max-height:460px"><table id="t-perf"></table></div></div>
 </div>
 
-<h2>③ 증권사별 보유 관리</h2>
+</section>
+<section class="tab" data-tab="broker">
+<h2>증권사별 보유 관리</h2>
 <div class="sub">엑셀에서 가져온 계좌별 보유에 화면에서 바로 수정·추가·삭제할 수 있어요. 노란 줄은 엑셀 '분산종목' 합계엔 있는데 계좌가 정해지지 않은 수량입니다.</div>
 <div class="grid2">
   <div class="card"><h3>증권사별 평가액</h3><div class="cap">미국 / 국내 구분 · 원화 환산</div><div id="c-broker"></div></div>
@@ -184,23 +234,30 @@ td input.wide{width:120px;text-align:left}
   <datalist id="brokers"></datalist>
 </div>
 
-<h2>④ 주식 소득 — 배당 (기록 vs 자동 계산)</h2>
+</section>
+<section class="tab" data-tab="div">
+<h2>주식 소득 — 배당 (기록 vs 자동 계산)</h2>
 <div class="sub">위: 배당시트에 기록한 실수령액. 아래: 지금 보유수량 × 최근 12개월 주당배당금으로 자동 계산한 예상 연배당.</div>
 <div class="grid2">
   <div class="card"><h3>월별 배당 실수령 (원, 기록)</h3><div class="legend" id="divLegend"></div><div id="c-div"></div></div>
   <div class="card"><h3>예상 연배당 상위 종목 (세후, 원)</h3><div class="cap" id="fwdCap"></div><div class="tbl" style="max-height:340px"><table id="t-fwd"></table></div></div>
 </div>
 
-<h2>⑤ 급여 · 대출</h2>
+</section>
+<section class="tab" data-tab="paydebt">
+<h2>급여 · 대출</h2>
 <div class="sub">급여 시트 월 지급액(기본급+기준상여+업적금) × 12 = 세전 연봉 추정 · 복지기금(회사대출)과 기타 대출 상환 일정</div>
 <div class="grid2">
   <div class="card"><h3>연도별 연봉 환산 (세전)</h3><div id="c-salary"></div><div class="tbl"><table id="t-salary"></table></div></div>
   <div class="card"><h3>대출 잔액 추이</h3><div class="legend" id="loanLegend"></div><div id="c-loan"></div><div class="tbl"><table id="t-loan"></table></div></div>
 </div>
 
-<h2>⑥ 점검 — 연봉 · 대출 · 주식소득</h2>
+</section>
+<section class="tab" data-tab="check">
+<h2>점검 — 연봉 · 대출 · 주식소득</h2>
 <div class="card checks" id="checks"></div>
 
+</section>
 <div class="note" id="notes"></div>
 </div>
 <div class="tip" id="tip"></div>
@@ -333,7 +390,10 @@ function hbars(id, items, o={}){
     const y=f.m.t+i*rowH+4, h=rowH-8;
     el('path',{d:hbarPath(xs(0),xs(d.v),y,h),fill:d.color||(d.v>=0?css('--pos'):css('--neg'))},f.svg);
     txt(f.svg,f.m.l-8,y+h/2+4,d.name.length>17?d.name.slice(0,16)+'…':d.name,{'text-anchor':'end',class:'lbl'});
-    txt(f.svg,d.v>=0?xs(d.v)+5:xs(d.v)-5,y+h/2+4,(o.fmt||man)(d.v),{'text-anchor':d.v>=0?'start':'end'});
+    const lab=(o.fmt||man)(d.v), roomL = xs(d.v)-f.m.l > lab.length*6.5+8;
+    if(d.v>=0) txt(f.svg,xs(d.v)+5,y+h/2+4,lab,{'text-anchor':'start'});
+    else if(roomL) txt(f.svg,xs(d.v)-5,y+h/2+4,lab,{'text-anchor':'end'});
+    else txt(f.svg,xs(0)+5,y+h/2+4,lab,{'text-anchor':'start'});
     const hit=el('rect',{x:0,y:y-4,width:f.W,height:rowH,fill:'transparent'},f.svg);
     hover(hit,()=>`<b>${esc(d.name)}</b>`+(d.tip||row('금액',won(d.v))));
   });
@@ -381,6 +441,38 @@ function lines(id, labels, series, o={}){
 }
 
 /* ---------- 렌더 ---------- */
+function perfFor(S, agg, Y){
+  return Object.values(agg).map(a=>{
+    const i=Y.i, s0=S[i-1], s1=S[i];
+    if(a.market==='US' && (!s0.us||!s1.us)) return null; if(a.market==='KR' && (!s0.kr||!s1.kr)) return null;
+    const V0=a.v[i-1]||0, V1=a.v[i]||0, fx1=a.market==='US'?s1.fx:1;
+    const R=(((D.realized||{})[Y.y]||{})[a.market+'|'+(a.ticker||a.name)]||0)*fx1;
+    const net=((a.c[i]||0)-(a.c[i-1]||0))*fx1;
+    const P=V1-V0-net+R, den=V0+net/2;
+    return {...a,V0,V1,net,R,P,ret: den>0? P/den : null};
+  }).filter(x=>x && (x.V0||x.V1||x.R)).sort((a,b)=>b.P-a.P);
+}
+function brokerChart(id, bl){
+  const f=frame(id,560,bl.length*26+26,{t:4,r:64,b:20,l:120}); const mx=niceMax(Math.max(1,...bl.map(([,b])=>b.us+b.kr))); const xs=v=>f.m.l+v/mx*f.iw;
+  [0,mx/2,mx].forEach(v=>{ el('line',{x1:xs(v),x2:xs(v),y1:f.m.t,y2:f.H-f.m.b,stroke:v?css('--grid'):css('--axis')},f.svg); txt(f.svg,xs(v),f.H-4,man(v),{'text-anchor':'middle'}); });
+  bl.forEach(([name,b],i)=>{ const y=f.m.t+i*26+5, h=16; let x=xs(0);
+    if(b.us>0){ const w=xs(b.us)-xs(0); el('path',{d:b.kr>0?`M${x},${y}H${x+w}V${y+h}H${x}Z`:hbarPath(x,x+w,y,h),fill:css('--s1')},f.svg); x+=w; }
+    if(b.kr>0){ const g=b.us>0?2:0, w=Math.max(1,xs(b.kr)-xs(0)-g); el('path',{d:hbarPath(x+g,x+g+w,y,h),fill:css('--s3')},f.svg); x+=g+w; }
+    txt(f.svg,f.m.l-8,y+h/2+4,name.length>14?name.slice(0,13)+'…':name,{'text-anchor':'end',class:'lbl'}); txt(f.svg,x+5,y+h/2+4,man(b.us+b.kr));
+    hover(el('rect',{x:0,y:y-5,width:f.W,height:26,fill:'transparent'},f.svg),()=>`<b>${esc(name)}</b>`+row('미국',won(b.us))+row('국내',won(b.kr))+row('평가손익',won(b.us+b.kr-b.cost))+row('오늘 변동',won(b.today))+row('종목 수',b.n)); });
+}
+function mix100(id, parts){
+  const total=sum(parts.map(p=>p.v)); const f=frame(id,560,64,{t:4,r:0,b:0,l:0}); let x=0;
+  parts.filter(p=>p.v>0).forEach((p,i,arr)=>{ const w=p.v/total*560 - (i<arr.length-1?2:0); const r=6;
+    const first=i===0, last=i===arr.length-1;
+    const d=`M${x+(first?r:0)},4H${x+w-(last?r:0)}${last?`Q${x+w},4 ${x+w},${4+r}V${32-r}Q${x+w},32 ${x+w-r},32`:`V32`}H${x+(first?r:0)}${first?`Q${x},32 ${x},${32-r}V${4+r}Q${x},4 ${x+r},4`:`V4`}Z`;
+    el('path',{d,fill:p.color},f.svg);
+    if(w>70){ txt(f.svg,x+8,22,`${p.name} ${Math.round(p.v/total*100)}%`,{style:'fill:#fff;font-weight:650;font-size:12px'}); }
+    txt(f.svg,x+2,52,man(p.v),{class:'lbl'});
+    hover(el('rect',{x,y:0,width:Math.max(w,4),height:64,fill:'transparent'},f.svg),()=>`<b>${p.name}</b>`+row('금액',won(p.v))+row('비중',pct(p.v/total)));
+    x+=w+2; });
+}
+
 function render(){
   if(QUIT) return;
   const H = holdings();
@@ -396,8 +488,8 @@ function render(){
   /* KPI */
   const k = [
     {l:'총 투자자산 (실시간)', v:man(cur.invest)+'원', d:`미국 ${man(cur.usK)} + 국내 ${man(cur.krK)}`},
-    {l:'오늘 변동 (전일 종가 대비)', v:`<span class="${cls(today)}">${sman(today)}원</span>`, d: LIVE.at? `시세 ${LIVE.at.slice(11,16)} 기준` : '실시간 시세 미연결'},
-    {l:'투자자산 − 대출 (순자산)', v:man(cur.net)+'원', d:`대출 ${man(curS.debt)} 차감`+(prev?` · 작년말 대비 <span class="${cls(cur.net-prev.net)}">${sman(cur.net-prev.net)}</span>`:'')},
+    {l:'올해 배당 실수령', v:man(sum((D.dividends[D.today.slice(0,4)]||{total:[]}).total))+'원', d:`작년 ${man(sum((D.dividends[String(+D.today.slice(0,4)-1)]||{total:[]}).total))} · 기록 기준`},
+    {l:'대출 잔액', v:man(curS.debt)+'원', d:(curS.debtRows||[]).map(r=>`${r.name} ${man(r.bal)}`).join(' · ')},
     {l:'예상 연배당 (세후)', v:man(fwdNet)+'원', d:`월 ${man(fwdNet/12)} · 보유수량 × 최근 12개월 배당`},
     {l:'세전 연봉 (환산)', v:man(annual)+'원', d:`월 ${won(pay.total)}`},
     {l:'환율 (USD)', v:Math.round(fxNow()*10)/10+'원', d: LIVE.fx? `실시간 ${LIVE.fx.src} · 매매기준율 ${D.fxToday}` : `서울외국환중개 매매기준율 ${D.fxTodayDate}`},
@@ -440,15 +532,7 @@ function render(){
   $('#perfSeg').innerHTML = yearsP.map((y,i)=>`<button class="${i===perfYear?'on':''}" data-i="${i}">${y.label}</button>`).join('');
   $('#perfSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{perfYear=+b.dataset.i; render();});
   const Y = yearsP[perfYear];
-  const perf = Object.values(agg).map(a=>{
-    const i=Y.i, s0=S[i-1], s1=S[i];
-    if(a.market==='US' && (!s0.us||!s1.us)) return null; if(a.market==='KR' && (!s0.kr||!s1.kr)) return null;
-    const V0=a.v[i-1]||0, V1=a.v[i]||0, fx1=a.market==='US'?s1.fx:1;
-    const R=(((D.realized||{})[Y.y]||{})[a.market+'|'+(a.ticker||a.name)]||0)*fx1;
-    const net=((a.c[i]||0)-(a.c[i-1]||0))*fx1;
-    const P=V1-V0-net+R, den=V0+net/2;
-    return {...a,V0,V1,net,R,P,ret: den>0? P/den : null};
-  }).filter(x=>x && (x.V0||x.V1||x.R));
+  const perf = perfFor(S, agg, Y);
   perf.sort((a,b)=>b.P-a.P);
   $('#t-perf').innerHTML = `<tr><th>종목</th><th>${S[Y.i-1].label} 평가</th><th>${S[Y.i].label} 평가</th><th>순매수</th><th>실현손익</th><th>수익</th><th>수익률</th></tr>`+
     perf.map(p=>`<tr><td>${esc(p.name)}<span class="tag">${p.market==='US'?'미국':'국내'}</span></td><td>${man(p.V0)}</td><td>${man(p.V1)}</td><td>${sman(p.net)}</td><td>${p.R?sman(p.R):'–'}</td><td class="${cls(p.P)}"><b>${sman(p.P)}</b></td><td class="${cls(p.ret)}">${spct(p.ret)}</td></tr>`).join('')+
@@ -462,13 +546,7 @@ function render(){
   H.forEach(h=>{ const b=brokers[h.broker]||(brokers[h.broker]={us:0,kr:0,cost:0,today:0,n:0}); b[h.market==='US'?'us':'kr']+=h.valueKRW; b.cost+=h.costKRW; b.today+=h.todayKRW; b.n++; });
   const bl = Object.entries(brokers).sort((a,b)=>(b[1].us+b[1].kr)-(a[1].us+a[1].kr));
   $('#brokers').innerHTML = bl.map(([b])=>`<option value="${esc(b)}">`).join('');
-  (function(){ const f=frame('#c-broker',560,bl.length*26+26,{t:4,r:64,b:20,l:120}); const mx=niceMax(Math.max(...bl.map(([,b])=>b.us+b.kr))); const xs=v=>f.m.l+v/mx*f.iw;
-    [0,mx/2,mx].forEach(v=>{ el('line',{x1:xs(v),x2:xs(v),y1:f.m.t,y2:f.H-f.m.b,stroke:v?css('--grid'):css('--axis')},f.svg); txt(f.svg,xs(v),f.H-4,man(v),{'text-anchor':'middle'}); });
-    bl.forEach(([name,b],i)=>{ const y=f.m.t+i*26+5, h=16; let x=xs(0);
-      [['us','--s1'],['kr','--s3']].forEach(([k,c],j)=>{ const v=b[k]; if(!v) return; const w=xs(v)-xs(0)-(j&&b.us?2:0); const last = k==='kr'||!b.kr; el('path',{d:last?hbarPath(x+(j&&b.us?2:0),x+(j&&b.us?2:0)+w,y,h):`M${x},${y}H${x+w}V${y+h}H${x}Z`,fill:css(c)},f.svg); x+=w+(j&&b.us?2:0); });
-      txt(f.svg,f.m.l-8,y+h/2+4,name.length>14?name.slice(0,13)+'…':name,{'text-anchor':'end',class:'lbl'}); txt(f.svg,x+5,y+h/2+4,man(b.us+b.kr));
-      hover(el('rect',{x:0,y:y-5,width:f.W,height:26,fill:'transparent'},f.svg),()=>`<b>${esc(name)}</b>`+row('미국',won(b.us))+row('국내',won(b.kr))+row('평가손익',won(b.us+b.kr-b.cost))+row('오늘 변동',won(b.today))+row('종목 수',b.n)); });
-  })();
+  brokerChart('#c-broker', bl);
   $('#c-broker').insertAdjacentHTML('afterbegin','<div class="legend"><span><i style="background:var(--s1)"></i>미국</span><span><i style="background:var(--s3)"></i>국내</span></div>');
   // 증권사별 작년말 → 현재
   const ps = S[S.length-2], pb={};
@@ -527,13 +605,43 @@ function render(){
   $('#t-loan').innerHTML = `<tr><th>대출</th><th>원금·금리</th><th>현재 잔액</th><th>다음 납부</th><th>남은 이자</th></tr>`+L.map(l=>{ const n=nextOf(l), bal=balAt(l,todayM)??l.principal; const left=sum(l.rows.filter(r=>r.d>D.today).map(r=>r.interest));
     return `<tr><td>${esc(l.name)}</td><td>${man(l.principal)} · ${pct(l.rate)}</td><td>${won(bal)}</td><td>${n?n.d.slice(5).replace('-','/')+' · '+won(n.principal+n.interest):(l.amortizing?'완납':'시트 기록 종료(이자만)')}</td><td>${l.amortizing?won(left):'연 '+won(l.principal*l.rate)}</td></tr>`; }).join('');
 
-  renderChecks(H,S,T,periods,{annual,fwdNet,cur,curS});
+  const checks = renderChecks(H,S,T,periods,{annual,fwdNet,cur,curS});
   renderTx(H);
+  renderHome({H,S,T,periods,agg,yearsP,bl,cur,curS,fwdNet,today,checks});
   $('#notes').innerHTML = `· 연말 평가: 보유수량 × 연말 종가(Yahoo Finance, 분할·병합 자동 보정) × 서울외국환중개 연말 매매기준율. 휴일이면 직전 영업일 값.<br>
   · 실시간: 네이버증권 시세(국내 실시간, 미국은 장중 실시간/장 마감 후 종가) · 환율은 네이버(하나은행 고시) 실시간, 없으면 서울외국환중개 당일 매매기준율.<br>
   · 미국 현재 보유는 최신 분기 시트 기준이며, 이후 매매는 '보유 종목' 표에서 수량을 고치거나 추가하면 바로 반영됩니다.<br>
   · 예상 배당: 현재 수량 × 최근 12개월 주당배당금. 세후는 미국 15%·국내 15.4% 원천징수 가정(연금·ISA 계좌는 실제 과세가 이연·감면됨).<br>
   · 엑셀 생성 ${D.generated} · 기준일 ${D.today}${STATIC?' · <b>정적 파일</b>: 실시간 시세·종목 조회는 PC에서 실행기(자산대시보드_실행하기.bat)로 열 때 동작':''}`;
+}
+
+function renderHome(o){
+  const {H,S,T,periods,agg,yearsP,bl,cur,curS,fwdNet,today} = o;
+  const prevT = T.length>1? T[T.length-2] : null, last = periods[periods.length-1];
+  $('#h-net').textContent = man(cur.net)+'원';
+  $('#h-netd').innerHTML = prevT? `${S[S.length-2].label} ${man(prevT.net)} → 지금 <b class="${cls(cur.net-prevT.net)}">${sman(cur.net-prevT.net)}원 (${spct(prevT.net? (cur.net-prevT.net)/prevT.net : null)})</b>` : '';
+  const d = last? last.d : {};
+  $('#h-split').innerHTML = [
+    {l:'올해 내가 넣은 돈', v:sman(d.contrib||0)+'원', d:`기간 연봉의 ${pct(d.saveRate)}`, c:'var(--s1)'},
+    {l:'올해 투자로 불어난 돈', v:`<span class="${cls(d.gain)}">${sman(d.gain||0)}원</span>`, d:`주가 ${sman((d.usMkt||0)+(d.krMkt||0))} · 환율 ${sman(d.fx||0)}`, c: (d.gain||0)>=0? 'var(--good)':'var(--bad)'},
+    {l:'오늘 변동', v:`<span class="${cls(today)}">${sman(today)}원</span>`, d: LIVE.at? `실시간 · ${LIVE.at.slice(11,16)}` : '실시간 시세 미연결', c:'var(--s4)'},
+  ].map(x=>`<div class="hs" style="border-color:${x.c}"><div class="l">${x.l}</div><div class="v">${x.v}</div><div class="d">${x.d}</div></div>`).join('');
+  mix100('#o-mix100', [{name:'미국주식',v:cur.usK,color:css('--s1')},{name:'국내 ETF·주식',v:cur.krK,color:css('--s3')}]);
+  brokerChart('#o-mixb', bl.slice(0,6));
+  stackCols('#o-snap', S.map(s=>s.label), [
+    {name:'미국주식',color:css('--s1'),data:T.map(t=>t.usK)},{name:'국내 ETF·주식',color:css('--s3'),data:T.map(t=>t.krK)}],
+    {h:220, side:{name:'대출 잔액',color:css('--s2'),data:S.map(s=>s.debt)}, extra:i=>row('순자산',won(T[i].net))});
+  if(last){
+    $('#o-decoCap').textContent = last.label;
+    hbars('#o-deco', [
+      {name:'내 돈 납입',v:d.contrib||0,color:css('--s1')},{name:'주가 효과',v:(d.usMkt||0)+(d.krMkt||0)},
+      {name:'환율 효과',v:d.fx||0},{name:'대출 증감',v:d.debt||0},{name:'순자산 변화',v:d.dNet||0,color:css('--ink2')}].map(x=>({...x,tip:row('금액',won(x.v))})), {l:100});
+  }
+  const Y = yearsP[yearsP.length-1];
+  if(Y){ const pf = perfFor(S, agg, Y); const top=[...pf.slice(0,5), ...pf.slice(-5).filter(p=>!pf.slice(0,5).includes(p))].filter(p=>Math.abs(p.P)>0);
+    hbars('#o-top', top.map(p=>({name:p.name, v:p.P, tip:row('수익률',spct(p.ret))+row('현재 평가',won(p.V1))})), {l:140}); }
+  const C = (renderChecks.last||[]).filter(c=>c.b==='bad'||c.b==='warn').slice(0,3);
+  $('#o-checks').innerHTML = C.map(c=>`<div class="check"><span class="badge ${c.b}">${{warn:'주의',bad:'점검'}[c.b]}</span><div><b>${esc(c.t)}</b><p>${c.p}</p></div></div>`).join('') || '<div class="sub">특별히 챙길 것이 없어요 👍</div>';
 }
 
 function renderChecks(H,S,T,periods,x){
@@ -552,9 +660,10 @@ function renderChecks(H,S,T,periods,x){
   C.push({b: monthlyDebt/(sal[sal.length-1].total)<.15?'ok':'warn',t:'대출 상환 부담',p:`월 원리금 약 ${won(monthlyDebt)} = 세전 월급의 ${pct(monthlyDebt/sal[sal.length-1].total)}. 올해 대출이자 약 ${man(intYear)}원 vs 예상 연배당(세후) ${man(x.fwdNet)}원 → 배당이 이자의 ${(x.fwdNet/intYear).toFixed(1)}배.`});
   if(welfare&&sgovY) C.push({b:'info',t:'복지기금은 유지가 유리',p:`복지기금 ${pct(welfare.rate)} < SGOV 배당수익률 약 ${pct(sgovY)}. 남은 원금을 서둘러 갚기보다 대기자금으로 굴리는 편이 이득입니다.`});
   other.forEach(l=>C.push({b: sgovY && l.rate>sgovY? 'warn':'info',t:`${l.name} (${pct(l.rate)}) 상환 여부 확인`,p:`이자만 내는 대출로 시트상 ${l.rows[l.rows.length-1].d}까지 기록돼 있습니다. ${sgovY?`SGOV 수익률(${pct(sgovY)})보다 ${l.rate>sgovY?'높아 우선 상환을 검토할 만합니다':'낮아 유지해도 무방합니다'}.`:''} 상환했다면 대출 시트에 반영해주세요.`}));
-  if(unassigned.length) C.push({b:'warn',t:`계좌 미지정 ${unassigned.length}건`,p:`엑셀 '분산종목' 합계에만 있는 수량: ${unassigned.map(h=>`${h.name} ${+h.qty.toFixed(3)}주(${h.broker.replace('미배분','')})`).join(', ')}. ③ 표에서 계좌를 지정하면 증권사별 합계가 정확해집니다.`});
+  if(unassigned.length) C.push({b:'warn',t:`계좌 미지정 ${unassigned.length}건`,p:`엑셀 '분산종목' 합계에만 있는 수량: ${unassigned.map(h=>`${h.name} ${+h.qty.toFixed(3)}주${h.broker.replace('미배분','')}`).join(', ')}. '증권사·보유' 탭의 표에서 계좌를 지정하면 증권사별 합계가 정확해집니다.`});
   if(nopx.length) C.push({b:'warn',t:`시세를 못 찾은 종목 ${nopx.length}건`,p:`${nopx.map(h=>h.name).join(', ')} — 원금으로 평가 중입니다. 상장폐지면 삭제, 아니면 티커를 지정해주세요.`});
   C.push({b: usLoss<0?'bad':'ok',t:'손실 큰 종목',p:losers.map(h=>`${h.name} ${sman(h.valueKRW-h.costKRW)}원(${spct(h.costKRW?(h.valueKRW-h.costKRW)/h.costKRW:null)})`).join(' · ')});
+  renderChecks.last = C;
   $('#checks').innerHTML = C.map(c=>`<div class="check"><span class="badge ${c.b}">${{ok:'양호',warn:'주의',bad:'점검',info:'참고'}[c.b]}</span><div><b>${esc(c.t)}</b><p>${c.p}</p></div></div>`).join('');
 }
 
@@ -674,6 +783,19 @@ async function refreshLive(){
   catch(e){ if(QUIT) return; $('#liveDot').classList.remove('on'); $('#liveText').textContent='프로그램이 꺼져 있어요 · 실행기를 다시 더블클릭하세요'; }
 }
 $('#btnLive').onclick=()=>{ if(STATIC){ toast('이 파일은 저장된 스냅샷이라 실시간 시세가 없어요. PC에서 자산대시보드_실행하기.bat으로 열면 30초마다 갱신됩니다.'); return; } refreshLive(); toast('시세를 새로 받는 중…'); };
+
+/* ---------- 탭 ---------- */
+function showTab(t){
+  if(!document.querySelector(`.tab[data-tab="${t}"]`)) t='home';
+  document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on', e.dataset.tab===t));
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===t));
+  try{ localStorage.setItem('asset-dash-tab', t); }catch(e){}
+  if(location.hash!=='#'+t) history.replaceState(null,'','#'+t);
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+document.addEventListener('click',e=>{ const a=e.target.closest('[data-go]'); if(a){ e.preventDefault(); showTab(a.dataset.go); } });
+(function(){ let t=(location.hash||'').slice(1); if(!t){ try{ t=localStorage.getItem('asset-dash-tab')||''; }catch(e){} } showTab(t||'home'); })();
 
 /* ---------- 종료 ---------- */
 $('#btnQuit').onclick=async()=>{
