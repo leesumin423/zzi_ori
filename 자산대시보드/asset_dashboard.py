@@ -107,6 +107,28 @@ class FriendlyError(Exception):
     """사용자에게 그대로 보여줄 안내 메시지"""
 
 
+def ask_password(prompt):
+    """비밀번호 입력. 윈도우 검은 창에서는 한 글자마다 * 를 보여줘 입력되는 걸 확인할 수 있게 한다."""
+    if os.name == "nt" and sys.stdin.isatty():
+        import msvcrt
+        print(prompt, end="", flush=True)
+        buf = []
+        while True:
+            ch = msvcrt.getwch()
+            if ch in ("\r", "\n"):
+                print(); return "".join(buf)
+            if ch == "\x03":
+                raise KeyboardInterrupt
+            if ch in ("\x00", "\xe0"):          # 방향키 등 특수키는 무시
+                msvcrt.getwch(); continue
+            if ch == "\b":
+                if buf:
+                    buf.pop(); print("\b \b", end="", flush=True)
+                continue
+            buf.append(ch); print("*", end="", flush=True)
+    return getpass.getpass(prompt)
+
+
 _PASSWORD = None    # 실행 중 메모리에만 보관 (파일에 쓰지 않음). 화면 수정 때마다 다시 묻지 않기 위함.
 
 
@@ -125,7 +147,7 @@ def open_book(path, password=None):
         for attempt in range(3):
             pw = password or _PASSWORD or os.environ.get("ASSET_XLSX_PASSWORD")
             if not pw:
-                pw = getpass.getpass(f"\n'{name}' 비밀번호를 입력하고 Enter (글자는 화면에 안 보이는 게 정상): ")
+                pw = ask_password(f"\n'{name}' 비밀번호를 입력하고 Enter (숫자는 키보드 위쪽 줄로): ").strip()
             try:
                 office.load_key(password=pw)
                 buf = io.BytesIO()
