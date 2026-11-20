@@ -83,6 +83,8 @@ td input.wide{width:120px;text-align:left}
 .addform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--grid)}
 .addform label{display:flex;flex-direction:column;font-size:11px;color:var(--ink2);gap:2px}
 .addform input,.addform select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--ring);border-radius:6px;background:var(--surface);color:var(--ink);width:120px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--page);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;z-index:30;max-width:calc(100% - 32px);pointer-events:none}
+.toast.on{opacity:1}
 .note{font-size:12px;color:var(--muted);margin-top:28px;line-height:1.75}
 .seg{display:inline-flex;border:1px solid var(--ring);border-radius:8px;overflow:hidden}
 .seg button{border:0;background:transparent;color:var(--ink2);padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
@@ -172,6 +174,7 @@ td input.wide{width:120px;text-align:left}
 <div class="note" id="notes"></div>
 </div>
 <div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
 
 <script>
 let D = __DATA__;
@@ -190,6 +193,8 @@ const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>'
 const LS_KEY = 'asset-dash-overlay-v1';
 let LIVE = {prices:{}, fx:null, at:null};
 let decoIdx = null, perfYear = null;
+let toastT=null;
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),3500); }
 
 /* ---------- 정적(HTML 한 장) 모드: 화면 수정은 이 브라우저에만 저장 ---------- */
 function lsGet(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'null'); }catch(e){ return null; } }
@@ -460,7 +465,7 @@ function render(){
   });
   $('#t-hold').innerHTML = html;
   $('#t-hold').querySelectorAll('input').forEach(inp=>inp.onchange=()=>{ const tr=inp.closest('tr'); editRow(tr.dataset.key, inp.dataset.f, inp.value); });
-  $('#t-hold').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const k=b.closest('tr').dataset.key; if(confirm('이 종목을 보유 목록에서 뺄까요? (엑셀은 그대로, 화면 목록에서만 제외)')) removeRow(k); });
+  $('#t-hold').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const k=b.closest('tr').dataset.key; removeRow(k); toast('목록에서 뺐어요. 엑셀은 그대로이고, [수정 초기화]로 되돌릴 수 있어요.'); });
   const ov = STATIC? OV : (D.overlay||{edits:{},added:[],removed:[]});
   const nEd = Object.keys(ov.edits||{}).length+(ov.added||[]).length+(ov.removed||[]).length;
   $('#editState').textContent = nEd? `화면 수정 ${nEd}건 반영 중 (${STATIC?'이 브라우저에 저장':'data/내종목_수정.json에 저장'})` : '';
@@ -537,11 +542,14 @@ function editRow(key, field, val){
   pushOverlay(o);
 }
 function removeRow(key){ const o=curOv(); const ai=o.added.findIndex(a=>a.key===key); if(ai>=0) o.added.splice(ai,1); else o.removed.push(key); pushOverlay(o); }
-$('#btnReset').onclick=()=>{ if(confirm('화면에서 수정·추가·삭제한 내용을 모두 되돌릴까요? (엑셀 기준으로 복귀)')) pushOverlay({edits:{},added:[],removed:[]}); };
+let resetArm=0;
+$('#btnReset').onclick=()=>{ const b=$('#btnReset');
+  if(Date.now()-resetArm>4000){ resetArm=Date.now(); b.textContent='한 번 더 누르면 초기화'; toast('화면에서 고친 내용을 모두 엑셀 기준으로 되돌리려면 한 번 더 누르세요.'); setTimeout(()=>{ b.textContent='수정 초기화'; },4000); return; }
+  resetArm=0; b.textContent='수정 초기화'; pushOverlay({edits:{},added:[],removed:[]}); toast('엑셀 기준으로 되돌렸어요.'); };
 let lookup=null;
 $('#a-lookup').onclick=async()=>{
   const t=$('#a-ticker').value.trim().toUpperCase(); if(!t) return;
-  if(STATIC){ $('#a-msg').textContent='정적 파일에서는 조회가 안 돼요. 현재가를 직접 입력해주세요.'; return; }
+  if(STATIC){ $('#a-msg').textContent='스냅샷 파일에서는 조회가 안 돼요. 현재가를 직접 입력해주세요.'; toast('종목 조회는 PC 실행기에서만 돼요. 지금은 현재가를 직접 입력하면 추가할 수 있어요.'); return; }
   $('#a-msg').textContent='조회 중…';
   const q=await (await fetch('/api/quote?ticker='+encodeURIComponent(t))).json();
   lookup=q; if(q.ok){ $('#a-name').value=$('#a-name').value||q.name||t; $('#a-price').value=q.price; $('#a-msg').textContent=`${q.name} · ${q.market==='US'?'$':''}${q.price} · 최근 12개월 배당 ${q.ttmDps.toFixed(2)} (${q.divCount}회)`; }
@@ -568,7 +576,7 @@ async function refreshLive(){
     $('#liveText').textContent = `실시간 연결 · ${LIVE.at.slice(11)} 갱신 · 30초마다`; render(); }
   catch(e){ $('#liveDot').classList.remove('on'); $('#liveText').textContent='시세 서버 연결 끊김'; }
 }
-$('#btnLive').onclick=()=>{ if(STATIC){ alert('실시간 시세는 PC에서 실행기(자산대시보드_실행하기.bat)로 열었을 때 동작합니다.'); return; } refreshLive(); };
+$('#btnLive').onclick=()=>{ if(STATIC){ toast('이 파일은 저장된 스냅샷이라 실시간 시세가 없어요. PC에서 자산대시보드_실행하기.bat으로 열면 30초마다 갱신됩니다.'); return; } refreshLive(); toast('시세를 새로 받는 중…'); };
 
 /* ---------- 테마 ---------- */
 let theme=null;
