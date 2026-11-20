@@ -103,22 +103,46 @@ def is_kr(ticker):
 
 # ─────────────────────────────── 엑셀 읽기 ───────────────────────────────
 
+class FriendlyError(Exception):
+    """사용자에게 그대로 보여줄 안내 메시지"""
+
+
+_PASSWORD = None    # 실행 중 메모리에만 보관 (파일에 쓰지 않음). 화면 수정 때마다 다시 묻지 않기 위함.
+
+
 def open_book(path, password=None):
-    with open(path, "rb") as f:
-        raw = f.read()
+    global _PASSWORD
+    name = os.path.basename(path)
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except PermissionError:
+        raise FriendlyError(f"'{name}' 파일을 읽을 수 없습니다. 엑셀에서 열려 있으면 닫고 다시 실행해주세요.")
     if raw[:4] == b"\xd0\xcf\x11\xe0":          # 암호화된 OOXML (CDFV2)
         if msoffcrypto is None:
-            sys.exit("암호 걸린 엑셀을 열려면:  pip install msoffcrypto-tool")
-        if password is None:
-            password = os.environ.get("ASSET_XLSX_PASSWORD") or getpass.getpass(
-                f"'{os.path.basename(path)}' 비밀번호 (입력 내용은 표시되지 않음): ")
+            raise FriendlyError("암호 걸린 엑셀을 열 프로그램이 없습니다. 실행기를 다시 실행하면 자동 설치됩니다.")
         office = msoffcrypto.OfficeFile(io.BytesIO(raw))
-        office.load_key(password=password)
-        buf = io.BytesIO()
-        office.decrypt(buf)                      # 메모리에서만 해제
-        buf.seek(0)
-        return openpyxl.load_workbook(buf, data_only=True), True
-    return openpyxl.load_workbook(io.BytesIO(raw), data_only=True), False
+        for attempt in range(3):
+            pw = password or _PASSWORD or os.environ.get("ASSET_XLSX_PASSWORD")
+            if not pw:
+                pw = getpass.getpass(f"\n'{name}' 비밀번호를 입력하고 Enter (글자는 화면에 안 보이는 게 정상): ")
+            try:
+                office.load_key(password=pw)
+                buf = io.BytesIO()
+                office.decrypt(buf)                      # 메모리에서만 해제
+                buf.seek(0)
+                _PASSWORD = pw
+                return openpyxl.load_workbook(buf, data_only=True), True
+            except Exception:
+                password = _PASSWORD = None
+                os.environ.pop("ASSET_XLSX_PASSWORD", None)
+                print(f"  → 비밀번호가 맞지 않습니다. ({attempt + 1}/3)")
+                office = msoffcrypto.OfficeFile(io.BytesIO(raw))
+        raise FriendlyError("비밀번호가 3번 틀렸습니다. 실행기를 다시 켜서 입력해주세요.")
+    try:
+        return openpyxl.load_workbook(io.BytesIO(raw), data_only=True), False
+    except Exception:
+        raise FriendlyError(f"'{name}' 파일을 엑셀로 읽을 수 없습니다. .xlsx 형식인지 확인해주세요.")
 
 
 def find_books(paths):
@@ -136,7 +160,10 @@ def find_books(paths):
                 books["salary"] = wb
     missing = [k for k in ("salary", "loan", "portfolio") if k not in books]
     if missing:
-        sys.exit(f"엑셀을 찾지 못했습니다: {missing}  (data 폴더에 파일을 넣어주세요)")
+        label = {"salary": "급여 엑셀('○○년 소급분' 행이 있는 파일)", "loan": "대출 엑셀('복지기금' 시트가 있는 파일)",
+                 "portfolio": "미국포트폴리오 엑셀('미국주식_…' 시트가 있는 파일)"}
+        raise FriendlyError("data 폴더에서 다음 엑셀을 찾지 못했습니다:\n  - " + "\n  - ".join(label[m] for m in missing)
+                            + "\n  (읽은 파일: " + ", ".join(os.path.basename(p) for p in paths) + ")")
     return books
 
 
@@ -840,11 +867,12 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--offline", action="store_true", help="인터넷 조회 없이 cache 폴더 값만 사용")
     a = ap.parse_args()
+    os.makedirs(DATA_DIR, exist_ok=True)
     paths = a.files or sorted(os.path.join(DATA_DIR, f) for f in os.listdir(DATA_DIR)
-                              if f.lower().endswith((".xlsx", ".xlsm")) and not f.startswith("~$")) \
-        if (a.files or os.path.isdir(DATA_DIR)) else []
+                              if f.lower().endswith((".xlsx", ".xlsm")) and not f.startswith("~$"))
     if not paths:
-        sys.exit(f"엑셀 파일이 없습니다. {DATA_DIR} 폴더에 급여·대출·미국포트폴리오 엑셀을 넣어주세요.")
+        raise FriendlyError(f"엑셀 파일이 없습니다.\n  아래 폴더에 급여·대출·미국포트폴리오 엑셀 3개를 넣고 다시 실행해주세요:\n  {DATA_DIR}")
+    print("읽을 엑셀:", ", ".join(os.path.basename(p) for p in paths))
 
     if a.static:
         data = build(paths, a.offline)
@@ -857,11 +885,19 @@ def main():
         return
 
     app = App(paths, a.offline)
-    print("엑셀 읽고 환율·시세 받는 중…")
+    print("엑셀 읽고 환율·시세 받는 중… (처음엔 1~2분 걸릴 수 있어요)")
     app.refresh()
-    srv = ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(app))
-    url = f"http://127.0.0.1:{a.port}/"
-    print("대시보드:", url, "  (끝내려면 이 창에서 Ctrl+C)")
+    srv = None
+    for port in range(a.port, a.port + 10):           # 이미 켜져 있거나 다른 프로그램이 쓰면 다음 번호
+        try:
+            srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app)); break
+        except OSError:
+            continue
+    if srv is None:
+        raise FriendlyError("대시보드를 열 포트를 찾지 못했습니다. 이미 켜진 검은 창이 있으면 닫고 다시 실행해주세요.")
+    url = f"http://127.0.0.1:{port}/"
+    print("\n" + "=" * 50 + f"\n 대시보드가 열렸습니다:  {url}\n 브라우저가 안 열리면 위 주소를 직접 입력하세요.\n"
+          " 이 검은 창은 닫지 마세요 (닫으면 대시보드가 멈춥니다).\n" + "=" * 50)
     threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:
         srv.serve_forever()
@@ -869,5 +905,24 @@ def main():
         pass
 
 
+def run():
+    try:
+        main()
+    except FriendlyError as e:
+        print("\n[안내] " + str(e))
+        sys.exit(1)
+    except KeyboardInterrupt:
+        pass
+    except Exception:
+        import traceback
+        os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
+        log = os.path.join(BASE, "output", "오류기록.txt")
+        with open(log, "w", encoding="utf-8") as f:
+            traceback.print_exc(file=f)
+        traceback.print_exc()
+        print(f"\n[오류] 예상하지 못한 문제가 생겼습니다. 위 내용(또는 {log})을 캡처해서 알려주세요.")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    main()
+    run()
