@@ -54,6 +54,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE, "data")
 CACHE_DIR = os.path.join(BASE, "cache")
 OVERLAY_PATH = os.path.join(DATA_DIR, "내종목_수정.json")
+TX_PATH = os.path.join(DATA_DIR, "업데이트기록.json")      # 엑셀 이후 새로 입력하는 매수·매도·배당·급여·대출상환
 TICKER_PATH = os.path.join(DATA_DIR, "종목코드.json")
 TEMPLATE = os.path.join(BASE, "dashboard.html")
 UA = {"User-Agent": "Mozilla/5.0 (asset-dashboard)"}
@@ -679,6 +680,88 @@ def realized_by_year(us_sheets, kr_years):
     return {y: dict(v) for y, v in out.items()}
 
 
+# ─────────────────────────── 업데이트 기록 (엑셀 이후) ───────────────────────────
+
+def load_tx():
+    tx = [t for t in load_json(TX_PATH, []) if isinstance(t, dict) and t.get("date") and t.get("type")]
+    return sorted(tx, key=lambda t: (t["date"], t.get("id", 0)))
+
+
+def apply_trades(base, txs, upto, tmap):
+    """엑셀 기준 보유(base)에 upto 날짜까지의 매수·매도 기록을 순서대로 적용"""
+    import copy
+    rows = copy.deepcopy(base)
+    realized = defaultdict(lambda: defaultdict(float))
+    notes = []
+    for t in txs:
+        if t["date"] > upto or t["type"] not in ("buy", "sell"):
+            continue
+        ticker = (t.get("ticker") or "").strip().upper() or tmap.get(norm(t.get("name"))) or None
+        broker = (t.get("broker") or "미상").strip()
+        qty, price = float(t.get("qty") or 0), float(t.get("price") or 0)
+        market = "KR" if is_kr(ticker) else "US"
+        same = [r for r in rows if r["broker"] == broker and ((ticker and r.get("ticker") == ticker) or
+                                                             (not ticker and norm(r["name"]) == norm(t.get("name"))))]
+        if t["type"] == "buy":
+            if same:
+                r = same[0]
+                cost = r["qty"] * r["avg"] + qty * price
+                r["qty"] += qty; r["avg"] = cost / r["qty"] if r["qty"] else 0
+                r["cost"] = cost; r["source"] = "기록"
+            else:
+                name = t.get("name") or ticker
+                rows.append(dict(key=hkey(broker, ticker, name), name=name, ticker=ticker, broker=broker, market=market,
+                                 qty=qty, avg=price, cost=qty * price, source="기록", sheetPrice=None, unassigned=False))
+        else:
+            if not same:
+                same = [r for r in rows if ticker and r.get("ticker") == ticker and r["qty"] > 0]
+            if not same:
+                notes.append(f"{t['date']} 매도 {t.get('name') or ticker}: 보유 내역을 찾지 못함"); continue
+            r = same[0]
+            q = min(qty, r["qty"])
+            if q < qty:
+                notes.append(f"{t['date']} 매도 {r['name']}: 보유 {r['qty']:g}주보다 많아 {q:g}주만 반영")
+            realized[t["date"][:4]][r["market"] + "|" + (r.get("ticker") or norm(r["name"]))] += (price - r["avg"]) * q
+            r["qty"] -= q; r["cost"] = r["qty"] * r["avg"]; r["source"] = "기록"
+    rows = [r for r in rows if r["qty"] > 1e-9]
+    return rows, realized, notes
+
+
+def apply_other_tx(txs, salary, loans, divs, mkt):
+    """급여 변경 · 대출 상환 · 배당 수령 기록을 엑셀 데이터에 덧붙임"""
+    for t in txs:
+        d = t["date"]; y, m = int(d[:4]), int(d[5:7])
+        if t["type"] == "salary":
+            base_, bonus, perf = (float(t.get(k) or 0) for k in ("base", "bonus", "perf"))
+            prev = salary[-1]["total"] if salary else 0
+            total = base_ + bonus + perf
+            salary.append(dict(year=y, label=f"{d[2:4]}년 {m}월 변경", promo=bool(t.get("promo")), retro=float(t.get("retro") or 0),
+                               prev=prev, base=base_, bonus=bonus, perf=perf, total=total, inc=total - prev,
+                               rate=(total / prev - 1) if prev else 0, fromTx=True))
+        elif t["type"] == "repay":
+            amt = float(t.get("amount") or 0)
+            ln = next((l for l in loans if l["name"] == t.get("loan")), None)
+            if not ln or amt <= 0:
+                continue
+            before = [r for r in ln["rows"] if r["d"] <= d]
+            bal = before[-1]["bal"] if before else ln["principal"]
+            after = [r for r in ln["rows"] if r["d"] > d]
+            for r in after:
+                r["bal"] = max(0, r["bal"] - amt)
+                if r["bal"] == 0:
+                    r["principal"] = 0; r["interest"] = 0
+            ln["rows"].append(dict(d=d, interest=0, principal=round(amt), bal=round(max(0, bal - amt)), fromTx=True))
+            ln["rows"].sort(key=lambda r: r["d"])
+        elif t["type"] == "div":
+            amt = float(t.get("amount") or 0)
+            if t.get("currency", "KRW") == "USD":
+                fx, _ = mkt.fx(d); amt_krw, part = amt * (fx or 0), "us"
+            else:
+                amt_krw, part = amt, "kr"
+            dv = divs.setdefault(y, dict(us=[0] * 12, kr=[0] * 12, total=[0] * 12))
+            dv[part][m - 1] += amt_krw; dv["total"][m - 1] += amt_krw
+
+
 def build(paths, offline=False, mkt=None):
     tmap = ticker_map()
     books = find_books(paths)
@@ -694,14 +777,20 @@ def build(paths, offline=False, mkt=None):
     divs = parse_dividends(pf)
     networth = parse_networth(pf)
     overlay = load_json(OVERLAY_PATH, {"edits": {}, "added": [], "removed": []})
+    txs = load_tx()
+    for t in txs:
+        if t.get("ticker"):
+            t["ticker"] = str(t["ticker"]).strip().upper()
 
     tickers = {h["ticker"] for s in us_sheets for h in s["holdings"] if h["ticker"]}
     tickers |= {h["ticker"] for y in kr_years.values() for h in y["holdings"] if h["ticker"]}
     tickers |= {a["ticker"] for a in overlay.get("added", []) if a.get("ticker")}
     tickers |= {e["ticker"] for e in overlay.get("edits", {}).values() if e.get("ticker")}
+    tickers |= {t["ticker"] for t in txs if t.get("ticker")}
     ths = [threading.Thread(target=mkt.chart, args=(t,)) for t in tickers]
     [t.start() for t in ths]; [t.join() for t in ths]
     fx_today, fx_today_d = mkt.fx(today)
+    apply_other_tx(txs, salary, loans, divs, mkt)
 
     # 미국 분기 시트별 평가
     us_hist = []
@@ -759,6 +848,8 @@ def build(paths, offline=False, mkt=None):
         if a.get("key") in removed:
             continue
         current.append(dict(a, cost=a["qty"] * a["avg"], source="추가", sheetPrice=None, unassigned=False))
+    excel_base = current                                   # 엑셀 + 화면 수정 (업데이트 기록 적용 전)
+    current, tx_realized, tx_notes = apply_trades(excel_base, txs, today.isoformat(), tmap)
     for h in current:
         enrich_quote(mkt, h)
 
@@ -766,8 +857,20 @@ def build(paths, offline=False, mkt=None):
     us_by_date = {s["date"]: s for s in us_sheets}
     dates = sorted(d for d in set(kr_snap) | {s["date"] for s in us_sheets if s["date"].endswith("12-31")}
                    if d < today.isoformat())
+    base_date = latest_us["date"] if latest_us else "0000"
+    dates = [d for d in dates if d <= base_date]
+    # 엑셀 이후 지나간 연말은 '엑셀 기준 + 그 날까지의 업데이트 기록'으로 자동 생성
+    for y in range(int(base_date[:4]) if latest_us else today.year, today.year):
+        d = f"{y}-12-31"
+        if d > base_date:
+            dates.append(d)
     snaps = []
     for d in dates:
+        if d > base_date:
+            h_at, _, _ = apply_trades(excel_base, txs, d, tmap)
+            snaps.append(snapshot(mkt, d, f"{d[:4]}년말", [h for h in h_at if h["market"] == "US"],
+                                  [h for h in h_at if h["market"] == "KR"], loans, salary, divs))
+            continue
         us_s = us_by_date.get(d)
         snaps.append(snapshot(mkt, d, f"{d[:4]}년말",
                               us_s["holdings"] + reconcile_spread(us_s, tmap) if us_s else None,
@@ -782,9 +885,18 @@ def build(paths, offline=False, mkt=None):
         salary=salary, loans=loans, dividends={str(k): v for k, v in divs.items()},
         krMonthly={str(y): j["monthly"] for y, j in kr_years.items()},
         usHistory=us_hist, current=current, snapshots=snaps, networth=networth,
-        realized=realized_by_year(us_sheets, kr_years),
+        realized=merge_realized(realized_by_year(us_sheets, kr_years), tx_realized),
         tax=dict(us=US_WITHHOLD, kr=KR_WITHHOLD), overlay=overlay,
+        tx=txs, txNotes=tx_notes, baseDate=base_date,
     )
+
+
+def merge_realized(a, b):
+    out = {y: dict(v) for y, v in a.items()}
+    for y, v in b.items():
+        for k, x in v.items():
+            out.setdefault(y, {})[k] = out.get(y, {}).get(k, 0) + x
+    return out
 
 
 def enrich_quote(mkt, h):
@@ -822,6 +934,8 @@ class App:
         self.paths, self.offline = paths, offline
         self.data, self.lock = None, threading.Lock()
         self.mkt = Market(offline=offline)
+        self.last_seen = time.time()
+        self.server = None
 
     def refresh(self):
         with self.lock:
@@ -844,8 +958,11 @@ def make_handler(app):
             self.wfile.write(b)
 
         def do_GET(self):
+            app.last_seen = time.time()
             u = urllib.parse.urlparse(self.path)
             q = urllib.parse.parse_qs(u.query)
+            if u.path == "/api/ping":
+                return self._send(200, '{"ok":true,"app":"asset-dashboard"}')
             if u.path in ("/", "/index.html"):
                 with open(TEMPLATE, encoding="utf-8") as f:
                     return self._send(200, f.read().replace("__DATA__", "null"), "text/html; charset=utf-8")
@@ -864,7 +981,12 @@ def make_handler(app):
             return self._send(404, '{"error":"not found"}')
 
         def do_POST(self):
+            app.last_seen = time.time()
             u = urllib.parse.urlparse(self.path)
+            if u.path == "/api/shutdown":
+                self._send(200, '{"ok":true}')
+                threading.Thread(target=app.server.shutdown, daemon=True).start()
+                return
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
             if u.path == "/api/overlay":
@@ -879,10 +1001,95 @@ def make_handler(app):
                         tm[e["name"]] = e["ticker"]
                 save_json(TICKER_PATH, tm)
                 return self._send(200, json.dumps(app.refresh(), ensure_ascii=False, default=str))
+            if u.path == "/api/tx":
+                txs = [t for t in body.get("tx", []) if isinstance(t, dict) and t.get("date") and t.get("type")]
+                save_json(TX_PATH, txs)
+                return self._send(200, json.dumps(app.refresh(), ensure_ascii=False, default=str))
             if u.path == "/api/refresh":
                 return self._send(200, json.dumps(app.refresh(), ensure_ascii=False, default=str))
             return self._send(404, '{"error":"not found"}')
     return H
+
+
+IDLE_LIMIT = 10 * 60      # 브라우저 탭을 닫고 이 시간(초) 동안 요청이 없으면 자동 종료
+
+
+def running_on(port):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=2) as r:
+            return b"asset-dashboard" in r.read()
+    except Exception:
+        return False
+
+
+def free_port(start):
+    import socket
+    for port in range(start, start + 10):
+        with socket.socket() as sk:
+            if os.name != "nt":
+                sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)   # 방금 끈 서버의 TIME_WAIT 무시
+            try:
+                sk.bind(("127.0.0.1", port)); return port
+            except OSError:
+                continue
+    raise FriendlyError("대시보드를 열 포트를 찾지 못했습니다. PC를 재시작한 뒤 다시 실행해주세요.")
+
+
+def serve(paths, port, offline):
+    """백그라운드(창 없음)에서 도는 대시보드 서버"""
+    app = App(paths, offline)
+    app.refresh()
+    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
+    app.server = srv
+
+    def idle_watch():
+        while True:
+            time.sleep(30)
+            if time.time() - app.last_seen > IDLE_LIMIT:
+                srv.shutdown(); return
+    threading.Thread(target=idle_watch, daemon=True).start()
+    srv.serve_forever()
+
+
+def launch_background(paths, port, offline):
+    """비밀번호를 확인한 뒤 창 없는 서버를 띄우고, 준비되면 브라우저를 연다. 검은 창은 닫힌다."""
+    import subprocess
+    exe = sys.executable
+    flags = 0
+    if os.name == "nt":
+        w = os.path.join(os.path.dirname(exe), "pythonw.exe")
+        if os.path.exists(w):
+            exe = w
+        flags = 0x00000008 | 0x00000200 | 0x08000000   # DETACHED_PROCESS | NEW_PROCESS_GROUP | NO_WINDOW
+    env = dict(os.environ)
+    if _PASSWORD:
+        env["ASSET_XLSX_PASSWORD"] = _PASSWORD          # 자식 프로세스 메모리로만 전달 (파일·명령줄에 남기지 않음)
+    os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
+    log = os.path.join(BASE, "output", "오류기록.txt")
+    if os.path.exists(log):
+        os.remove(log)
+    cmd = [exe, os.path.abspath(__file__), "--serve", "--port", str(port)] + (["--offline"] if offline else []) + paths
+    kw = dict(env=env, cwd=BASE, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.name == "nt":
+        kw["creationflags"] = flags
+    else:
+        kw["start_new_session"] = True
+    proc = subprocess.Popen(cmd, **kw)
+    print("엑셀 읽고 환율·시세 받는 중… (처음엔 1~2분 걸릴 수 있어요)", end="", flush=True)
+    for _ in range(300):
+        if running_on(port):
+            break
+        if proc.poll() is not None:
+            msg = open(log, encoding="utf-8").read() if os.path.exists(log) else ""
+            last = [l for l in msg.strip().splitlines() if l.strip()][-1:] or ["알 수 없는 오류"]
+            raise FriendlyError("대시보드 서버가 시작되지 못했습니다: " + last[0] + f"\n  자세한 내용: {log}")
+        time.sleep(1); print(".", end="", flush=True)
+    else:
+        raise FriendlyError("대시보드 준비가 너무 오래 걸립니다. 인터넷 연결을 확인하고 다시 실행해주세요.")
+    url = f"http://127.0.0.1:{port}/"
+    print(f"\n\n대시보드를 열었습니다: {url}\n이 창은 곧 닫힙니다. 끌 때는 대시보드 오른쪽 위 [종료] 버튼을 누르세요.")
+    webbrowser.open(url)
+    time.sleep(3)
 
 
 def main():
@@ -891,12 +1098,28 @@ def main():
     ap.add_argument("--static", metavar="OUT.html", help="서버 없이 데이터가 담긴 HTML 한 장으로 저장")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--offline", action="store_true", help="인터넷 조회 없이 cache 폴더 값만 사용")
+    ap.add_argument("--foreground", action="store_true", help="검은 창에서 서버를 계속 실행(창을 닫으면 종료)")
+    ap.add_argument("--serve", action="store_true", help=argparse.SUPPRESS)   # 내부용: 창 없는 서버
     a = ap.parse_args()
+
+    if a.serve:
+        serve(a.files, a.port, a.offline)
+        return
+
+    if not a.static:                                  # 이미 켜져 있으면 브라우저만 연다
+        live_port = next((pt for pt in range(a.port, a.port + 10) if running_on(pt)), None)
+        if live_port:
+            print("이미 실행 중인 대시보드를 엽니다.")
+            webbrowser.open(f"http://127.0.0.1:{live_port}/")
+            time.sleep(2)
+            return
+
     os.makedirs(DATA_DIR, exist_ok=True)
     paths = a.files or sorted(os.path.join(DATA_DIR, f) for f in os.listdir(DATA_DIR)
                               if f.lower().endswith((".xlsx", ".xlsm")) and not f.startswith("~$"))
     if not paths:
         raise FriendlyError(f"엑셀 파일이 없습니다.\n  아래 폴더에 급여·대출·미국포트폴리오 엑셀 3개를 넣고 다시 실행해주세요:\n  {DATA_DIR}")
+    paths = [os.path.abspath(p) for p in paths]
     print("읽을 엑셀:", ", ".join(os.path.basename(p) for p in paths))
 
     if a.static:
@@ -909,38 +1132,38 @@ def main():
         print("저장:", a.static)
         return
 
-    app = App(paths, a.offline)
-    print("엑셀 읽고 환율·시세 받는 중… (처음엔 1~2분 걸릴 수 있어요)")
-    app.refresh()
-    srv = None
-    for port in range(a.port, a.port + 10):           # 이미 켜져 있거나 다른 프로그램이 쓰면 다음 번호
-        try:
-            srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app)); break
-        except OSError:
-            continue
-    if srv is None:
-        raise FriendlyError("대시보드를 열 포트를 찾지 못했습니다. 이미 켜진 검은 창이 있으면 닫고 다시 실행해주세요.")
-    url = f"http://127.0.0.1:{port}/"
-    print("\n" + "=" * 50 + f"\n 대시보드가 열렸습니다:  {url}\n 브라우저가 안 열리면 위 주소를 직접 입력하세요.\n"
-          " 이 검은 창은 닫지 마세요 (닫으면 대시보드가 멈춥니다).\n" + "=" * 50)
-    threading.Timer(0.8, lambda: webbrowser.open(url)).start()
-    try:
-        srv.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    find_books(paths)                                 # 여기서 비밀번호 확인·엑셀 구성 점검 (실패하면 바로 안내)
+    port = free_port(a.port)
+    if a.foreground:
+        print("엑셀 읽고 환율·시세 받는 중…")
+        url = f"http://127.0.0.1:{port}/"
+        threading.Timer(3, lambda: webbrowser.open(url)).start()
+        print(f"대시보드: {url}  (이 창을 닫으면 종료)")
+        serve(paths, port, a.offline)
+        return
+    launch_background(paths, port, a.offline)
 
 
 def run():
     try:
         main()
     except FriendlyError as e:
-        print("\n[안내] " + str(e))
+        if "--serve" in sys.argv:
+            os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
+            with open(os.path.join(BASE, "output", "오류기록.txt"), "w", encoding="utf-8") as f:
+                f.write(str(e))
+        else:
+            print("\n[안내] " + str(e))
         sys.exit(1)
     except KeyboardInterrupt:
         pass
     except Exception:
         import traceback
         os.makedirs(os.path.join(BASE, "output"), exist_ok=True)
+        if sys.stdout is None or "--serve" in sys.argv:
+            with open(os.path.join(BASE, "output", "오류기록.txt"), "w", encoding="utf-8") as f:
+                traceback.print_exc(file=f)
+            sys.exit(1)
         log = os.path.join(BASE, "output", "오류기록.txt")
         with open(log, "w", encoding="utf-8") as f:
             traceback.print_exc(file=f)

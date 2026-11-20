@@ -81,6 +81,8 @@ td input.wide{width:120px;text-align:left}
 .check p{margin:2px 0 0;color:var(--ink2)}
 .verdict{font-size:15px;margin:4px 0 10px}
 .addform{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid var(--grid)}
+.tf{display:contents}
+.tf.hide{display:none}
 .addform label{display:flex;flex-direction:column;font-size:11px;color:var(--ink2);gap:2px}
 .addform input,.addform select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--ring);border-radius:6px;background:var(--surface);color:var(--ink);width:120px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--page);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;z-index:30;max-width:calc(100% - 32px);pointer-events:none}
@@ -102,10 +104,38 @@ td input.wide{width:120px;text-align:left}
     <span><span class="dot" id="liveDot"></span> <span id="liveText">불러오는 중…</span></span>
     <button class="btn" id="btnLive">⟳ 시세 갱신</button>
     <button class="btn" id="theme">🌓</button>
+    <button class="btn" id="btnQuit" title="대시보드 프로그램 끄기">종료</button>
   </div>
 </header>
 
 <section class="kpis" id="kpis"></section>
+
+<h2>✏️ 업데이트 기록 — 엑셀 이후 새로 생긴 일 입력</h2>
+<div class="sub">엑셀은 그대로 두고, 앞으로의 매수·매도·배당·급여·대출상환은 여기에 입력하세요. 저장하면 보유수량·평단·평가액·배당·연봉·대출·연도별 분석이 바로 바뀝니다. <span id="txBase"></span></div>
+<div class="card">
+  <div class="addform" style="margin-top:0;padding-top:0;border-top:0" id="txForm">
+    <label>종류<select id="t-type">
+      <option value="buy">주식 매수</option><option value="sell">주식 매도</option>
+      <option value="div">배당 받음</option><option value="salary">급여 변경</option><option value="repay">대출 상환</option></select></label>
+    <label>날짜<input id="t-date" type="date"></label>
+    <span class="tf tf-buy tf-sell tf-div"><label>계좌(증권사)<input id="t-broker" list="brokers" placeholder="예: 토스"></label></span>
+    <span class="tf tf-buy tf-sell tf-div"><label>종목(티커/코드)<input id="t-ticker" list="tickers" placeholder="SCHD · 360750"></label></span>
+    <span class="tf tf-buy tf-sell"><label>수량<input id="t-qty" type="number" step="any"></label></span>
+    <span class="tf tf-buy tf-sell"><label>단가(달러/원)<input id="t-price" type="number" step="any"></label></span>
+    <span class="tf tf-div"><label>받은 금액(세후)<input id="t-amount" type="number" step="any"></label></span>
+    <span class="tf tf-div"><label>통화<select id="t-cur"><option value="USD">달러</option><option value="KRW">원</option></select></label></span>
+    <span class="tf tf-salary"><label>기본급<input id="t-base" type="number"></label></span>
+    <span class="tf tf-salary"><label>기준상여<input id="t-bonus" type="number"></label></span>
+    <span class="tf tf-salary"><label>업적금<input id="t-perf" type="number"></label></span>
+    <span class="tf tf-repay"><label>대출<select id="t-loan"></select></label></span>
+    <span class="tf tf-repay"><label>상환 금액(원)<input id="t-repay" type="number"></label></span>
+    <label>메모<input id="t-memo" placeholder="선택"></label>
+    <button class="btn pri" id="t-save">저장</button>
+    <span class="sub" id="t-msg"></span>
+  </div>
+  <datalist id="tickers"></datalist>
+  <div class="tbl" style="max-height:320px;margin-top:12px"><table id="t-tx"></table></div>
+</div>
 
 <h2>① 자산 증식 — 연말마다 실제로 얼마나 불었나</h2>
 <div class="sub">연말 보유수량 × 연말 종가 × 서울외국환중개 연말 매매기준율로 평가. 증가분을 <b>내 돈 납입</b> / <b>주가 효과</b> / <b>환율 효과</b> / <b>대출 증감</b>으로 나눴습니다.</div>
@@ -194,7 +224,8 @@ const LS_KEY = 'asset-dash-overlay-v1';
 let LIVE = {prices:{}, fx:null, at:null};
 let decoIdx = null, perfYear = null;
 let toastT=null;
-function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),3500); }
+let QUIT=false;
+function toast(m){ const t=$('#toast'); if(!t) return; t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>{ if(document.body.contains(t)) t.classList.remove('on'); },3500); }
 
 /* ---------- 정적(HTML 한 장) 모드: 화면 수정은 이 브라우저에만 저장 ---------- */
 function lsGet(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'null'); }catch(e){ return null; } }
@@ -351,6 +382,7 @@ function lines(id, labels, series, o={}){
 
 /* ---------- 렌더 ---------- */
 function render(){
+  if(QUIT) return;
   const H = holdings();
   const S = [...snaps(), currentSnap(H)];
   const T = S.map(tot);
@@ -496,6 +528,7 @@ function render(){
     return `<tr><td>${esc(l.name)}</td><td>${man(l.principal)} · ${pct(l.rate)}</td><td>${won(bal)}</td><td>${n?n.d.slice(5).replace('-','/')+' · '+won(n.principal+n.interest):(l.amortizing?'완납':'시트 기록 종료(이자만)')}</td><td>${l.amortizing?won(left):'연 '+won(l.principal*l.rate)}</td></tr>`; }).join('');
 
   renderChecks(H,S,T,periods,{annual,fwdNet,cur,curS});
+  renderTx(H);
   $('#notes').innerHTML = `· 연말 평가: 보유수량 × 연말 종가(Yahoo Finance, 분할·병합 자동 보정) × 서울외국환중개 연말 매매기준율. 휴일이면 직전 영업일 값.<br>
   · 실시간: 네이버증권 시세(국내 실시간, 미국은 장중 실시간/장 마감 후 종가) · 환율은 네이버(하나은행 고시) 실시간, 없으면 서울외국환중개 당일 매매기준율.<br>
   · 미국 현재 보유는 최신 분기 시트 기준이며, 이후 매매는 '보유 종목' 표에서 수량을 고치거나 추가하면 바로 반영됩니다.<br>
@@ -568,15 +601,89 @@ $('#a-add').onclick=()=>{
   pushOverlay(o);
 };
 
+
+/* ---------- 업데이트 기록 ---------- */
+const TX_LABEL={buy:'매수',sell:'매도',div:'배당',salary:'급여 변경',repay:'대출 상환'};
+function txDesc(t){
+  const cur = /^[0-9][0-9A-Z]{5}$/.test(t.ticker||'')? '원' : '$';
+  const money = v => cur==='$'? '$'+(+v).toLocaleString('en-US',{maximumFractionDigits:2}) : won(+v);
+  if(t.type==='buy'||t.type==='sell') return [`${esc(t.broker||'')} · ${esc(t.name||t.ticker)} ${+t.qty}주 × ${money(t.price)}`, cur==='$'? usd(t.qty*t.price) : won(t.qty*t.price)];
+  if(t.type==='div') return [`${esc(t.broker||'')} ${esc(t.name||t.ticker||'')}`, t.currency==='USD'? usd(+t.amount) : won(+t.amount)];
+  if(t.type==='salary') return [`기본급 ${won(+t.base)} + 기준상여 ${won(+t.bonus)} + 업적금 ${won(+t.perf)}`, won((+t.base)+(+t.bonus)+(+t.perf))+'/월'];
+  if(t.type==='repay') return [esc(t.loan), won(+t.amount)];
+  return ['',''];
+}
+function renderTx(H){
+  const T=D.tx||[];
+  $('#txBase').textContent = D.baseDate? `(엑셀 미국주식 기준일 ${D.baseDate})` : '';
+  $('#tickers').innerHTML=[...new Map(H.filter(h=>h.ticker).map(h=>[h.ticker,h.name])).entries()].map(([t,n])=>`<option value="${esc(t)}">${esc(n)}</option>`).join('');
+  $('#t-loan').innerHTML=D.loans.map(l=>`<option>${esc(l.name)}</option>`).join('');
+  $('#t-tx').innerHTML = T.length? `<tr><th>날짜</th><th style="text-align:left">종류</th><th style="text-align:left">내용</th><th>금액</th><th>메모</th><th></th></tr>`+
+    [...T].reverse().map(t=>{ const [d,a]=txDesc(t); return `<tr><td>${t.date}</td><td style="text-align:left">${TX_LABEL[t.type]||t.type}</td><td style="text-align:left">${d}</td><td>${a}</td><td style="text-align:left">${esc(t.memo||'')}</td><td><button class="btn sm" data-txdel="${t.id}">삭제</button></td></tr>`; }).join('')
+    : `<tr><td class="sub">아직 입력한 기록이 없어요. 위에서 종류를 고르고 입력 후 [저장]을 누르세요.</td></tr>`;
+  if((D.txNotes||[]).length) $('#t-tx').insertAdjacentHTML('beforeend', D.txNotes.map(n=>`<tr class="flag"><td colspan="6" style="text-align:left">⚠ ${esc(n)}</td></tr>`).join(''));
+  $('#t-tx').querySelectorAll('[data-txdel]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.arm!=='1'){ b.dataset.arm='1'; b.textContent='한 번 더'; setTimeout(()=>{b.dataset.arm='';b.textContent='삭제';},3000); return; }
+    saveTx((D.tx||[]).filter(t=>String(t.id)!==b.dataset.txdel)); toast('기록을 지웠어요.'); });
+}
+function txFields(){
+  const ty=$('#t-type').value;
+  document.querySelectorAll('#txForm .tf').forEach(e=>e.classList.toggle('hide', !e.classList.contains('tf-'+ty)));
+  if(ty==='salary' && !$('#t-base').value){ const s=D.salary[D.salary.length-1]; $('#t-base').value=s.base; $('#t-bonus').value=s.bonus; $('#t-perf').value=s.perf; }
+}
+async function saveTx(list){
+  if(STATIC){ toast('업데이트 기록 저장은 PC 실행기에서만 돼요.'); return; }
+  const r=await fetch('/api/tx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tx:list})});
+  D=await r.json(); render(); refreshLive();
+}
+$('#t-type').onchange=txFields;
+$('#t-ticker').onchange=()=>{ const v=$('#t-ticker').value.trim().toUpperCase(); const h=D.current.find(x=>x.ticker===v); if(h && !$('#t-broker').value) $('#t-broker').value=h.broker; if(h && $('#t-type').value==='div') $('#t-cur').value=h.market==='US'?'USD':'KRW'; };
+$('#t-save').onclick=()=>{
+  const ty=$('#t-type').value, date=$('#t-date').value, num=id=>parseFloat($(id).value);
+  const t={id:Date.now(), type:ty, date, memo:$('#t-memo').value.trim()};
+  if(!date){ $('#t-msg').textContent='날짜를 입력해주세요.'; return; }
+  if(ty==='buy'||ty==='sell'){
+    const tk=$('#t-ticker').value.trim().toUpperCase(), h=D.current.find(x=>x.ticker===tk);
+    Object.assign(t,{broker:$('#t-broker').value.trim(), ticker:tk, name:h?h.name:tk, qty:num('#t-qty'), price:num('#t-price')});
+    if(!t.broker||!tk||!(t.qty>0)||!(t.price>0)){ $('#t-msg').textContent='계좌·종목·수량·단가를 입력해주세요.'; return; }
+  } else if(ty==='div'){
+    const tk=$('#t-ticker').value.trim().toUpperCase(), h=D.current.find(x=>x.ticker===tk);
+    Object.assign(t,{broker:$('#t-broker').value.trim(), ticker:tk, name:h?h.name:tk, amount:num('#t-amount'), currency:$('#t-cur').value});
+    if(!(t.amount>0)){ $('#t-msg').textContent='받은 금액을 입력해주세요.'; return; }
+  } else if(ty==='salary'){
+    Object.assign(t,{base:num('#t-base')||0, bonus:num('#t-bonus')||0, perf:num('#t-perf')||0});
+    if(!(t.base>0)){ $('#t-msg').textContent='기본급을 입력해주세요.'; return; }
+  } else if(ty==='repay'){
+    Object.assign(t,{loan:$('#t-loan').value, amount:num('#t-repay')});
+    if(!(t.amount>0)){ $('#t-msg').textContent='상환 금액을 입력해주세요.'; return; }
+  }
+  saveTx([...(D.tx||[]), t]);
+  ['#t-qty','#t-price','#t-amount','#t-repay','#t-memo'].forEach(id=>$(id).value='');
+  $('#t-msg').textContent=''; toast(`${TX_LABEL[ty]} 기록을 저장했어요. 모든 숫자에 반영됩니다.`);
+};
+$('#t-date').value = new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+txFields();
+if(STATIC){ $('#t-save').disabled=true; $('#t-msg').textContent='저장된 스냅샷 파일이라 입력이 안 돼요. PC 실행기로 열어주세요.'; }
+
 /* ---------- 실시간 시세 ---------- */
 let liveTimer=null;
 async function refreshLive(){
-  if(STATIC) return;
-  try{ LIVE = await (await fetch('/api/live')).json(); $('#liveDot').classList.add('on');
+  if(STATIC||QUIT) return;
+  try{ const L = await (await fetch('/api/live')).json(); if(QUIT) return; LIVE=L; $('#liveDot').classList.add('on');
     $('#liveText').textContent = `실시간 연결 · ${LIVE.at.slice(11)} 갱신 · 30초마다`; render(); }
-  catch(e){ $('#liveDot').classList.remove('on'); $('#liveText').textContent='시세 서버 연결 끊김'; }
+  catch(e){ if(QUIT) return; $('#liveDot').classList.remove('on'); $('#liveText').textContent='프로그램이 꺼져 있어요 · 실행기를 다시 더블클릭하세요'; }
 }
 $('#btnLive').onclick=()=>{ if(STATIC){ toast('이 파일은 저장된 스냅샷이라 실시간 시세가 없어요. PC에서 자산대시보드_실행하기.bat으로 열면 30초마다 갱신됩니다.'); return; } refreshLive(); toast('시세를 새로 받는 중…'); };
+
+/* ---------- 종료 ---------- */
+$('#btnQuit').onclick=async()=>{
+  if(STATIC){ toast('이 파일은 저장된 스냅샷이라 끌 프로그램이 없어요. 창(탭)만 닫으면 돼요.'); return; }
+  const b=$('#btnQuit');
+  if(b.dataset.arm!=='1'){ b.dataset.arm='1'; b.textContent='한 번 더 누르면 종료'; setTimeout(()=>{ b.dataset.arm=''; b.textContent='종료'; },4000); return; }
+  clearInterval(liveTimer); QUIT=true; clearTimeout(toastT);
+  try{ await fetch('/api/shutdown',{method:'POST'}); }catch(e){}
+  document.body.innerHTML='<div style="max-width:520px;margin:120px auto;padding:24px;text-align:center;font:15px/1.7 system-ui,sans-serif"><h2>대시보드를 종료했어요</h2><p>이 탭은 닫으셔도 됩니다.<br>다시 보려면 <b>자산대시보드_실행하기.bat</b>을 더블클릭하세요.</p></div>';
+};
 
 /* ---------- 테마 ---------- */
 let theme=null;

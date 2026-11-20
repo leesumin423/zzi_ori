@@ -31,6 +31,10 @@ if errorlevel 1 (
 echo.
 echo 2) data 폴더의 엑셀을 읽습니다.
 %PYCMD% asset_dashboard.py
-echo.
-echo 위 [안내] 메시지를 확인해주세요. 해결이 안 되면 이 창을 캡처해서 보내주세요.
-pause
+if errorlevel 1 (
+    echo.
+    echo 위 [안내] 메시지를 확인해주세요. 해결이 안 되면 이 창을 캡처해서 보내주세요.
+    pause
+    exit /b 1
+)
+exit /b 0
